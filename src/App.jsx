@@ -557,14 +557,13 @@ function App() {
   const lastWorkout = history.length > 0 ? history[0] : null
   const suggestedNext = getSuggestedNext()
   const isNew = history.length === 0
-  const disabledText = 'Shown when you complete your first workout'
 
   return (
     <>
       {showSplash && (
         <div className="fixed inset-0 bg-[#0D0D1A] flex flex-col items-center justify-center z-50">
-          <img src="/icon.svg" className="w-20 h-20 mb-4 animate-bounce" alt="Hutraz" />
-          <div className="text-2xl font-bold tracking-widest text-white">HUTRAZ</div>
+          <img src="/icon.svg" className="w-20 h-20 mb-4 animate-bounce" alt="Repliqe" />
+          <div className="text-2xl font-bold tracking-widest text-white">REPLIQE</div>
           <div className="text-xs text-[#7B7BFF] mt-2">Simple tracking. Real progress.</div>
         </div>
       )}
@@ -610,18 +609,12 @@ function App() {
           {/* WORKOUT START SCREEN */}
           {page === 'workout' && !workoutActive && !showCompleteScreen && (
             <div>
-              <h1 className="text-2xl font-bold tracking-tight mb-1">HUTRAZ</h1>
-              <p className="text-xs text-[#7B7BFF] mb-6">Simple tracking. Real progress.</p>
+              <h1 className="text-2xl font-bold tracking-tight mb-6">Workout</h1>
 
-              <div className="text-[11px] font-bold text-[#777] uppercase tracking-wider mb-2">Last workout {lastWorkout ? `· ${relativeTime(lastWorkout.date)}` : ''}</div>
-              <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-4 mb-4">
-                {lastWorkout ? (<>
-                  <div className="flex justify-between items-center mb-2"><span className="text-[15px] font-bold">{lastWorkout.name || lastWorkout.date}</span><span className="text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-[#7B7BFF]/10 text-[#7B7BFF]">Last</span></div>
-                  <div className="flex flex-wrap gap-1 mb-2">{lastWorkout.exercises.map((ex, i) => <span key={i} className="bg-[#1C1C38] rounded-md px-2 py-0.5 text-[11px] text-[#aaa]">{ex.name}</span>)}</div>
-                  <div className="flex items-center gap-3 mb-3 text-[11px] text-[#777]">{lastWorkout.duration && <span>{formatDuration(lastWorkout.duration)}</span>}<span>{lastWorkout.exercises.reduce((s, ex) => s + ex.sets.length, 0)} sets</span><span>{lastWorkout.exercises.length} exercises</span></div>
-                  <button onClick={() => tryStart('last', lastWorkout)} className="flex items-center justify-center gap-2 w-full py-2 mt-2 border-[1.5px] border-[#7B7BFF] rounded-xl text-xs font-bold text-[#7B7BFF] hover:bg-[#7B7BFF]/8 transition-colors"><PlayIcon className="w-3 h-3" /> Start</button>
-                </>) : <div className="text-xs text-[#666] italic py-2">{disabledText}</div>}
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-[#7B7BFF] uppercase tracking-wide">Start Workout</h3>
               </div>
+              <div className="text-[11px] text-[#666] mb-4">Choose one of these options to start your workout</div>
 
               <div className="text-[11px] font-bold text-[#777] uppercase tracking-wider mb-2">Suggested next</div>
               <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-4 mb-4">
@@ -701,14 +694,13 @@ function App() {
           {/* ACTIVE WORKOUT */}
           {page === 'workout' && workoutActive && !showCompleteScreen && (
             <div>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold tracking-tight">{workoutName || 'Workout'}</h1>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5 text-[#5BF5A0] text-sm font-bold tabular-nums"><div className="w-2 h-2 bg-[#5BF5A0] rounded-full animate-pulse" />{formatTime(workoutElapsed)}</div>
                   <button onClick={cancelWorkout} className="text-[11px] font-semibold text-[#777] border border-[#2A2A4A] px-3 py-1.5 rounded-lg hover:border-red-500/50 hover:text-red-400 transition-colors">Cancel</button>
                 </div>
               </div>
-              <p className="text-xs text-[#7B7BFF] mb-6">Simple tracking. Real progress.</p>
 
               {editingTemplate && (
                 <div className="bg-[#7B7BFF]/10 border border-[#7B7BFF]/30 rounded-xl p-3 mb-4">
@@ -810,7 +802,7 @@ function App() {
               </div>
               <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-5">
                 <h3 className="text-sm font-semibold text-[#7B7BFF] uppercase tracking-wide mb-4">About</h3>
-                <div className="text-xs text-[#777]"><div className="mb-1">HUTRAZ v1.0</div><div>Simple tracking. Real progress.</div></div>
+                <div className="text-xs text-[#777]"><div className="mb-1">REPLIQE v1.0</div><div>Simple tracking. Real progress.</div></div>
               </div>
             </div>
           )}
@@ -923,7 +915,7 @@ function App() {
         <div className="fixed bottom-0 left-0 right-0 bg-[#0D0D1A]/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-3 pb-8 flex justify-around max-w-md mx-auto">
           <button onClick={() => setPage('progress')} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-[#7B7BFF]' : 'stroke-white'}`}><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-[10px] font-semibold ${page === 'progress' ? 'text-[#7B7BFF]' : 'text-white'}`}>Progress</span></button>
           <button onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-[#7B7BFF]' : 'stroke-white'}`}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-[10px] font-semibold ${page === 'workout' ? 'text-[#7B7BFF]' : 'text-white'}`}>Workout</span></button>
-          <button onClick={() => setPage('library')} className={`flex flex-col items-center gap-1 ${page === 'library' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-5 h-5 ${page === 'library' ? 'stroke-[#7B7BFF]' : 'stroke-white'}`}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span className={`text-[10px] font-semibold ${page === 'library' ? 'text-[#7B7BFF]' : 'text-white'}`}>Library</span></button>
+          <button onClick={() => setPage('library')} className={`flex flex-col items-center gap-1 ${page === 'library' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-5 h-5 ${page === 'library' ? 'stroke-[#7B7BFF]' : 'stroke-white'}`}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span className={`text-[10px] font-semibold ${page === 'library' ? 'text-[#7B7BFF]' : 'text-white'}`}>Exercises</span></button>
           <button onClick={() => setPage('profile')} className={`flex flex-col items-center gap-1 ${page === 'profile' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'profile' ? 'stroke-[#7B7BFF]' : 'stroke-white'}`}><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg><span className={`text-[10px] font-semibold ${page === 'profile' ? 'text-[#7B7BFF]' : 'text-white'}`}>Profile</span></button>
         </div>
       </div>

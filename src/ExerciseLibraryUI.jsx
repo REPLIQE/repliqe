@@ -1,21 +1,12 @@
 import { useState } from 'react'
 import MuscleIcon from './MuscleIcon'
-import { MUSCLE_GROUPS, EQUIPMENT_TYPES, TYPE_LABELS, getMovementLabel, filterExercises, groupByMuscle } from './exerciseLibrary'
+import { MUSCLE_GROUPS, EQUIPMENT_TYPES, TYPE_LABELS, filterExercises, groupByMuscle } from './exerciseLibrary'
 
-const MOVEMENT_FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'push', label: 'Push' },
-  { id: 'pull', label: 'Pull' },
-  { id: 'upper', label: 'Upper' },
-  { id: 'lower', label: 'Lower' },
-]
-
-const MUSCLE_KEYS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core']
+const MUSCLE_KEYS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'mobility']
 
 export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, onClose, onCreateCustom, onEditExercise }) {
   const [search, setSearch] = useState('')
   const [myOnly, setMyOnly] = useState(false)
-  const [movement, setMovement] = useState('all')
   const [muscles, setMuscles] = useState([])
   const [equipment, setEquipment] = useState('all')
   const [selected, setSelected] = useState([]) // for modal multiselect
@@ -37,7 +28,7 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
     setSelected([])
   }
 
-  const filtered = filterExercises(allExercises, { search, movement, muscles, equipment, myOnly })
+  const filtered = filterExercises(allExercises, { search, muscles, equipment, myOnly })
   const grouped = groupByMuscle(filtered)
   const totalCount = allExercises.length
   const customCount = allExercises.filter(e => e.isCustom).length
@@ -67,17 +58,6 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
 
       {/* Create custom */}
       <button onClick={onCreateCustom} className="flex items-center justify-center gap-1.5 w-full py-3 border-[1.5px] border-dashed border-[#5BF5A0]/40 rounded-xl text-[#5BF5A0] text-xs font-semibold mb-3 hover:bg-[#5BF5A0]/5 transition-colors">+ Create custom exercise</button>
-
-      {/* Movement filter */}
-      <div className="mb-2">
-        <div className="text-[9px] font-bold text-[#666] uppercase tracking-wider mb-1.5">Movement</div>
-        <div className="flex gap-1 flex-wrap">
-          {MOVEMENT_FILTERS.map(f => (
-            <button key={f.id} onClick={() => setMovement(f.id)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border-[1.5px] transition-all ${movement === f.id ? chipOn : chipOff}`}>{f.label}</button>
-          ))}
-        </div>
-      </div>
 
       {/* Muscle group filter */}
       <div className="mb-2">
@@ -132,7 +112,6 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
             {/* Exercise items */}
             {exs.map(ex => {
               const isSelected = selected.includes(ex.name)
-              const movLabel = getMovementLabel(ex)
               const typeLabel = TYPE_LABELS[ex.type] || 'Weight + Reps'
 
               return (
@@ -147,7 +126,7 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-white/5 text-[#888]">{ex.equipment}</span>
-                      <span className="text-[9px] font-semibold text-[#555]">{movLabel ? `${movLabel} · ` : ''}{typeLabel}</span>
+                      <span className="text-[9px] font-semibold text-[#555]">{typeLabel}</span>
                     </div>
                   </div>
                   {mode === 'modal' && (
@@ -203,7 +182,7 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
   // PAGE mode
   return (
     <div>
-      <h1 className="text-2xl font-bold tracking-tight mb-1">Exercise Library</h1>
+      <h1 className="text-2xl font-bold tracking-tight mb-1">Exercises</h1>
       <div className="text-xs text-[#7B7BFF] mb-4">{totalCount} exercises{customCount > 0 ? ` · ${customCount} custom` : ''}</div>
       {content}
     </div>

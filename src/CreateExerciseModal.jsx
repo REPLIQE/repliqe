@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import MuscleIcon from './MuscleIcon'
 import { MUSCLE_GROUPS, EQUIPMENT_TYPES, TYPE_LABELS } from './exerciseLibrary'
 
-const MUSCLE_KEYS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core']
+const MUSCLE_KEYS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'mobility']
 const TYPE_KEYS = ['weight_reps', 'bw_reps', 'reps_only', 'time_only', 'distance_time']
 const MOVEMENT_OPTIONS = [
   { id: 'push', label: 'Push' },
