@@ -12,6 +12,10 @@ function PlayIcon({ className = 'w-3.5 h-3.5' }) {
   return <svg viewBox="0 0 24 24" className={`${className} fill-current`}><polygon points="5 3 19 12 5 21 5 3"/></svg>
 }
 
+function RepliqeLogo({ size = 28 }) {
+  return <svg width={size} height={size} viewBox="0 0 100 100" className="shrink-0"><rect x="8" y="5" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.9"/><rect x="54" y="5" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.9"/><rect x="8" y="37" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.7"/><rect x="54" y="37" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.7"/><rect x="8" y="69" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.5"/><rect x="54" y="69" width="38" height="26" rx="8" fill="#5BF5A0" opacity="0.9"/></svg>
+}
+
 function relativeTime(dateStr) {
   if (!dateStr) return ''
   const parts = dateStr.split('/')
@@ -122,7 +126,7 @@ function App() {
   function completeRest() {
     if (!activeRest) return
     const { exIndex, setIndex } = activeRest
-    const elapsed = Math.floor((Date.now() - restStartRef.current) / 1000)
+    const elapsed = Math.max(1, Math.floor((Date.now() - restStartRef.current) / 1000))
     const n = [...exercises]; n[exIndex].sets[setIndex].restTime = elapsed
     setExercises(n); setActiveRest(null); setRestTime(0); restStartRef.current = null
     if (navigator.vibrate) navigator.vibrate([200, 100, 200])
@@ -370,6 +374,15 @@ function App() {
     setActiveRest({ exIndex, setIndex }); setRestTime(dur); setRestDuration(dur)
   }
 
+  function undoneSet(exIndex, setIndex) {
+    const n = [...exercises]; const set = n[exIndex].sets[setIndex]
+    set.done = false; delete set.restTime
+    if (activeRest && activeRest.exIndex === exIndex && activeRest.setIndex === setIndex) {
+      setActiveRest(null); setRestTime(0); restStartRef.current = null
+    }
+    setExercises(n)
+  }
+
   function moveExerciseUp(i) { if (i === 0) return; const n = [...exercises]; [n[i-1], n[i]] = [n[i], n[i-1]]; setExercises(n) }
   function moveExerciseDown(i) { if (i >= exercises.length-1) return; const n = [...exercises]; [n[i+1], n[i]] = [n[i], n[i+1]]; setExercises(n) }
   function removeExercise(i) { const n = [...exercises]; n.splice(i, 1); setExercises(n) }
@@ -574,7 +587,7 @@ function App() {
           {/* PROGRESS */}
           {page === 'progress' && (
             <div>
-              <h1 className="text-2xl font-bold tracking-tight mb-6">Progress</h1>
+              <div className="flex items-center gap-3 mb-6"><RepliqeLogo size={28} /><h1 className="text-2xl font-bold tracking-tight">Progress</h1></div>
               <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-5 mb-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div><div className="text-2xl font-bold">{history.length}</div><div className="text-xs text-[#777]">Workouts</div></div>
@@ -609,7 +622,7 @@ function App() {
           {/* WORKOUT START SCREEN */}
           {page === 'workout' && !workoutActive && !showCompleteScreen && (
             <div>
-              <h1 className="text-2xl font-bold tracking-tight mb-6">Workout</h1>
+              <div className="flex items-center gap-3 mb-6"><RepliqeLogo size={28} /><h1 className="text-2xl font-bold tracking-tight">Workout</h1></div>
 
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold text-[#7B7BFF] uppercase tracking-wide">Start Workout</h3>
@@ -695,7 +708,7 @@ function App() {
           {page === 'workout' && workoutActive && !showCompleteScreen && (
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-bold tracking-tight">{workoutName || 'Workout'}</h1>
+                <div className="flex items-center gap-2.5"><RepliqeLogo size={24} /><h1 className="text-2xl font-bold tracking-tight">{workoutName || 'Workout'}</h1></div>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5 text-[#5BF5A0] text-sm font-bold tabular-nums"><div className="w-2 h-2 bg-[#5BF5A0] rounded-full animate-pulse" />{formatTime(workoutElapsed)}</div>
                   <button onClick={cancelWorkout} className="text-[11px] font-semibold text-[#777] border border-[#2A2A4A] px-3 py-1.5 rounded-lg hover:border-red-500/50 hover:text-red-400 transition-colors">Cancel</button>
@@ -721,7 +734,7 @@ function App() {
               {exercises.map((ex, i) => (
                 <ExerciseCard key={i} exercise={ex} exIndex={i} isEditing={!!editingTemplate} exerciseCount={exercises.length}
                   onMoveUp={moveExerciseUp} onMoveDown={moveExerciseDown} onRemoveExercise={removeExercise}
-                  onAddSet={addSet} onUpdateSet={updateSet} onDoneSet={doneSet} onDeleteSet={deleteSet}
+                  onAddSet={addSet} onUpdateSet={updateSet} onDoneSet={doneSet} onUndoneSet={undoneSet} onDeleteSet={deleteSet}
                   onUpdateExerciseRest={updateExerciseRest} onUpdateExerciseNote={updateExerciseNote}
                   bestSet={getBestSet(ex.name)} previousSets={getPreviousSets(ex.name)}
                   activeRest={activeRest} restTime={restTime} restDuration={restDuration} defaultRest={defaultRest} onSkipRest={skipRest}
@@ -752,7 +765,7 @@ function App() {
           {/* PROFILE */}
           {page === 'profile' && (
             <div>
-              <h1 className="text-2xl font-bold tracking-tight mb-6">Profile</h1>
+              <div className="flex items-center gap-3 mb-6"><RepliqeLogo size={28} /><h1 className="text-2xl font-bold tracking-tight">Profile</h1></div>
               <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-5 mb-4">
                 <h3 className="text-sm font-semibold text-[#7B7BFF] uppercase tracking-wide mb-4">Settings</h3>
                 <div className="mb-5">

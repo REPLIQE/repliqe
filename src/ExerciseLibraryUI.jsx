@@ -180,9 +180,11 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
   }
 
   // PAGE mode
+  const logoSvg = <svg width="28" height="28" viewBox="0 0 100 100" className="shrink-0"><rect x="8" y="5" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.9"/><rect x="54" y="5" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.9"/><rect x="8" y="37" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.7"/><rect x="54" y="37" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.7"/><rect x="8" y="69" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.5"/><rect x="54" y="69" width="38" height="26" rx="8" fill="#5BF5A0" opacity="0.9"/></svg>
+
   return (
     <div>
-      <h1 className="text-2xl font-bold tracking-tight mb-1">Exercises</h1>
+      <div className="flex items-center gap-3 mb-1">{logoSvg}<h1 className="text-2xl font-bold tracking-tight">Exercises</h1></div>
       <div className="text-xs text-[#7B7BFF] mb-4">{totalCount} exercises{customCount > 0 ? ` · ${customCount} custom` : ''}</div>
       {content}
     </div>

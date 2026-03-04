@@ -4,7 +4,7 @@ import { MUSCLE_GROUPS } from './exerciseLibrary'
 
 const REST_PRESETS = [0, 30, 60, 90, 120, 180]
 
-function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onAddSet, onUpdateSet, onDoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote, bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, onSkipRest, bodyweight, unitWeight, unitDistance, libraryEntry }) {
+function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onAddSet, onUpdateSet, onDoneSet, onUndoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote, bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, onSkipRest, bodyweight, unitWeight, unitDistance, libraryEntry }) {
   const [showRestPicker, setShowRestPicker] = useState(false)
   const [showNoteInput, setShowNoteInput] = useState(false)
   const [showExerciseMenu, setShowExerciseMenu] = useState(false)
@@ -148,8 +148,8 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
 
       <div className="flex justify-between items-start">
         <div className="flex-1 min-w-0">
-          <button onClick={() => !isEditing && setShowExerciseMenu(!showExerciseMenu)} className="flex items-center gap-2 text-left">
-            {libraryEntry ? <MuscleIcon muscle={libraryEntry.muscle} size={14} /> : null}
+          <button onClick={() => !isEditing && setShowExerciseMenu(!showExerciseMenu)} className="flex items-start gap-2 text-left">
+            {libraryEntry ? <div className="mt-0.5"><MuscleIcon muscle={libraryEntry.muscle} size={14} /></div> : null}
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-[17px] font-bold tracking-tight">{exercise.name}</span>
@@ -240,7 +240,7 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
                 )}
                 {renderInputs(set, j)}
                 {set.done ? (
-                  <div className="w-8 h-8 bg-[#5BF5A0] rounded-lg flex items-center justify-center mx-auto"><svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-4 h-4 stroke-[#0D0D1A]"><polyline points="20 6 9 17 4 12" /></svg></div>
+                  <button onClick={() => onUndoneSet(exIndex, j)} className="w-8 h-8 bg-[#5BF5A0] rounded-lg flex items-center justify-center mx-auto hover:bg-[#5BF5A0]/80 transition-colors active:scale-90"><svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-4 h-4 stroke-[#0D0D1A]"><polyline points="20 6 9 17 4 12" /></svg></button>
                 ) : (
                   <button onClick={() => onDoneSet(exIndex, j)} className="w-8 h-8 border-2 border-[#2A2A4A] rounded-lg flex items-center justify-center mx-auto hover:border-[#5BF5A0] transition-colors active:scale-90">
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-4 h-4 stroke-[#555]"><polyline points="20 6 9 17 4 12" /></svg>
