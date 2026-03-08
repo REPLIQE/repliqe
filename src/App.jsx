@@ -108,7 +108,41 @@ function App() {
   const [emptyWorkoutName, setEmptyWorkoutName] = useState('')
   const [pendingStart, setPendingStart] = useState(null)
   const [incompleteSetsWarning, setIncompleteSetsWarning] = useState(null)
+  const [workoutTab, setWorkoutTab] = useState('start') // 'start' | 'plan'
+  const [programmes, setProgrammes] = useState(() => {
+    const s = localStorage.getItem('repliqe_programmes')
+    if (s) return JSON.parse(s)
+    return []
+  })
+  const [routines, setRoutines] = useState(() => {
+    const s = localStorage.getItem('repliqe_routines')
+    if (s) return JSON.parse(s)
+    return []
+  })
+  const [programmeMenuProgramme, setProgrammeMenuProgramme] = useState(null)
+  const [showCreateProgramme, setShowCreateProgramme] = useState(false)
+  const [editingProgrammeId, setEditingProgrammeId] = useState(null)
+  const [showCreateRoutine, setShowCreateRoutine] = useState(false)
+  const [editingRoutineId, setEditingRoutineId] = useState(null)
+  const [editingRoutineProgrammeId, setEditingRoutineProgrammeId] = useState(null)
+  const [showExercisePickerForRoutine, setShowExercisePickerForRoutine] = useState(false)
+  const [showDeleteProgrammeConfirm, setShowDeleteProgrammeConfirm] = useState(null)
+  const [showSetActiveAfterCreate, setShowSetActiveAfterCreate] = useState(null)
+  const [showSetActiveAfterEditProgramme, setShowSetActiveAfterEditProgramme] = useState(null)
+  const [showActiveWorkoutSheet, setShowActiveWorkoutSheet] = useState(false)
+  const [createProgrammeName, setCreateProgrammeName] = useState('')
+  const [createProgrammeType, setCreateProgrammeType] = useState('rotation')
+  const [createProgrammeRoutines, setCreateProgrammeRoutines] = useState([])
+  const [editProgrammeName, setEditProgrammeName] = useState('')
+  const [editProgrammeType, setEditProgrammeType] = useState('rotation')
+  const [editRoutineName, setEditRoutineName] = useState('')
+  const [editRoutineExercises, setEditRoutineExercises] = useState([])
+  const [routineEditorRestForIndex, setRoutineEditorRestForIndex] = useState(null)
+  const [routineEditorNoteForIndex, setRoutineEditorNoteForIndex] = useState(null)
+  const [focusNewExerciseAt, setFocusNewExerciseAt] = useState(null)
   const restStartRef = useRef(null)
+  const routineEditorFirstInputRef = useRef(null)
+  const currentRoutineIdRef = useRef(null)
 
   useEffect(() => { const t = setTimeout(() => setShowSplash(false), 1500); return () => clearTimeout(t) }, [])
   useEffect(() => { localStorage.setItem('exercises', JSON.stringify(exercises)) }, [exercises])
@@ -127,6 +161,7 @@ function App() {
       const savedName = localStorage.getItem('workoutName')
       const savedStart = localStorage.getItem('workoutStartTime')
       setWorkoutActive(true)
+      setShowActiveWorkoutSheet(true)
       setWorkoutName(savedName || '')
       if (savedStart) setWorkoutStartTime(Number(savedStart))
       else { const now = Date.now(); setWorkoutStartTime(now); localStorage.setItem('workoutStartTime', String(now)) }
@@ -135,6 +170,60 @@ function App() {
 
   useEffect(() => { localStorage.setItem('workoutName', workoutName) }, [workoutName])
   useEffect(() => { if (workoutStartTime) localStorage.setItem('workoutStartTime', String(workoutStartTime)) }, [workoutStartTime])
+  useEffect(() => {
+    if (focusNewExerciseAt === null) return
+    const t = setTimeout(() => {
+      routineEditorFirstInputRef.current?.focus()
+      setFocusNewExerciseAt(null)
+    }, 150)
+    return () => clearTimeout(t)
+  }, [focusNewExerciseAt])
+
+  useEffect(() => {
+    if (programmes.length > 0) return
+    const foldersRaw = localStorage.getItem('folders')
+    const foldersData = foldersRaw ? JSON.parse(foldersRaw) : [{ name: 'My Templates', open: true, templates: [] }]
+    const firstFolder = foldersData[0]
+    const hasTemplates = firstFolder?.templates?.length > 0
+    const ts = Date.now()
+    const progId = 'prog_' + ts
+    if (hasTemplates) {
+      const routineIds = firstFolder.templates.map((_, i) => 'rtn_' + ts + '_' + i)
+      const newRoutines = firstFolder.templates.map((t, i) => ({
+        id: routineIds[i],
+        name: t.name,
+        programmeId: progId,
+        exercises: t.exercises.map(ex => ({
+          exerciseId: ex.name,
+          sets: ex.sets?.length ?? 4,
+          targetReps: (ex.sets?.[0]?.reps != null) ? String(ex.sets[0].reps) : '8-10'
+        }))
+      }))
+      setRoutines(newRoutines)
+      setProgrammes([{
+        id: progId,
+        name: firstFolder.name || 'My First Programme',
+        type: 'rotation',
+        routineIds,
+        isActive: true,
+        currentIndex: 0
+      }])
+    } else {
+      const rtnId = 'rtn_' + ts
+      setRoutines([{ id: rtnId, name: 'New Routine', programmeId: progId, exercises: [] }])
+      setProgrammes([{
+        id: progId,
+        name: 'My First Programme',
+        type: 'rotation',
+        routineIds: [rtnId],
+        isActive: true,
+        currentIndex: 0
+      }])
+    }
+  }, [programmes.length])
+
+  useEffect(() => { localStorage.setItem('repliqe_programmes', JSON.stringify(programmes)) }, [programmes])
+  useEffect(() => { localStorage.setItem('repliqe_routines', JSON.stringify(routines)) }, [routines])
 
   useEffect(() => {
     if (!workoutActive || !workoutStartTime) return
@@ -168,9 +257,14 @@ function App() {
 
   function executeStart(type, data) {
     const now = Date.now()
+    currentRoutineIdRef.current = null
     if (type === 'template') {
       setWorkoutName(data.name)
       setExercises(data.exercises.map(ex => ({ name: ex.name, type: ex.type || 'weight_reps', sets: ex.sets.map(s => ({ ...s, done: false })), restOverride: ex.restOverride !== undefined ? ex.restOverride : null, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement })))
+    } else if (type === 'routine') {
+      currentRoutineIdRef.current = data.id
+      setWorkoutName(data.name)
+      setExercises(routineToWorkoutExercises(data))
     } else if (type === 'last') {
       setWorkoutName(data.name || data.date)
       setExercises(data.exercises.map(ex => ({ name: ex.name, type: ex.type || 'weight_reps', sets: ex.sets.map(s => ({ ...s, done: false })), restOverride: ex.restOverride !== undefined ? ex.restOverride : null, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement })))
@@ -180,6 +274,7 @@ function App() {
     }
     setWorkoutActive(true); setWorkoutStartTime(now); setWorkoutElapsed(0)
     setActiveRest(null); setRestTime(0); setPendingStart(null)
+    setShowActiveWorkoutSheet(true)
   }
 
   function confirmDiscardAndStart() { if (!pendingStart) return; setExercises([]); setActiveRest(null); setRestTime(0); executeStart(pendingStart.type, pendingStart.data) }
@@ -200,6 +295,140 @@ function App() {
       }
     }
     return null
+  }
+
+  const activeProgramme = programmes.find(p => p.isActive) || null
+
+  function getNextRoutine(programme, workoutHistory) {
+    if (!programme?.routineIds?.length) return null
+    const routineIds = programme.routineIds
+    const parseDate = (w) => {
+      const parts = (w.date || '').split('/')
+      if (parts.length !== 3) return 0
+      return new Date(parts[2], parts[1] - 1, parts[0]).getTime()
+    }
+    const lastCompleted = workoutHistory
+      .filter(w => w.routineId && routineIds.includes(w.routineId))
+      .sort((a, b) => parseDate(b) - parseDate(a))[0]
+    if (!lastCompleted) return routineIds[0]
+    const lastIndex = routineIds.indexOf(lastCompleted.routineId)
+    const nextIndex = (lastIndex + 1) % routineIds.length
+    return routineIds[nextIndex]
+  }
+
+  function getSetConfigs(ex) {
+    if (ex.setConfigs?.length) return ex.setConfigs.map(s => ({ targetReps: s.targetReps ?? '8-10', targetKg: s.targetKg ?? '' }))
+    const n = typeof ex.sets === 'number' ? Math.max(1, ex.sets) : 4
+    return Array.from({ length: n }, () => ({ targetReps: ex.targetReps || '8-10', targetKg: '' }))
+  }
+
+  function routineToWorkoutExercises(routine) {
+    if (!routine?.exercises?.length) return []
+    return routine.exercises.map(ex => {
+      const lib = getExerciseFromLibrary(ex.exerciseId)
+      const type = lib?.type || 'weight_reps'
+      const setConfigs = getSetConfigs(ex)
+      const sets = setConfigs.map((cfg, i) => {
+        const empty = emptySetForType(type)
+        return { ...empty, kg: cfg.targetKg ?? '', reps: cfg.targetReps ?? '' }
+      })
+      return {
+        name: ex.exerciseId,
+        type,
+        sets,
+        restOverride: ex.restOverride !== undefined ? ex.restOverride : null,
+        note: ex.note ?? '',
+        muscle: lib?.muscle,
+        equipment: lib?.equipment,
+        movement: lib?.movement
+      }
+    })
+  }
+
+  function setProgrammeActive(progId) {
+    setProgrammes(prev => prev.map(p => ({ ...p, isActive: p.id === progId })))
+    setProgrammeMenuProgramme(null)
+  }
+
+  function createProgramme() {
+    setCreateProgrammeName(`My New Program ${programmes.length + 1}`)
+    setShowCreateProgramme(true)
+    setEditingProgrammeId(null)
+  }
+
+  function saveNewProgramme(name, type, routineIdsToSave, newRoutinesData) {
+    const ts = Date.now()
+    const progId = 'prog_' + ts
+    const newRoutines = (newRoutinesData || []).map((r, i) => ({
+      id: 'rtn_' + ts + '_' + i,
+      name: r.name || 'New Routine',
+      programmeId: progId,
+      exercises: r.exercises || []
+    }))
+    const routineIds = newRoutines.map(r => r.id)
+    setRoutines(prev => [...prev, ...newRoutines])
+    setProgrammes(prev => [...prev.map(p => ({ ...p, isActive: false })), { id: progId, name: name || `My New Program ${programmes.length + 1}`, type: type || 'rotation', routineIds, isActive: false, currentIndex: 0 }])
+    setShowCreateProgramme(false)
+    setShowSetActiveAfterCreate(progId)
+  }
+
+  function openEditProgramme(progId) {
+    const prog = programmes.find(p => p.id === progId)
+    if (prog) {
+      setEditProgrammeName(prog.name)
+      setEditProgrammeType(prog.type || 'rotation')
+    }
+    setEditingProgrammeId(progId)
+    setProgrammeMenuProgramme(null)
+  }
+
+  function saveEditedProgramme(progId, name, type, routineIdsOrder) {
+    setProgrammes(prev => prev.map(p => p.id === progId ? { ...p, name, type, routineIds: routineIdsOrder } : p))
+    setEditingProgrammeId(null)
+  }
+
+  function confirmDeleteProgrammeAction(progId) {
+    const prog = programmes.find(p => p.id === progId)
+    if (!prog) return
+    setRoutines(prev => prev.filter(r => r.programmeId !== progId))
+    setProgrammes(prev => prev.filter(p => p.id !== progId))
+    if (activeProgramme?.id === progId) {
+      const next = programmes.find(p => p.id !== progId)
+      if (next) setProgrammeActive(next.id)
+    }
+    setShowDeleteProgrammeConfirm(null)
+    setProgrammeMenuProgramme(null)
+  }
+
+  function addRoutineToProgramme(progId, routineData) {
+    const ts = Date.now()
+    const rtnId = 'rtn_' + ts
+    const newRoutine = { id: rtnId, name: routineData.name || 'New Routine', programmeId: progId, exercises: routineData.exercises || [] }
+    setRoutines(prev => [...prev, newRoutine])
+    setProgrammes(prev => prev.map(p => p.id === progId ? { ...p, routineIds: [...(p.routineIds || []), rtnId] } : p))
+  }
+
+  function saveRoutineEdits(rtnId, name, exercises) {
+    setRoutines(prev => prev.map(r => r.id === rtnId ? { ...r, name, exercises } : r))
+    setEditingRoutineId(null)
+    setEditingRoutineProgrammeId(null)
+  }
+
+  function removeRoutineFromProgramme(progId, rtnId) {
+    setProgrammes(prev => prev.map(p => p.id === progId ? { ...p, routineIds: (p.routineIds || []).filter(id => id !== rtnId) } : p))
+    setRoutines(prev => prev.filter(r => r.id !== rtnId))
+  }
+
+  function reorderRoutineInProgramme(progId, rtnId, direction) {
+    const prog = programmes.find(p => p.id === progId)
+    if (!prog?.routineIds?.length) return
+    const idx = prog.routineIds.indexOf(rtnId)
+    if (idx < 0) return
+    const next = direction === 'up' ? idx - 1 : idx + 1
+    if (next < 0 || next >= prog.routineIds.length) return
+    const ids = [...prog.routineIds]
+    ;[ids[idx], ids[next]] = [ids[next], ids[idx]]
+    setProgrammes(prev => prev.map(p => p.id === progId ? { ...p, routineIds: ids } : p))
   }
 
   // --- PR logic ---
@@ -252,10 +481,11 @@ function App() {
     return prs
   }
 
-  // --- Progression vs last same template ---
-  function getProgression(templateName, currentExercises, currentDuration) {
-    if (!templateName) return null
-    const prev = history.find(w => w.templateName === templateName)
+  // --- Progression vs last same template or routine ---
+  function getProgression(progressionSource, currentExercises, currentDuration, routineId) {
+    const prev = routineId
+      ? history.find(w => w.routineId === routineId)
+      : progressionSource ? history.find(w => w.templateName === progressionSource) : null
     if (!prev) return null
 
     const curDoneSets = currentExercises.flatMap(ex => ex.sets.filter(s => s.done))
@@ -363,12 +593,12 @@ function App() {
 
   function isSetComplete(set, type) {
     switch (type) {
-      case 'weight_reps': return set.kg !== '' && set.reps !== ''
-      case 'bw_reps': return set.reps !== ''
-      case 'reps_only': return set.reps !== ''
-      case 'time_only': return set.time !== ''
-      case 'distance_time': return set.distance !== '' || set.time !== ''
-      default: return false
+      case 'weight_reps': return (set.kg !== undefined && set.kg !== '' && set.kg !== null) || (set.reps !== undefined && set.reps !== '' && set.reps !== null)
+      case 'bw_reps': return set.reps !== '' && set.reps !== undefined && set.reps !== null
+      case 'reps_only': return set.reps !== '' && set.reps !== undefined && set.reps !== null
+      case 'time_only': return set.time !== '' && set.time !== undefined && set.time !== null
+      case 'distance_time': return (set.distance !== '' && set.distance !== undefined) || (set.time !== '' && set.time !== undefined)
+      default: return (set.kg !== '' && set.reps !== '') || (set.reps !== '' && set.reps !== undefined)
     }
   }
 
@@ -389,12 +619,22 @@ function App() {
   }
 
   function deleteSet(exIndex, setIndex) { const n = [...exercises]; n[exIndex].sets.splice(setIndex, 1); if (n[exIndex].sets.length === 0) n.splice(exIndex, 1); setExercises(n) }
-  function updateSet(exIndex, setIndex, field, value) { const n = [...exercises]; n[exIndex].sets[setIndex][field] = value; setExercises(n) }
+  function updateSet(exIndex, setIndex, field, value) {
+    setExercises(prev => prev.map((e, ei) => {
+      if (ei !== exIndex) return e
+      return { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, [field]: value } : s) }
+    }))
+  }
 
   function doneSet(exIndex, setIndex) {
-    const n = [...exercises]; const ex = n[exIndex]; const set = ex.sets[setIndex]
-    if (!isSetComplete(set, ex.type || 'weight_reps')) return
-    set.done = true; setExercises(n)
+    const ex = exercises[exIndex]
+    const set = ex.sets[setIndex]
+    if (!set || !isSetComplete(set, ex.type || 'weight_reps')) return
+    const n = exercises.map((e, ei) => {
+      if (ei !== exIndex) return e
+      return { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
+    })
+    setExercises(n)
     if (activeRest) completeRest()
     const dur = ex.restOverride !== null && ex.restOverride !== undefined ? ex.restOverride : defaultRest
     if (dur === 0) return
@@ -403,12 +643,18 @@ function App() {
   }
 
   function undoneSet(exIndex, setIndex) {
-    const n = [...exercises]; const set = n[exIndex].sets[setIndex]
-    set.done = false; delete set.restTime
+    const n = exercises.map((e, ei) => {
+      if (ei !== exIndex) return e
+      return { ...e, sets: e.sets.map((s, si) => {
+        if (si !== setIndex) return s
+        const { restTime: _, ...rest } = s
+        return { ...rest, done: false }
+      }) }
+    })
+    setExercises(n)
     if (activeRest && activeRest.exIndex === exIndex && activeRest.setIndex === setIndex) {
       setActiveRest(null); setRestTime(0); restStartRef.current = null
     }
-    setExercises(n)
   }
 
   function moveExerciseUp(i) { if (i === 0) return; const n = [...exercises]; [n[i-1], n[i]] = [n[i], n[i-1]]; setExercises(n) }
@@ -441,26 +687,44 @@ function App() {
     setShowFinishModal(true)
   }
 
+  function isRoutineBased() {
+    return !!currentRoutineIdRef.current
+  }
+
   function isTemplateBased() {
     for (const f of folders) for (const t of f.templates) if (t.name === workoutName) return true
     return false
   }
 
-  function confirmFinish(updateAll) {
+  function confirmFinish(updateRoutineOrTemplate) {
+    const routineId = currentRoutineIdRef.current || undefined
     let templateName = null
-    for (const f of folders) for (const t of f.templates) if (t.name === workoutName) { templateName = workoutName; break }
+    if (!routineId) {
+      for (const f of folders) for (const t of f.templates) if (t.name === workoutName) { templateName = workoutName; break }
+    }
 
     const duration = Math.floor((Date.now() - workoutStartTime) / 1000)
     const doneSets = exercises.flatMap(ex => ex.sets.filter(s => s.done))
     const totalVolume = doneSets.reduce((sum, s) => sum + (Number(s.kg||0) * Number(s.reps||0)), 0)
     const newPRs = findNewPRs(exercises)
-    const progression = getProgression(templateName, exercises, duration)
-    const templateUseCount = templateName ? countTemplateUses(templateName) : 0
-    const nextSuggested = getSuggestedNextFromTemplate(templateName)
+    const progressionSource = routineId ? routineId : templateName
+    const progression = getProgression(progressionSource, exercises, duration, routineId)
+    const routineUseCount = routineId ? history.filter(w => w.routineId === routineId).length + 1 : 0
+    const templateUseCount = templateName ? countTemplateUses(templateName) : routineUseCount
 
-    const workout = { date: new Date().toLocaleDateString('en-GB'), name: workoutName, templateName, duration, exercises }
+    const workout = { date: new Date().toLocaleDateString('en-GB'), name: workoutName, templateName: templateName || undefined, duration, exercises, routineId }
 
-    if (updateAll) {
+    if (routineId && updateRoutineOrTemplate) {
+      setRoutines(prev => prev.map(r => {
+        if (r.id !== routineId) return r
+        const newExercises = exercises.map(ex => ({
+          exerciseId: ex.name,
+          setConfigs: ex.sets.map(s => ({ targetReps: String(s.reps ?? '') || '8-10', targetKg: String(s.kg ?? '') }))
+        }))
+        return { ...r, exercises: newExercises }
+      }))
+    }
+    if (!routineId && updateRoutineOrTemplate) {
       const nf = [...folders]
       for (const ex of exercises) for (const f of nf) for (const t of f.templates) {
         for (let i = 0; i < t.exercises.length; i++) {
@@ -473,9 +737,16 @@ function App() {
       setFolders(nf)
     }
 
-    // Build complete screen data BEFORE saving to history
+    const historyWithThis = [workout, ...history]
+    let nextSuggested = null
+    if (routineId && activeProgramme) {
+      const nextRtnId = getNextRoutine(activeProgramme, historyWithThis)
+      const nextRtn = nextRtnId ? routines.find(r => r.id === nextRtnId) : null
+      if (nextRtn) nextSuggested = { template: { name: nextRtn.name, exercises: (nextRtn.exercises || []).map(e => ({ name: e.exerciseId })) } }
+    } else if (templateName) nextSuggested = getSuggestedNextFromTemplate(templateName)
+
     setCompletedWorkoutData({
-      name: workoutName, templateName, duration, setCount: doneSets.length, volume: totalVolume,
+      name: workoutName, templateName: templateName || (routineId ? workoutName : null), duration, setCount: doneSets.length, volume: totalVolume,
       newPRs, progression, templateUseCount,
       suggestedNext: nextSuggested
     })
@@ -487,6 +758,7 @@ function App() {
 
     setExercises([]); setActiveRest(null); setRestTime(0)
     setWorkoutActive(false); setWorkoutName(''); setWorkoutStartTime(null); setWorkoutElapsed(0)
+    currentRoutineIdRef.current = null
     localStorage.removeItem('workoutStartTime')
   }
 
@@ -509,6 +781,7 @@ function App() {
   function cancelWorkout() {
     setExercises([]); setActiveRest(null); setRestTime(0)
     setWorkoutActive(false); setWorkoutName(''); setWorkoutStartTime(null); setWorkoutElapsed(0)
+    currentRoutineIdRef.current = null
     localStorage.removeItem('workoutStartTime')
   }
 
@@ -647,136 +920,258 @@ function App() {
             <WorkoutCompleteScreen data={completedWorkoutData} weekDays={getWeekDays()} weekStreak={getWeekStreak()} onDone={dismissCompleteScreen} formatDuration={formatDuration} unitWeight={unitWeight} getExerciseFromLibrary={getExerciseFromLibrary} />
           )}
 
-          {/* WORKOUT START SCREEN */}
-          {page === 'workout' && !workoutActive && !showCompleteScreen && (
+          {/* WORKOUT START SCREEN (also when workout active but sheet closed) */}
+          {page === 'workout' && (!workoutActive || !showActiveWorkoutSheet) && !showCompleteScreen && (
             <div>
-              <div className="flex items-center gap-3 mb-6"><RepliqeLogo size={28} /><h1 className="text-3xl font-bold tracking-tight">Workout</h1></div>
+              <div className="flex items-center gap-3 mb-4"><RepliqeLogo size={28} /><h1 className="text-3xl font-bold tracking-tight">Workout</h1></div>
 
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-[#7B7BFF] uppercase tracking-wide">Start Workout</h3>
-              </div>
-              <div className="text-sm text-[#666] mb-4">Choose one of these options to start your workout</div>
-
-              <div className="text-xs font-bold text-[#777] uppercase tracking-wider mb-2">Suggested next</div>
-              <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-4 mb-4">
-                {suggestedNext ? (<>
-                  <div className="flex justify-between items-center mb-2"><span className="text-lg font-bold">{suggestedNext.template.name}</span><span className="text-xs font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-[#5BF5A0]/10 text-[#5BF5A0]">Up next</span></div>
-                  <div className="flex flex-wrap gap-1 mb-2"><MusclePills exercises={suggestedNext.template.exercises} getExerciseFromLibrary={getExerciseFromLibrary} /></div>
-                  <div className="flex items-center gap-3 mb-3 text-sm text-[#777]"><span>{suggestedNext.template.exercises.length} exercises</span><span>{suggestedNext.template.exercises.reduce((s, ex) => s + ex.sets.length, 0)} sets</span><span>{suggestedNext.folderName}</span></div>
-                  <button onClick={() => tryStart('template', suggestedNext.template)} className="flex items-center justify-center gap-2 w-full py-2.5 mt-2 border-[1.5px] border-[#7B7BFF] rounded-xl text-sm font-bold text-[#7B7BFF] hover:bg-[#7B7BFF]/8 transition-colors"><PlayIcon className="w-3 h-3" /> Start</button>
-                </>) : <div className="text-xs text-[#666] italic py-2">Will show when you start using templates</div>}
-              </div>
-
-              <div className="text-xs font-bold text-[#777] uppercase tracking-wider mb-2">Start fresh</div>
-              <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-4 mb-4">
-                <div className="flex justify-between items-center mb-2"><span className="text-lg font-bold">Empty workout</span><span className="text-xs font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-white/5 text-[#888]">New</span></div>
-                <div className="text-sm text-[#666] mb-3">Start fresh and add exercises as you go</div>
-                <button onClick={startEmpty} className="flex items-center justify-center gap-2 w-full py-2.5 border-[1.5px] border-[#7B7BFF] rounded-xl text-sm font-bold text-[#7B7BFF] hover:bg-[#7B7BFF]/8 transition-colors"><PlayIcon className="w-3 h-3" /> Start</button>
-              </div>
-
-              {/* TEMPLATES */}
-              <div className="border-t border-[#1a1a30] pt-6 mt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-[#7B7BFF] uppercase tracking-wide">Templates</h3>
-                  <button onClick={addFolder} className="text-sm font-semibold text-[#777] border border-[#2A2A4A] px-3 py-1.5 rounded-lg hover:border-[#7B7BFF] hover:text-[#7B7BFF] transition-colors">+ Folder</button>
-                </div>
-                <div className="text-sm text-[#666] mb-4">Tap folder to open/close · Use <span className="inline-flex flex-col align-middle mx-0.5"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-2.5 h-2.5 stroke-[#555]"><polyline points="18 15 12 9 6 15"/></svg><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-2.5 h-2.5 stroke-[#555]"><polyline points="6 9 12 15 18 9"/></svg></span> to reorder</div>
-                {folders.map((folder, fi) => (
-                  <div key={fi} className="mb-3">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="flex flex-col">
-                        <button onClick={() => moveFolderUp(fi)} className={`text-[#444] p-0.5 ${fi === 0 ? 'opacity-20' : 'hover:text-[#7B7BFF]'}`} disabled={fi === 0}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-current"><polyline points="18 15 12 9 6 15"/></svg></button>
-                        <button onClick={() => moveFolderDown(fi)} className={`text-[#444] p-0.5 ${fi >= folders.length-1 ? 'opacity-20' : 'hover:text-[#7B7BFF]'}`} disabled={fi >= folders.length-1}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-current"><polyline points="6 9 12 15 18 9"/></svg></button>
-                      </div>
-                      <button onClick={() => toggleFolder(fi)} className="flex items-center gap-2 flex-1 min-w-0">
-                        <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 shrink-0 transition-colors ${folder.open ? 'stroke-[#7B7BFF] fill-[#7B7BFF]/10' : 'stroke-[#555]'}`}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                        {editingFolder === fi ? <input type="text" value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmEditFolder()} onBlur={confirmEditFolder} autoFocus onClick={(e) => e.stopPropagation()} className="bg-[#1C1C38] border border-[#7B7BFF] rounded-lg px-2 py-1 text-sm font-semibold text-white outline-none flex-1 min-w-0" /> : <span className="text-sm font-semibold truncate">{folder.name}</span>}
-                        <span className="text-sm text-[#777] shrink-0">{folder.templates.length}</span>
-                        <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-3.5 h-3.5 stroke-[#444] shrink-0 transition-transform ${folder.open ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
-                      </button>
-                      {editingFolder !== fi && (
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button onClick={() => startEditFolder(fi)} className="text-[#444] p-1 hover:text-[#7B7BFF] transition-colors"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
-                          {folders.length > 1 && <button onClick={() => requestDeleteFolder(fi)} className="text-[#444] p-1 hover:text-red-400 transition-colors"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><path d="M18 6L6 18M6 6l12 12"/></svg></button>}
-                        </div>
-                      )}
-                    </div>
-                    {folder.open && (
-                      <div className="ml-7 border-l border-[#1a1a30] pl-3">
-                        {folder.templates.length === 0 ? <div className="text-sm text-[#666] py-3 italic">No templates</div> : folder.templates.map((t, ti) => (
-                          <div key={ti} className="bg-[#13132A] border border-[#232340] rounded-xl p-3.5 mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="flex flex-col shrink-0">
-                                <button onClick={() => moveTemplateUp(fi, ti)} className={`text-[#444] p-0.5 ${ti === 0 && fi === 0 ? 'opacity-20' : 'hover:text-[#7B7BFF]'}`} disabled={ti === 0 && fi === 0}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-2.5 h-2.5 stroke-current"><polyline points="18 15 12 9 6 15"/></svg></button>
-                                <button onClick={() => moveTemplateDown(fi, ti)} className={`text-[#444] p-0.5 ${ti >= folder.templates.length-1 && fi >= folders.length-1 ? 'opacity-20' : 'hover:text-[#7B7BFF]'}`} disabled={ti >= folder.templates.length-1 && fi >= folders.length-1}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-2.5 h-2.5 stroke-current"><polyline points="6 9 12 15 18 9"/></svg></button>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-center mb-1.5"><span className="font-bold text-base truncate">{t.name}</span><span className="text-sm text-[#777] shrink-0 ml-2">{t.exercises.length} ex · {t.exercises.reduce((s, ex) => s + ex.sets.length, 0)} sets</span></div>
-                                <MusclePills exercises={t.exercises} getExerciseFromLibrary={getExerciseFromLibrary} />
-                              </div>
-                            </div>
-                            <div className="flex gap-2 mt-2.5">
-                              <button onClick={() => tryStart('template', t)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border-[1.5px] border-[#7B7BFF] rounded-lg text-sm font-bold text-[#7B7BFF] hover:bg-[#7B7BFF]/8 transition-colors"><PlayIcon className="w-2.5 h-2.5" />Start</button>
-                              <button onClick={() => editTemplate(fi, ti)} className="py-2 px-3 border border-[#2A2A4A] rounded-lg text-sm font-semibold text-[#aaa] hover:border-[#7B7BFF] hover:text-[#7B7BFF] transition-colors">Edit</button>
-                              <button onClick={() => duplicateTemplate(fi, ti)} className="py-2 px-3 border border-[#2A2A4A] rounded-lg text-sm font-semibold text-[#aaa] hover:border-[#7B7BFF] hover:text-[#7B7BFF] transition-colors">Copy</button>
-                              <button onClick={() => requestDeleteTemplate(fi, ti)} className="py-2 px-3 border border-[#2A2A4A] rounded-lg text-sm font-semibold text-[#777] hover:border-red-500/50 hover:text-red-400 transition-colors">Delete</button>
-                            </div>
-                          </div>
-                        ))}
-                        <button onClick={() => newBlankTemplate(fi)} className="w-full py-2.5 border border-dashed border-[#2A2A4A] rounded-xl text-sm font-semibold text-[#777] hover:border-[#7B7BFF] hover:text-[#7B7BFF] transition-colors mb-1">+ New template</button>
-                      </div>
-                    )}
+              {/* Continue workout bar when minimized */}
+              {workoutActive && !showActiveWorkoutSheet && (
+                <button type="button" onClick={() => setShowActiveWorkoutSheet(true)} className="w-full mb-4 py-3.5 px-4 rounded-xl border-2 border-[#5BF5A0] bg-[rgba(91,245,160,0.08)] flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-[#5BF5A0] rounded-full animate-pulse" />
+                    <span className="text-white font-bold text-sm">{workoutName || 'Workout'}</span>
+                    <span className="text-[#5BF5A0] text-xs font-semibold">{exercises.length} exercise{exercises.length !== 1 ? 's' : ''}</span>
                   </div>
-                ))}
+                  <span className="text-[#5BF5A0] text-sm font-bold">Continue</span>
+                </button>
+              )}
+
+              {/* Tab bar: Start | Plan */}
+              <div className="flex rounded-[10px] p-[3px] mb-1 border border-[#1e1e35] bg-[#111125]" style={{ marginTop: '12px', marginBottom: '4px' }}>
+                <button onClick={() => setWorkoutTab('start')} className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${workoutTab === 'start' ? 'bg-[#7B7BFF] text-white shadow-[0_2px_8px_rgba(123,123,255,.25)]' : 'text-[#555]'}`}>Start</button>
+                <button onClick={() => setWorkoutTab('plan')} className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${workoutTab === 'plan' ? 'bg-[#7B7BFF] text-white shadow-[0_2px_8px_rgba(123,123,255,.25)]' : 'text-[#555]'}`}>Plan</button>
               </div>
+
+              {workoutTab === 'start' && (
+              <>
+              {(() => {
+                const activeProgramme = programmes.find(p => p.isActive) || null
+                const activeHasNoRealRoutines = activeProgramme ? (() => {
+                  const nextRtnId = getNextRoutine(activeProgramme, history)
+                  const nextRtn = nextRtnId ? routines.find(r => r.id === nextRtnId) : null
+                  const exCount = nextRtn?.exercises?.length ?? 0
+                  const setCount = nextRtn?.exercises?.reduce((s, e) => s + getSetConfigs(e).length, 0) ?? 0
+                  return !nextRtn || (exCount === 0 && setCount === 0)
+                })() : true
+                const showAsNoProgramme = !activeProgramme || activeHasNoRealRoutines
+
+                if (showAsNoProgramme) {
+                  return (
+                    <>
+                      <div className="rounded-2xl border border-[#232340] bg-[#13132A] p-6 text-center mb-4">
+                        <div className="w-12 h-12 rounded-full bg-[#1C1C38] flex items-center justify-center mx-auto mb-3 text-[#555]">
+                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        </div>
+                        <div className="text-white font-bold text-base mb-1">No active programme</div>
+                        <div className="text-[#555] text-sm mb-2">Set up a programme in Plan to get personalised suggestions here.</div>
+                        <div className="text-[#444] text-xs mb-4">Suggestions for your next routine will only be shown after you've created your first programme.</div>
+                        <button type="button" onClick={() => setWorkoutTab('plan')} className="w-full py-2.5 border-2 border-[rgba(123,123,255,0.4)] rounded-[10px] bg-[rgba(123,123,255,0.04)] text-[#7B7BFF] text-sm font-bold">Go to Plan</button>
+                      </div>
+                      <button type="button" onClick={startEmpty} className="w-full py-4 px-4 border-2 border-[rgba(123,123,255,0.4)] rounded-[14px] bg-[rgba(123,123,255,0.03)] flex items-center gap-3">
+                        <span className="w-[38px] h-[38px] rounded-[10px] bg-[rgba(123,123,255,0.06)] flex items-center justify-center text-[#7B7BFF] text-lg font-bold">+</span>
+                        <div className="text-left">
+                          <div className="text-white text-sm font-bold">Empty Workout</div>
+                          <div className="text-[11px] text-[#555]">Start fresh and add exercises as you go</div>
+                        </div>
+                      </button>
+                    </>
+                  )
+                }
+
+                const nextRtnId = getNextRoutine(activeProgramme, history)
+                const nextRtn = nextRtnId ? routines.find(r => r.id === nextRtnId) : null
+                const exCount = nextRtn?.exercises?.length ?? 0
+                const setCountR = nextRtn?.exercises?.reduce((s, e) => s + getSetConfigs(e).length, 0) ?? 0
+                const estMin = setCountR ? Math.round(setCountR * 2.5) : 0
+                const routineIds = activeProgramme.routineIds || []
+                const nextIdx = nextRtnId ? routineIds.indexOf(nextRtnId) : -1
+
+                return (
+                  <>
+                    <div className="text-[13px] font-bold text-[#888] mb-0.5">Active Programme</div>
+                    <div className="text-white text-[17px] font-bold mb-0.5">{activeProgramme.name}</div>
+                    <div className="text-[11px] text-[#555] mb-3">{activeProgramme.type === 'weekly' ? 'Weekly' : 'Rotation'} · Day {nextIdx >= 0 ? nextIdx + 1 : 1} of {routineIds.length}</div>
+                    <div className="flex gap-1.5 mb-1">
+                      {routineIds.map((rtnId) => {
+                        const rtn = routines.find(r => r.id === rtnId)
+                        const currIdx = routineIds.indexOf(rtnId)
+                        const isDone = nextIdx >= 0 && currIdx < nextIdx
+                        const isUpNext = rtnId === nextRtnId
+                        return (
+                          <div
+                            key={rtnId}
+                            className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border-[1.5px] ${isUpNext ? 'border-[#5BF5A0] bg-[rgba(91,245,160,0.04)]' : 'border-transparent bg-[#13132A]'}`}
+                            style={isDone ? { opacity: 0.4 } : {}}
+                          >
+                            <div className={`text-[11px] font-semibold truncate ${isUpNext ? 'text-[#5BF5A0]' : isDone ? 'text-[#555] line-through' : 'text-[#888]'}`}>{rtn?.name || '—'}</div>
+                            <div className="text-[9px] text-[#444] mt-0.5">{isDone ? 'Done' : isUpNext ? 'Up Next' : `${rtn?.exercises?.length ?? 0} ex`}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="flex gap-1.5 h-5 mb-0 items-stretch">
+                      {routineIds.map((rtnId, i) => (
+                        <div key={rtnId} className="flex-1 min-w-0 flex justify-center">
+                          {i === nextIdx ? (
+                            <div className="w-[1.5px] h-full bg-[repeating-linear-gradient(to_bottom,rgba(91,245,160,0.5)_0px,rgba(91,245,160,0.5)_3px,transparent_3px,transparent_7px)]" />
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-[1.5px] border-[rgba(91,245,160,0.2)] rounded-[14px] p-4 bg-[rgba(91,245,160,0.02)] mb-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-white text-[15px] font-bold">{nextRtn.name}</span>
+                        <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-[rgba(91,245,160,0.1)] text-[#5BF5A0]">Up Next</span>
+                      </div>
+                      <div className="text-[11px] text-[#555] mb-2">{exCount} exercises · {setCountR} sets each · ~{estMin} min</div>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {(nextRtn.exercises || []).map((ex, i) => (
+                          <span key={i} className="text-[10px] font-semibold text-[#666] bg-white/5 px-2 py-0.5 rounded">{ex.exerciseId}</span>
+                        ))}
+                      </div>
+                      <button type="button" onClick={() => tryStart('routine', nextRtn)} className="w-full py-3.5 mt-3 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold flex items-center justify-center gap-1.5">
+                        <PlayIcon className="w-3.5 h-3.5" /> Start {nextRtn.name}
+                      </button>
+                    </div>
+                    <button type="button" onClick={startEmpty} className="w-full py-4 px-4 mt-5 border-2 border-[rgba(123,123,255,0.4)] rounded-[14px] bg-[rgba(123,123,255,0.03)] flex items-center gap-3">
+                      <span className="w-[38px] h-[38px] rounded-[10px] bg-[rgba(123,123,255,0.06)] flex items-center justify-center text-[#7B7BFF] text-lg font-bold">+</span>
+                      <div className="text-left">
+                        <div className="text-white text-sm font-bold">Empty Workout</div>
+                        <div className="text-[11px] text-[#555]">Start fresh and add exercises as you go</div>
+                      </div>
+                    </button>
+                  </>
+                )
+              })()}
+              </>
+              )}
+
+              {workoutTab === 'plan' && (
+                <div className="plan-tab">
+                  {(() => {
+                    const programmesWithRoutines = programmes.filter((prog) => {
+                      const progRoutines = (prog.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
+                      return progRoutines.some(r => (r.exercises?.length ?? 0) > 0)
+                    })
+                    if (programmesWithRoutines.length === 0) {
+                      return (
+                        <>
+                          <div className="rounded-2xl border border-[#232340] bg-[#13132A] p-6 text-center mb-4">
+                            <div className="w-12 h-12 rounded-full bg-[#1C1C38] flex items-center justify-center mx-auto mb-3 text-[#555]">
+                              <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                            </div>
+                            <div className="text-white font-bold text-base mb-1">No programme yet</div>
+                            <div className="text-[#555] text-sm mb-4">Create your first programme and add routines to get started.</div>
+                            <button type="button" onClick={createProgramme} className="w-full py-2.5 border-2 border-[rgba(123,123,255,0.4)] rounded-[10px] bg-[rgba(123,123,255,0.04)] text-[#7B7BFF] text-sm font-bold">Create Programme</button>
+                          </div>
+                          <div className="rounded-[14px] p-4 border border-[rgba(123,123,255,0.1)] bg-gradient-to-br from-[rgba(123,123,255,0.04)] to-[rgba(91,245,160,0.02)]">
+                            <div className="text-sm font-semibold text-white mb-1">Need help?</div>
+                            <div className="text-[11px] text-[#555] mb-3">Find a programme that fits your goals</div>
+                            <button type="button" disabled className="w-full py-2.5 rounded-lg bg-[#1C1C38] text-[#555] text-sm font-semibold cursor-not-allowed">Coming Soon</button>
+                          </div>
+                        </>
+                      )
+                    }
+                    return (
+                      <>
+                        {programmesWithRoutines.map((prog) => {
+                          const progRoutines = (prog.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
+                          return (
+                            <div key={prog.id}>
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-white font-bold text-[17px]">{prog.name}</span>
+                                    {prog.isActive && <span className="text-[10px] font-semibold text-[#5BF5A0]">Active</span>}
+                                  </div>
+                                  <div className="text-[11px] text-[#555] mt-0.5">{progRoutines.length} routines · {prog.type === 'weekly' ? 'Weekly' : 'Rotation'}</div>
+                                </div>
+                                <button type="button" onClick={() => setProgrammeMenuProgramme(prog)} className="w-8 h-8 rounded-lg bg-white/[0.03] border border-[#1e1e35] flex items-center justify-center shrink-0" aria-label="Programme options">
+                                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-[#666]"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
+                                </button>
+                              </div>
+                              <div className="flex gap-1.5 mb-4">
+                                {progRoutines.map((r) => (
+                                  <div key={r.id} className="flex-1 min-w-0 bg-[#13132A] rounded-[10px] py-2.5 px-1.5 text-center border border-transparent">
+                                    <div className="text-[11px] font-semibold text-[#888] truncate">{r.name}</div>
+                                    <div className="text-[9px] text-[#444] mt-0.5">{r.exercises?.length ?? 0} ex</div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="h-px bg-[#1e1e35] mb-4" />
+                            </div>
+                          )
+                        })}
+                        <button type="button" onClick={createProgramme} className="w-full py-3 border border-dashed border-[rgba(123,123,255,0.3)] rounded-xl bg-transparent text-[#7B7BFF] text-[13px] font-semibold mb-4">
+                          + Create Programme
+                        </button>
+                        <div className="rounded-[14px] p-4 border border-[rgba(123,123,255,0.1)] bg-gradient-to-br from-[rgba(123,123,255,0.04)] to-[rgba(91,245,160,0.02)]">
+                          <div className="text-sm font-semibold text-white mb-1">Need help?</div>
+                          <div className="text-[11px] text-[#555] mb-3">Find a programme that fits your goals</div>
+                          <button type="button" disabled className="w-full py-2.5 rounded-lg bg-[#1C1C38] text-[#555] text-sm font-semibold cursor-not-allowed">Coming Soon</button>
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              )}
             </div>
           )}
 
-          {/* ACTIVE WORKOUT */}
-          {page === 'workout' && workoutActive && !showCompleteScreen && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2.5"><RepliqeLogo size={24} /><h1 className="text-3xl font-bold tracking-tight">{workoutName || 'Workout'}</h1></div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5 text-[#5BF5A0] text-base font-bold tabular-nums"><div className="w-2 h-2 bg-[#5BF5A0] rounded-full animate-pulse" />{formatTime(workoutElapsed)}</div>
-                  <button onClick={cancelWorkout} className="text-sm font-semibold text-[#777] border border-[#2A2A4A] px-3 py-1.5 rounded-lg hover:border-red-500/50 hover:text-red-400 transition-colors">Cancel</button>
-                </div>
-              </div>
-
-              {editingTemplate && (
-                <div className="bg-[#7B7BFF]/10 border border-[#7B7BFF]/30 rounded-xl p-3 mb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0 mr-3">
-                      <div className="text-xs font-bold text-[#7B7BFF] uppercase tracking-wider mb-1">Editing template</div>
-                      <input type="text" value={workoutName} onChange={(e) => setWorkoutName(e.target.value)}
-                        className="w-full bg-transparent border-b border-[#7B7BFF]/30 text-sm font-bold text-white outline-none focus:border-[#7B7BFF] transition-colors pb-1" />
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button onClick={saveEditedTemplate} className="px-3 py-1.5 bg-[#7B7BFF] rounded-lg text-sm font-bold">Save</button>
-                      <button onClick={cancelEditTemplate} className="px-3 py-1.5 border border-[#2A2A4A] rounded-lg text-sm font-semibold text-[#888]">Cancel</button>
-                    </div>
+          {/* ACTIVE WORKOUT - full bottom sheet */}
+          {page === 'workout' && workoutActive && showActiveWorkoutSheet && !showCompleteScreen && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setShowActiveWorkoutSheet(false)}>
+              <div className="w-full max-w-md bg-[#0D0D1A] rounded-t-[20px] pt-2 pb-10 px-4 max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-3 shrink-0" />
+                <div className="flex items-center justify-between mb-3 shrink-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <h1 className="text-xl font-bold tracking-tight truncate">{workoutName || 'Workout'}</h1>
+                    <div className="flex items-center gap-1.5 text-[#5BF5A0] text-sm font-bold tabular-nums shrink-0"><div className="w-1.5 h-1.5 bg-[#5BF5A0] rounded-full animate-pulse" />{formatTime(workoutElapsed)}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button type="button" onClick={() => setShowActiveWorkoutSheet(false)} className="text-[#777] p-1.5 rounded-lg hover:bg-white/5" aria-label="Minimize">▼</button>
+                    <button onClick={cancelWorkout} className="text-sm font-semibold text-[#777] border border-[#2A2A4A] px-3 py-1.5 rounded-lg hover:border-red-500/50 hover:text-red-400 transition-colors">Cancel</button>
                   </div>
                 </div>
-              )}
 
-              {exercises.map((ex, i) => (
-                <ExerciseCard key={i} exercise={ex} exIndex={i} isEditing={!!editingTemplate} exerciseCount={exercises.length}
-                  onMoveUp={moveExerciseUp} onMoveDown={moveExerciseDown} onRemoveExercise={removeExercise}
-                  onAddSet={addSet} onUpdateSet={updateSet} onDoneSet={doneSet} onUndoneSet={undoneSet} onDeleteSet={deleteSet}
-                  onUpdateExerciseRest={updateExerciseRest} onUpdateExerciseNote={updateExerciseNote}
-                  bestSet={getBestSet(ex.name)} previousSets={getPreviousSets(ex.name)}
-                  activeRest={activeRest} restTime={restTime} restDuration={restDuration} defaultRest={defaultRest} onSkipRest={skipRest}
-                  bodyweight={bodyweight} unitWeight={unitWeight} unitDistance={unitDistance}
-                  libraryEntry={getExerciseFromLibrary(ex.name)} />
-              ))}
+                {editingTemplate && (
+                  <div className="bg-[#7B7BFF]/10 border border-[#7B7BFF]/30 rounded-xl p-3 mb-3 shrink-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0 mr-3">
+                        <div className="text-xs font-bold text-[#7B7BFF] uppercase tracking-wider mb-1">Editing template</div>
+                        <input type="text" value={workoutName} onChange={(e) => setWorkoutName(e.target.value)} onFocus={e => e.target.select()}
+                          className="w-full bg-transparent border-b border-[#7B7BFF]/30 text-sm font-bold text-white outline-none focus:border-[#7B7BFF] transition-colors pb-1" />
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={saveEditedTemplate} className="px-3 py-1.5 bg-[#7B7BFF] rounded-lg text-sm font-bold">Save</button>
+                        <button onClick={cancelEditTemplate} className="px-3 py-1.5 border border-[#2A2A4A] rounded-lg text-sm font-semibold text-[#888]">Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-              <button onClick={() => setShowAddExercise(true)} className="w-full py-3 mb-6 border border-dashed border-[#5BF5A0]/30 rounded-xl text-[#5BF5A0] text-sm font-semibold hover:bg-[#5BF5A0]/8 hover:border-[#5BF5A0] transition-colors">+ Add exercise</button>
+                <div className="overflow-y-auto flex-1 min-h-0 -mx-4 px-4">
+                  {exercises.map((ex, i) => (
+                    <ExerciseCard key={i} exercise={ex} exIndex={i} isEditing={!!editingTemplate} exerciseCount={exercises.length}
+                      onMoveUp={moveExerciseUp} onMoveDown={moveExerciseDown} onRemoveExercise={removeExercise}
+                      onAddSet={addSet} onUpdateSet={updateSet} onDoneSet={doneSet} onUndoneSet={undoneSet} onDeleteSet={deleteSet}
+                      onUpdateExerciseRest={updateExerciseRest} onUpdateExerciseNote={updateExerciseNote}
+                      bestSet={getBestSet(ex.name)} previousSets={getPreviousSets(ex.name)}
+                      activeRest={activeRest} restTime={restTime} restDuration={restDuration} defaultRest={defaultRest} onSkipRest={skipRest}
+                      bodyweight={bodyweight} unitWeight={unitWeight} unitDistance={unitDistance}
+                      libraryEntry={getExerciseFromLibrary(ex.name)} />
+                  ))}
 
-              {exercises.length > 0 && !editingTemplate && (
-                <div className="flex flex-col gap-3 mt-4 mb-8">
-                  <button onClick={finishWorkout} className="w-full py-4 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-2xl font-bold text-base shadow-lg shadow-[#7B7BFF]/25 hover:translate-y-[-1px] active:translate-y-[1px] transition-transform">Finish workout</button>
+                  <button onClick={() => setShowAddExercise(true)} className="w-full py-3 mb-4 border border-dashed border-[#5BF5A0]/30 rounded-xl text-[#5BF5A0] text-sm font-semibold hover:bg-[#5BF5A0]/8 hover:border-[#5BF5A0] transition-colors">+ Add exercise</button>
+
+                  {exercises.length > 0 && !editingTemplate && (
+                    <div className="flex flex-col gap-3 mt-2 mb-8">
+                      <button onClick={finishWorkout} className="w-full py-4 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-2xl font-bold text-base shadow-lg shadow-[#7B7BFF]/25 hover:translate-y-[-1px] active:translate-y-[1px] transition-transform">Finish workout</button>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -850,6 +1245,315 @@ function App() {
         </div>
 
         {/* MODALS */}
+        {/* Programme Menu (bottom sheet) */}
+        {programmeMenuProgramme && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setProgrammeMenuProgramme(null)}>
+            <div className="w-full max-w-md bg-[#13132A] rounded-t-[20px] pt-2 pb-9 px-4 max-h-[80%] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-4" />
+              <h2 className="text-white text-base font-bold mb-3">{programmeMenuProgramme.name}</h2>
+              <button type="button" onClick={() => openEditProgramme(programmeMenuProgramme.id)} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
+                <span className="w-9 h-9 rounded-lg bg-[rgba(123,123,255,0.06)] flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#7B7BFF" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </span>
+                <div className="text-left flex-1">
+                  <div className="text-white text-sm font-semibold">Edit Programme</div>
+                  <div className="text-[#555] text-[11px] mt-0.5">Rename, add or reorder routines</div>
+                </div>
+                <span className="text-[#333] text-base">›</span>
+              </button>
+              <button type="button" onClick={() => setProgrammeActive(programmeMenuProgramme.id)} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
+                <span className="w-9 h-9 rounded-lg bg-[rgba(91,245,160,0.06)] flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#5BF5A0" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </span>
+                <div className="text-left flex-1">
+                  <div className="text-white text-sm font-semibold">Set as Active</div>
+                  <div className="text-[#555] text-[11px] mt-0.5">Use this programme on Start tab</div>
+                </div>
+                <span className="text-[#333] text-base">›</span>
+              </button>
+              <button type="button" onClick={() => { setShowDeleteProgrammeConfirm(programmeMenuProgramme.id); setProgrammeMenuProgramme(null) }} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
+                <span className="w-9 h-9 rounded-lg bg-[rgba(255,85,85,0.06)] flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#FF5555" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </span>
+                <div className="text-left flex-1">
+                  <div className="text-red-400 text-sm font-semibold">Delete Programme</div>
+                  <div className="text-[#555] text-[11px] mt-0.5">Permanently remove this programme</div>
+                </div>
+                <span className="text-[#333] text-base">›</span>
+              </button>
+              <button type="button" onClick={() => setProgrammeMenuProgramme(null)} className="w-full py-3 mt-2 border border-[#2A2A4A] rounded-lg text-[#666] text-xs font-semibold">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Programme confirmation (centered) */}
+        {showDeleteProgrammeConfirm && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
+            <div className="w-full max-w-sm bg-[#13132A] rounded-[18px] p-7 text-center">
+              <div className="w-12 h-12 rounded-full bg-[rgba(255,85,85,0.1)] flex items-center justify-center mx-auto mb-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#FF5555" strokeWidth="2" strokeLinecap="round" className="w-6 h-6"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </div>
+              <h2 className="text-white text-lg font-bold mb-2">Delete Programme?</h2>
+              <p className="text-[#888] text-sm mb-5">{programmes.find(p => p.id === showDeleteProgrammeConfirm)?.name} and all its routines will be permanently deleted.</p>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowDeleteProgrammeConfirm(null)} className="flex-1 py-3 border border-[#2A2A4A] rounded-xl text-[#888] text-sm font-semibold">Cancel</button>
+                <button type="button" onClick={() => confirmDeleteProgrammeAction(showDeleteProgrammeConfirm)} className="flex-1 py-3 bg-[#FF5555] rounded-xl text-white text-sm font-bold">Delete</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Set as active after creating programme */}
+        {showSetActiveAfterCreate && (() => {
+          const prog = programmes.find(p => p.id === showSetActiveAfterCreate)
+          if (!prog) return null
+          return (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
+              <div className="w-full max-w-sm bg-[#13132A] rounded-[18px] p-7 text-center">
+                <div className="w-12 h-12 rounded-full bg-[rgba(91,245,160,0.1)] flex items-center justify-center mx-auto mb-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#5BF5A0" strokeWidth="2" strokeLinecap="round" className="w-6 h-6"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <h2 className="text-white text-lg font-bold mb-2">Set as active programme?</h2>
+                <p className="text-[#888] text-sm mb-5">Use &quot;{prog.name}&quot; on the Start tab as your active programme?</p>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => { setShowSetActiveAfterCreate(null) }} className="flex-1 py-3 border border-[#2A2A4A] rounded-xl text-[#888] text-sm font-semibold">Not now</button>
+                  <button type="button" onClick={() => { setProgrammeActive(showSetActiveAfterCreate); setShowSetActiveAfterCreate(null) }} className="flex-1 py-3 bg-[#5BF5A0] rounded-xl text-[#0D0D1A] text-sm font-bold">Set as active</button>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Set as active after editing programme (when it wasn't already active) */}
+        {showSetActiveAfterEditProgramme && (() => {
+          const prog = programmes.find(p => p.id === showSetActiveAfterEditProgramme)
+          if (!prog) return null
+          return (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
+              <div className="w-full max-w-sm bg-[#13132A] rounded-[18px] p-7 text-center">
+                <div className="w-12 h-12 rounded-full bg-[rgba(91,245,160,0.1)] flex items-center justify-center mx-auto mb-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#5BF5A0" strokeWidth="2" strokeLinecap="round" className="w-6 h-6"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <h2 className="text-white text-lg font-bold mb-2">Set as active programme?</h2>
+                <p className="text-[#888] text-sm mb-5">Use &quot;{prog.name}&quot; on the Start tab as your active programme?</p>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setShowSetActiveAfterEditProgramme(null)} className="flex-1 py-3 border border-[#2A2A4A] rounded-xl text-[#888] text-sm font-semibold">Not now</button>
+                  <button type="button" onClick={() => { setProgrammeActive(showSetActiveAfterEditProgramme); setShowSetActiveAfterEditProgramme(null) }} className="flex-1 py-3 bg-[#5BF5A0] rounded-xl text-[#0D0D1A] text-sm font-bold">Set as active</button>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Create Programme modal */}
+        {showCreateProgramme && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setShowCreateProgramme(false)}>
+            <div className="w-full max-w-md bg-[#13132A] rounded-t-[20px] pt-2 pb-9 px-4 max-h-[80%] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-4" />
+              <h2 className="text-white text-base font-bold mb-3">Create Programme</h2>
+              <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Name</label>
+              <input type="text" value={createProgrammeName} onChange={e => setCreateProgrammeName(e.target.value)} onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold outline-none focus:border-[#7B7BFF]" />
+              <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Schedule</label>
+              <div className="flex gap-1.5">
+                <button type="button" onClick={() => setCreateProgrammeType('rotation')} className={`flex-1 py-2.5 rounded-lg text-center text-[11px] font-bold ${createProgrammeType === 'rotation' ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#555]'}`}>Rotation</button>
+                <button type="button" onClick={() => setCreateProgrammeType('weekly')} className={`flex-1 py-2.5 rounded-lg text-center text-[11px] font-bold ${createProgrammeType === 'weekly' ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#555]'}`}>Weekly</button>
+              </div>
+              <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Routines</label>
+              {createProgrammeRoutines.map((r, i) => (
+                <div key={i} className="flex justify-between items-center py-3 px-3 bg-[#1C1C38] rounded-[10px] border border-[#2A2A4A] mb-1.5">
+                  <span className="text-white text-sm font-semibold">{r.name}</span>
+                  <span className="text-[#555] text-xs">{r.exercises?.length ?? 0} exercises</span>
+                  <button type="button" onClick={() => setCreateProgrammeRoutines(prev => prev.filter((_, j) => j !== i))} className="text-[rgba(255,85,85,0.5)] p-1">✕</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => { setEditingRoutineProgrammeId(null); setEditingRoutineId(null); setEditRoutineName('New Routine'); setEditRoutineExercises([]); setShowCreateRoutine(true); setShowCreateProgramme(false) }} className="w-full py-3 border border-dashed border-[#2A2A4A] rounded-xl text-[#7B7BFF] text-sm font-semibold mb-4">+ Add Routine</button>
+              <button type="button" onClick={() => { saveNewProgramme(createProgrammeName, createProgrammeType, null, createProgrammeRoutines); setCreateProgrammeRoutines([]) }} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold">Save Programme</button>
+              <button type="button" onClick={() => { setShowCreateProgramme(false); setCreateProgrammeRoutines([]) }} className="w-full py-3 mt-2 text-[#666] text-xs font-semibold">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Programme modal */}
+        {editingProgrammeId && (() => {
+          const prog = programmes.find(p => p.id === editingProgrammeId)
+          const progRoutines = (prog?.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
+          return (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setEditingProgrammeId(null)}>
+              <div className="w-full max-w-md bg-[#13132A] rounded-t-[20px] pt-2 pb-9 px-4 max-h-[80%] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-4" />
+                <h2 className="text-white text-base font-bold mb-3">Edit Programme</h2>
+                <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Name</label>
+                <input type="text" value={editProgrammeName} onChange={e => setEditProgrammeName(e.target.value)} onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold outline-none focus:border-[#7B7BFF]" />
+                <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Schedule</label>
+                <div className="flex gap-1.5">
+                  <button type="button" onClick={() => setEditProgrammeType('rotation')} className={`flex-1 py-2.5 rounded-lg text-center text-[11px] font-bold ${editProgrammeType === 'rotation' ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#555]'}`}>Rotation</button>
+                  <button type="button" onClick={() => setEditProgrammeType('weekly')} className={`flex-1 py-2.5 rounded-lg text-center text-[11px] font-bold ${editProgrammeType === 'weekly' ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#555]'}`}>Weekly</button>
+                </div>
+                <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Routines</label>
+                {progRoutines.map((r, i) => (
+                  <div key={r.id} className="flex justify-between items-center py-3 px-3 bg-[#1C1C38] rounded-[10px] border border-[#2A2A4A] mb-1.5">
+                    <span className="text-white text-sm font-semibold">{r.name}</span>
+                    <span className="text-[#555] text-xs">{r.exercises?.length ?? 0} exercises</span>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => { setEditRoutineName(r.name); setEditRoutineExercises(r.exercises || []); setEditingRoutineId(r.id); setEditingRoutineProgrammeId(editingProgrammeId); setEditingProgrammeId(null) }} className="text-[#7B7BFF] text-xs font-semibold">Edit</button>
+                      <button type="button" onClick={() => removeRoutineFromProgramme(editingProgrammeId, r.id)} className="text-[rgba(255,85,85,0.5)] p-1">✕</button>
+                      <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'up')} disabled={i === 0} className="text-[#333] p-1 disabled:opacity-30">☰↑</button>
+                      <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'down')} disabled={i === progRoutines.length - 1} className="text-[#333] p-1 disabled:opacity-30">☰↓</button>
+                    </div>
+                  </div>
+                ))}
+                <button type="button" onClick={() => { setEditRoutineName('New Routine'); setEditRoutineExercises([]); setEditingRoutineId(null); setEditingRoutineProgrammeId(editingProgrammeId); setShowCreateRoutine(true); setEditingProgrammeId(null) }} className="w-full py-3 border border-dashed border-[#2A2A4A] rounded-xl text-[#7B7BFF] text-sm font-semibold mb-4">+ Add Routine</button>
+                <button type="button" onClick={() => {
+                  const progId = editingProgrammeId
+                  const programme = programmes.find(p => p.id === progId)
+                  saveEditedProgramme(progId, editProgrammeName, editProgrammeType, prog?.routineIds || [])
+                  setEditingProgrammeId(null)
+                  if (programme && !programme.isActive) setShowSetActiveAfterEditProgramme(progId)
+                }} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold">Save Changes</button>
+                <button type="button" onClick={() => setEditingProgrammeId(null)} className="w-full py-3 mt-2 text-[#666] text-xs font-semibold">Cancel</button>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Create / Edit Routine - full bottom sheet, same UI as workout (no timer) */}
+        {(showCreateRoutine || editingRoutineId) && (() => {
+          const isEdit = !!editingRoutineId
+          const name = isEdit ? editRoutineName : (showCreateRoutine ? editRoutineName : '')
+          const exs = isEdit ? editRoutineExercises : (showCreateRoutine ? editRoutineExercises : [])
+          const programmeId = editingRoutineProgrammeId
+          const closeRoutineEditor = () => {
+            const progId = editingRoutineProgrammeId
+            setShowCreateRoutine(false)
+            setEditingRoutineId(null)
+            setEditingRoutineProgrammeId(null)
+            setRoutineEditorRestForIndex(null)
+            setRoutineEditorNoteForIndex(null)
+            setFocusNewExerciseAt(null)
+            if (progId) setEditingProgrammeId(progId)
+          }
+          return (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={closeRoutineEditor}>
+              <div className="w-full max-w-md bg-[#0D0D1A] rounded-t-[20px] pt-2 pb-10 px-4 max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-3 shrink-0" />
+                <h2 className="text-white text-base font-bold mb-3 shrink-0">{isEdit ? 'Edit Routine' : 'Create Routine'}</h2>
+                <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-1.5">Name</label>
+                <input type="text" value={name} onChange={e => setEditRoutineName(e.target.value)} onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold outline-none focus:border-[#7B7BFF] mb-4 shrink-0" />
+                <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-2">Exercises</label>
+                <div className="overflow-y-auto flex-1 min-h-0 -mx-4 px-4 space-y-2">
+                  {(exs || []).map((ex, i) => {
+                    const setConfigs = getSetConfigs(ex)
+                    const lib = getExerciseFromLibrary(ex.exerciseId)
+                    const restOverride = ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null
+                    const note = ex.note ?? ''
+                    const updateSetConfigs = (newConfigs) => {
+                      const next = newConfigs.length < 1 ? [{ targetReps: '8-10', targetKg: '' }] : newConfigs
+                      setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, setConfigs: next }))
+                    }
+                    const updateSetAt = (setIdx, field, value) => {
+                      setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, setConfigs: setConfigs.map((s, si) => si === setIdx ? { ...s, [field]: value } : s) }))
+                    }
+                    const addSet = () => {
+                      const last = setConfigs[setConfigs.length - 1]
+                      updateSetConfigs([...setConfigs, { targetReps: last?.targetReps ?? '8-10', targetKg: last?.targetKg ?? '' }])
+                    }
+                    const removeSetAt = (setIdx) => updateSetConfigs(setConfigs.filter((_, si) => si !== setIdx))
+                    const setRest = (val) => { setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, restOverride: val })); setRoutineEditorRestForIndex(null) }
+                    const updateNote = (val) => setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, note: val }))
+                    return (
+                      <div key={i} className="bg-[#13132A] border border-[#232340] rounded-2xl p-3.5">
+                        <div className="flex justify-between items-start gap-2 mb-2">
+                          <div className="flex items-start gap-2 min-w-0 flex-1">
+                            {lib ? <div className="mt-0.5"><MuscleIcon muscle={lib.muscle} size={14} /></div> : null}
+                            <div className="min-w-0">
+                              <span className="text-lg font-bold tracking-tight text-white block truncate">{ex.exerciseId}</span>
+                              {lib && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/5 text-[#888]">{lib.equipment}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button type="button" onClick={() => setRoutineEditorNoteForIndex(routineEditorNoteForIndex === i ? null : i)} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold transition-colors ${note ? 'bg-[#7B7BFF]/10 text-[#7B7BFF] border border-[#7B7BFF]/20' : 'bg-[#1C1C38] text-[#777] border border-[#2A2A4A]'}`}>
+                              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            </button>
+                            <button type="button" onClick={() => setRoutineEditorRestForIndex(routineEditorRestForIndex === i ? null : i)} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold transition-colors ${restOverride !== null ? 'bg-[#5BF5A0]/10 text-[#5BF5A0] border border-[#5BF5A0]/20' : 'bg-[#1C1C38] text-[#777] border border-[#2A2A4A]'}`}>
+                              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                              {restOverride === null || restOverride === undefined ? 'Rest' : (restOverride === 0 ? 'None' : formatTime(restOverride))}
+                            </button>
+                            <button type="button" onClick={() => setEditRoutineExercises(prev => prev.filter((_, j) => j !== i))} className="text-[rgba(255,85,85,0.6)] hover:text-red-400 p-1 shrink-0" aria-label="Remove exercise">✕</button>
+                          </div>
+                        </div>
+                        {routineEditorNoteForIndex === i && (
+                          <div className="mt-2 flex gap-2 mb-2">
+                            <input type="text" placeholder="Add a note..." value={note} onChange={(e) => updateNote(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setRoutineEditorNoteForIndex(null)} autoFocus className="flex-1 bg-[#1C1C38] border border-[#2A2A4A] rounded-lg px-3 py-2 text-sm text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF]" />
+                            <button type="button" onClick={() => setRoutineEditorNoteForIndex(null)} className="px-3 py-2 bg-[#7B7BFF] rounded-lg text-sm font-bold">Done</button>
+                          </div>
+                        )}
+                        {note && routineEditorNoteForIndex !== i && (
+                          <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-[#1C1C38] rounded-lg border border-[#2A2A4A]">
+                            <span className="text-sm text-[#888] italic flex-1">{note}</span>
+                            <button type="button" onClick={() => updateNote('')} className="text-[#777] hover:text-red-400 shrink-0">✕</button>
+                          </div>
+                        )}
+                        {routineEditorRestForIndex === i && (
+                          <div className="mt-2 mb-2 p-3 bg-[#1C1C38] rounded-xl border border-[#2A2A4A]">
+                            <div className="text-xs text-[#777] font-semibold uppercase tracking-wide mb-2">Rest for this exercise</div>
+                            <div className="flex gap-1.5 flex-wrap">
+                              <button type="button" onClick={() => setRest(null)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === null ? 'bg-[#7B7BFF] text-white' : 'bg-[#13132A] border border-[#2A2A4A] text-[#888]'}`}>Default</button>
+                              {REST_PRESETS.map(s => <button key={s} type="button" onClick={() => setRest(s)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === s ? 'bg-[#5BF5A0] text-[#0D0D1A]' : 'bg-[#13132A] border border-[#2A2A4A] text-[#888]'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
+                            </div>
+                          </div>
+                        )}
+                        <div className="gap-1.5 mt-2 mb-1 grid items-center" style={{ gridTemplateColumns: '28px 1fr 1fr 30px' }}>
+                          <span className="text-xs font-bold text-[#666] uppercase text-center">Set</span>
+                          <span className="text-xs font-bold text-[#666] uppercase text-center">{unitWeight}</span>
+                          <span className="text-xs font-bold text-[#666] uppercase text-center">Reps</span>
+                          <span />
+                        </div>
+                        {setConfigs.map((setCfg, setIdx) => (
+                          <div key={setIdx} className="gap-1.5 grid items-center mb-1" style={{ gridTemplateColumns: '28px 1fr 1fr 30px' }}>
+                            <span className="text-sm font-bold text-[#888] text-center">{setIdx + 1}</span>
+                            <input ref={i === focusNewExerciseAt && setIdx === 0 ? routineEditorFirstInputRef : undefined} type="number" inputMode="decimal" value={setCfg.targetKg ?? ''} onChange={e => updateSetAt(setIdx, 'targetKg', e.target.value)} placeholder={unitWeight} onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-[#1C1C38] border border-[#2A2A4A] px-1.5 py-1.5 text-center text-white text-sm font-bold outline-none focus:border-[#7B7BFF]" />
+                            <input type="number" inputMode="numeric" value={setCfg.targetReps ?? ''} onChange={e => updateSetAt(setIdx, 'targetReps', e.target.value)} placeholder="reps" onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-[#1C1C38] border border-[#2A2A4A] px-1.5 py-1.5 text-center text-white text-sm font-bold outline-none focus:border-[#7B7BFF]" />
+                            {setConfigs.length > 1 ? <button type="button" onClick={() => removeSetAt(setIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg text-[#555] hover:text-red-400 hover:bg-red-500/10 shrink-0" aria-label="Delete set">✕</button> : <span className="w-7 shrink-0" />}
+                          </div>
+                        ))}
+                        <button type="button" onClick={addSet} className="w-full py-2 mt-2 border border-dashed border-[#2A2A4A] rounded-lg text-[#777] text-sm font-semibold hover:border-[#7B7BFF] hover:text-[#7B7BFF]">+ Add set</button>
+                      </div>
+                    )
+                  })}
+                  <button type="button" onClick={() => setShowExercisePickerForRoutine(true)} className="w-full py-3 border border-dashed border-[#5BF5A0]/30 rounded-xl text-[#5BF5A0] text-sm font-semibold hover:bg-[#5BF5A0]/8 hover:border-[#5BF5A0] mb-2">+ Add exercise</button>
+                </div>
+                <div className="shrink-0 pt-3 space-y-2">
+                  <button type="button" onClick={() => {
+                    if (isEdit) { saveRoutineEdits(editingRoutineId, editRoutineName, editRoutineExercises); closeRoutineEditor() }
+                    else if (programmeId) { addRoutineToProgramme(programmeId, { name: editRoutineName, exercises: editRoutineExercises }); setShowCreateRoutine(false); setEditRoutineName('New Routine'); setEditRoutineExercises([]); setEditingRoutineProgrammeId(null); setEditingProgrammeId(programmeId); setEditProgrammeName(programmes.find(p => p.id === programmeId)?.name || ''); setEditProgrammeType(programmes.find(p => p.id === programmeId)?.type || 'rotation'); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
+                    else { setCreateProgrammeRoutines(prev => [...prev, { name: editRoutineName, exercises: editRoutineExercises }]); setShowCreateRoutine(false); setShowCreateProgramme(true); setEditRoutineName('New Routine'); setEditRoutineExercises([]); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
+                  }} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold">Save</button>
+                  <button type="button" onClick={closeRoutineEditor} className="w-full py-3 text-[#666] text-xs font-semibold">Cancel</button>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Exercise Picker for Routine - reuse ExerciseLibrary in modal, onAdd adds to editing routine or create draft */}
+        {showExercisePickerForRoutine && (
+          <div className="fixed inset-0 z-30">
+            <ExerciseLibrary
+              allExercises={allLibraryExercises}
+              mode="modal"
+              onAdd={(exList) => {
+                const newExs = exList.map(e => ({ exerciseId: e.name, setConfigs: [{ targetReps: '8-10', targetKg: '' }], restOverride: null, note: '' }))
+                const startIndex = editRoutineExercises.length
+                setEditRoutineExercises(prev => [...(prev || []), ...newExs])
+                setFocusNewExerciseAt(startIndex)
+                setShowExercisePickerForRoutine(false)
+              }}
+              onClose={() => setShowExercisePickerForRoutine(false)}
+              onCreateCustom={() => { setEditingCustomExercise(null); setShowCreateExercise(true) }}
+            />
+          </div>
+        )}
+
         {/* ADD EXERCISE MODAL */}
         {showAddExercise && (
           <ExerciseLibrary
@@ -875,7 +1579,7 @@ function App() {
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
             <div className="w-full max-w-md bg-[#13132A] rounded-t-3xl p-6 pb-10">
               <h2 className="text-lg font-bold text-center mb-5">Name your workout</h2>
-              <input type="text" placeholder="e.g. Push Day, Upper Body..." value={emptyWorkoutName} onChange={(e) => setEmptyWorkoutName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmEmptyStart()} autoFocus className="w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors mb-4" />
+              <input type="text" placeholder="e.g. Push Day, Upper Body..." value={emptyWorkoutName} onChange={(e) => setEmptyWorkoutName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && confirmEmptyStart()} autoFocus className="w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors mb-4" />
               <button onClick={confirmEmptyStart} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${emptyWorkoutName ? 'bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] shadow-lg shadow-[#7B7BFF]/25' : 'bg-[#1C1C38] text-[#555]'}`} disabled={!emptyWorkoutName}>Start workout</button>
               <button onClick={() => setShowEmptyNameModal(false)} className="w-full py-3 text-sm font-semibold text-[#777]">Cancel</button>
             </div>
@@ -886,7 +1590,11 @@ function App() {
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
             <div className="w-full max-w-md bg-[#13132A] rounded-t-3xl p-6 pb-10">
               <h2 className="text-lg font-bold text-center mb-2">Finish workout</h2>
-              {isTemplateBased() ? (<>
+              {isRoutineBased() ? (<>
+                <p className="text-sm text-[#777] text-center mb-6">Update this routine in your programme with today's sets and reps?</p>
+                <button onClick={() => confirmFinish(true)} className="w-full py-4 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-[#7B7BFF]/25">Save & update routine</button>
+                <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-[#2A2A4A] rounded-2xl text-sm font-semibold text-[#888] mb-3">Save without updating routine</button>
+              </>) : isTemplateBased() ? (<>
                 <p className="text-sm text-[#777] text-center mb-6">Update templates with today's values?</p>
                 <button onClick={() => confirmFinish(true)} className="w-full py-4 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-[#7B7BFF]/25">Save & update all templates</button>
                 <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-[#2A2A4A] rounded-2xl text-sm font-semibold text-[#888] mb-3">Save without updating templates</button>
@@ -1106,7 +1814,7 @@ function SaveTemplateModal({ folders, onSave, onCancel }) {
         <h2 className="text-lg font-bold text-center mb-5">Save as template</h2>
         <div className="mb-4">
           <div className="text-sm text-[#777] font-semibold uppercase tracking-wide mb-2">Template name</div>
-          <input type="text" placeholder="e.g. Push Day A" value={templateName} onChange={(e) => setTemplateName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSave()} autoFocus className="w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors" />
+          <input type="text" placeholder="e.g. Push Day A" value={templateName} onChange={(e) => setTemplateName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && handleSave()} autoFocus className="w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors" />
         </div>
         <div className="mb-5">
           <div className="text-sm text-[#777] font-semibold uppercase tracking-wide mb-2">Save to folder</div>
