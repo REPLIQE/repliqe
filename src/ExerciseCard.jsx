@@ -251,7 +251,7 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
             </div>
 
             {isActiveRest && (
-              <div className="flex items-center justify-center gap-2 py-1 my-0.5 rounded-lg relative overflow-hidden min-h-0 pointer-events-none" style={{ height: '1.65rem' }}>
+              <div data-rest-active="1" className="flex items-center justify-center gap-2 py-1 my-0.5 rounded-lg relative overflow-hidden min-h-0 pointer-events-none" style={{ height: '1.65rem' }}>
                 <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-[#5BF5A0]/10 to-[#4ECDC4]/5 rounded-lg transition-all duration-500" style={{ width: `${Math.max(0, (restTime / restDuration) * 100)}%` }} />
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3 h-3 stroke-[#5BF5A0] relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 <span className="text-[#5BF5A0] font-bold text-sm tabular-nums relative z-10 min-w-[36px] text-center">{formatTime(restTime)}</span>
