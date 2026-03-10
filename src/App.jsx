@@ -12,6 +12,33 @@ function PlayIcon({ className = 'w-3.5 h-3.5' }) {
   return <svg viewBox="0 0 24 24" className={`${className} fill-current`}><polygon points="5 3 19 12 5 21 5 3"/></svg>
 }
 
+function SplashScreen({ onFinished }) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (onFinished) onFinished()
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [onFinished])
+  return (
+    <div className="splash-screen">
+      <div className="splash-content">
+        <div className="splash-grid">
+          <div className="splash-block" />
+          <div className="splash-block" />
+          <div className="splash-block" />
+          <div className="splash-block" />
+          <div className="splash-block" />
+          <div className="splash-block" />
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div className="splash-name">REPLIQE</div>
+          <div className="splash-tagline">Simple tracking. Real progress.</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function RepliqeLogo({ size = 28 }) {
   return <svg width={size} height={size} viewBox="0 0 100 100" className="shrink-0"><rect x="8" y="5" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.9"/><rect x="54" y="5" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.9"/><rect x="8" y="37" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.7"/><rect x="54" y="37" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.7"/><rect x="8" y="69" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.5"/><rect x="54" y="69" width="38" height="26" rx="8" fill="#5BF5A0" opacity="0.9"/></svg>
 }
@@ -61,9 +88,10 @@ function relativeTime(dateStr) {
 
 function parseTimeToSeconds(t) {
   if (!t) return 0
-  const str = String(t)
-  if (str.includes(':')) { const [m, s] = str.split(':'); return (parseInt(m)||0)*60 + (parseInt(s)||0) }
-  return parseInt(str) || 0
+  const str = String(t).trim()
+  if (str.includes(':')) { const [m, s] = str.split(':'); return (parseInt(m, 10) || 0) * 60 + (parseInt(s, 10) || 0) }
+  const n = parseInt(str, 10) || 0
+  return n * 60
 }
 
 function App() {
@@ -135,10 +163,8 @@ function App() {
   const [selectedStartRoutineId, setSelectedStartRoutineId] = useState(null) // which routine is selected on Start (null = Up Next)
   const [showActiveWorkoutSheet, setShowActiveWorkoutSheet] = useState(false)
   const [createProgrammeName, setCreateProgrammeName] = useState('')
-  const [createProgrammeType, setCreateProgrammeType] = useState('rotation')
   const [createProgrammeRoutines, setCreateProgrammeRoutines] = useState([])
   const [editProgrammeName, setEditProgrammeName] = useState('')
-  const [editProgrammeType, setEditProgrammeType] = useState('rotation')
   const [editRoutineName, setEditRoutineName] = useState('')
   const [editRoutineExercises, setEditRoutineExercises] = useState([])
   const [routineEditorRestForIndex, setRoutineEditorRestForIndex] = useState(null)
@@ -149,8 +175,12 @@ function App() {
   const routineEditorFirstInputRef = useRef(null)
   const currentRoutineIdRef = useRef(null)
 
-  useEffect(() => { const t = setTimeout(() => setShowSplash(false), 1500); return () => clearTimeout(t) }, [])
   useEffect(() => { if (page === 'library') setPage('workout') }, [page])
+  useEffect(() => {
+    if (programmes.length === 1 && !programmes[0].isActive) {
+      setProgrammes(prev => prev.map(p => ({ ...p, isActive: true })))
+    }
+  }, [programmes.length])
   useEffect(() => { localStorage.setItem('exercises', JSON.stringify(exercises)) }, [exercises])
   useEffect(() => { localStorage.setItem('history', JSON.stringify(history)) }, [history])
   useEffect(() => { localStorage.setItem('folders', JSON.stringify(folders)) }, [folders])
@@ -270,8 +300,6 @@ function App() {
     setExercises(n); setActiveRest(null); setRestTime(0); restStartRef.current = null
     if (navigator.vibrate) navigator.vibrate([200, 100, 200])
   }
-  function skipRest() { completeRest() }
-
   function tryStart(type, data) {
     if (workoutActive && exercises.length > 0) { setPendingStart({ type, data }); return }
     executeStart(type, data)
@@ -338,20 +366,31 @@ function App() {
   }
 
   function getNextRoutine(programme, workoutHistory) {
-    if (!programme?.routineIds?.length) return null
-    const routineIds = programme.routineIds
-    const parseDate = (w) => {
-      const parts = (w.date || '').split('/')
-      if (parts.length !== 3) return 0
-      return new Date(parts[2], parts[1] - 1, parts[0]).getTime()
+    const routineIds = programme?.routineIds || []
+    if (!routineIds.length) return null
+    let idx = programme.currentIndex
+    if (idx === undefined || idx === null) {
+      const parseDate = (w) => {
+        const parts = (w.date || '').split('/')
+        if (parts.length !== 3) return 0
+        return new Date(parts[2], parts[1] - 1, parts[0]).getTime()
+      }
+      const lastCompleted = (workoutHistory || [])
+        .filter(w => w.routineId && routineIds.includes(w.routineId))
+        .sort((a, b) => parseDate(b) - parseDate(a))[0]
+      idx = lastCompleted ? (routineIds.indexOf(lastCompleted.routineId) + 1) % routineIds.length : 0
     }
-    const lastCompleted = workoutHistory
-      .filter(w => w.routineId && routineIds.includes(w.routineId))
-      .sort((a, b) => parseDate(b) - parseDate(a))[0]
-    if (!lastCompleted) return routineIds[0]
-    const lastIndex = routineIds.indexOf(lastCompleted.routineId)
-    const nextIndex = (lastIndex + 1) % routineIds.length
-    return routineIds[nextIndex]
+    idx = ((idx % routineIds.length) + routineIds.length) % routineIds.length
+    return routineIds[idx]
+  }
+
+  function advanceProgrammeRotation(routineId) {
+    const prog = programmes.find(p => p.routineIds?.includes(routineId))
+    if (!prog?.routineIds?.length) return
+    const idx = prog.routineIds.indexOf(routineId)
+    if (idx < 0) return
+    const nextIndex = (idx + 1) % prog.routineIds.length
+    setProgrammes(prev => prev.map(p => p.id !== prog.id ? p : { ...p, currentIndex: nextIndex }))
   }
 
   function getSetConfigs(ex) {
@@ -389,7 +428,7 @@ function App() {
   }
 
   function createProgramme() {
-    setCreateProgrammeName(`My New Program ${programmes.length + 1}`)
+    setCreateProgrammeName('')
     setShowCreateProgramme(true)
     setEditingProgrammeId(null)
   }
@@ -404,18 +443,16 @@ function App() {
       exercises: r.exercises || []
     }))
     const routineIds = newRoutines.map(r => r.id)
+    const alreadyHasMultiple = programmes.length >= 2
     setRoutines(prev => [...prev, ...newRoutines])
-    setProgrammes(prev => [...prev.map(p => ({ ...p, isActive: false })), { id: progId, name: name || `My New Program ${programmes.length + 1}`, type: type || 'rotation', routineIds, isActive: false, currentIndex: 0 }])
+    setProgrammes(prev => [...prev.map(p => ({ ...p, isActive: false })), { id: progId, name: (name && name.trim()) ? name.trim() : '2 Split - Push/Pull', type: type || 'rotation', routineIds, isActive: !alreadyHasMultiple, currentIndex: 0 }])
     setShowCreateProgramme(false)
-    setShowSetActiveAfterCreate(progId)
+    if (alreadyHasMultiple) setShowSetActiveAfterCreate(progId)
   }
 
   function openEditProgramme(progId) {
     const prog = programmes.find(p => p.id === progId)
-    if (prog) {
-      setEditProgrammeName(prog.name)
-      setEditProgrammeType(prog.type || 'rotation')
-    }
+    if (prog) setEditProgrammeName(prog.name)
     setEditingProgrammeId(progId)
     setProgrammeMenuProgramme(null)
   }
@@ -448,7 +485,13 @@ function App() {
   }
 
   function saveRoutineEdits(rtnId, name, exercises) {
-    setRoutines(prev => prev.map(r => r.id === rtnId ? { ...r, name, exercises } : r))
+    const normalized = (exercises || []).map(ex => ({
+      exerciseId: ex.exerciseId,
+      setConfigs: getSetConfigs(ex).map(s => ({ targetReps: String(s.targetReps ?? '') || '8-10', targetKg: String(s.targetKg ?? '') ?? '' })),
+      restOverride: ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null,
+      note: ex.note ?? ''
+    }))
+    setRoutines(prev => prev.map(r => r.id === rtnId ? { ...r, name, exercises: normalized } : r))
     setEditingRoutineId(null)
     setEditingRoutineProgrammeId(null)
   }
@@ -723,16 +766,35 @@ function App() {
     const ex = exercises[exIndex]
     const set = ex.sets[setIndex]
     if (!set || !isSetComplete(set, ex.type || 'weight_reps')) return
-    const n = exercises.map((e, ei) => {
-      if (ei !== exIndex) return e
-      return { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
-    })
-    setExercises(n)
-    if (activeRest) completeRest()
+    const prevRest = activeRest
+    if (prevRest) {
+      restStartRef.current = restStartRef.current || Date.now()
+      const elapsed = Math.max(1, Math.floor((Date.now() - restStartRef.current) / 1000))
+      setActiveRest(null)
+      setRestTime(0)
+      restStartRef.current = null
+      setExercises(prev => prev.map((e, ei) => {
+        let next = e
+        if (ei === prevRest.exIndex) {
+          next = { ...e, sets: e.sets.map((s, si) => si !== prevRest.setIndex ? s : { ...s, restTime: elapsed }) }
+        }
+        if (ei === exIndex) {
+          next = { ...next, sets: next.sets.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
+        }
+        return next
+      }))
+    } else {
+      setExercises(prev => prev.map((e, ei) => {
+        if (ei !== exIndex) return e
+        return { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
+      }))
+    }
     const dur = ex.restOverride !== null && ex.restOverride !== undefined ? ex.restOverride : defaultRest
     if (dur === 0) return
     restStartRef.current = Date.now()
-    setActiveRest({ exIndex, setIndex }); setRestTime(dur); setRestDuration(dur)
+    setActiveRest({ exIndex, setIndex })
+    setRestTime(dur)
+    setRestDuration(dur)
   }
 
   function undoneSet(exIndex, setIndex) {
@@ -808,14 +870,13 @@ function App() {
     const workout = { date: new Date().toLocaleDateString('en-GB'), name: workoutName, templateName: templateName || undefined, duration, exercises, routineId }
 
     if (routineId && updateRoutineOrTemplate) {
-      setRoutines(prev => prev.map(r => {
-        if (r.id !== routineId) return r
-        const newExercises = exercises.map(ex => ({
-          exerciseId: ex.name,
-          setConfigs: ex.sets.map(s => ({ targetReps: String(s.reps ?? '') || '8-10', targetKg: String(s.kg ?? '') }))
-        }))
-        return { ...r, exercises: newExercises }
+      const newExercises = exercises.map(ex => ({
+        exerciseId: ex.name,
+        setConfigs: (ex.sets || []).map(s => ({ targetReps: String(s.reps ?? '') || '8-10', targetKg: String(s.kg ?? '') ?? '' })),
+        restOverride: ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null,
+        note: ex.note ?? ''
       }))
+      setRoutines(prev => prev.map(r => r.id !== routineId ? r : { ...r, exercises: newExercises }))
     }
     if (!routineId && updateRoutineOrTemplate) {
       const nf = [...folders]
@@ -846,6 +907,10 @@ function App() {
 
     // NOW save to history
     setHistory([workout, ...history])
+    if (routineId) {
+      advanceProgrammeRotation(routineId)
+      setSelectedStartRoutineId(null) // so Start tab shows next "Up Next" with green frame, not the one just completed
+    }
     setShowFinishModal(false)
     setShowCompleteScreen(true)
 
@@ -876,12 +941,13 @@ function App() {
       progId = 'prog_' + ts
       const rtnId = 'rtn_' + ts
       const newRoutine = { id: rtnId, name: routineData.name, programmeId: progId, exercises: routineData.exercises }
+      const alreadyHasMultiple = programmes.length >= 2
       setRoutines(prev => [...prev, newRoutine])
-      setProgrammes(prev => [...prev, { id: progId, name: option.programmeName || `My New Program ${programmes.length + 1}`, type: 'rotation', routineIds: [rtnId], isActive: false, currentIndex: 0 }])
+      setProgrammes(prev => [...prev, { id: progId, name: (option.programmeName && option.programmeName.trim()) ? option.programmeName.trim() : '2 Split - Push/Pull', type: 'rotation', routineIds: [rtnId], isActive: !alreadyHasMultiple, currentIndex: 0 }])
       currentRoutineIdRef.current = rtnId
+      if (alreadyHasMultiple) setShowSetActiveAfterCreate(progId)
     }
     setShowSaveAsRoutineModal(false)
-    setShowSetActiveAfterCreate(progId)
     confirmFinish(false)
   }
 
@@ -991,19 +1057,37 @@ function App() {
   function formatTime(sec) { return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}` }
   function formatDuration(sec) { const m = Math.floor(sec/60); if (m < 60) return `${m} min`; const h = Math.floor(m/60); return `${h}h ${m%60}m` }
 
+  function getEstimatedSecondsRemaining() {
+    const SET_SECONDS_DEFAULT = 40
+    const remaining = []
+    exercises.forEach((ex) => {
+      const type = ex.type || 'weight_reps'
+      const sets = ex.sets || []
+      sets.forEach((set) => {
+        if (!set.done) remaining.push({ ex, set, type })
+      })
+    })
+    let total = 0
+    if (activeRest) total += Math.max(0, restTime || 0)
+    remaining.forEach((item, i) => {
+      const isTimeSet = item.type === 'time_only' || item.type === 'distance_time'
+      const setSec = isTimeSet && (item.set.time !== '' && item.set.time != null) ? parseTimeToSeconds(item.set.time) : SET_SECONDS_DEFAULT
+      total += setSec
+      if (i < remaining.length - 1) {
+        const rest = item.ex.restOverride !== undefined && item.ex.restOverride !== null ? item.ex.restOverride : defaultRest
+        total += rest
+      }
+    })
+    return total
+  }
+
   const lastWorkout = history.length > 0 ? history[0] : null
   const suggestedNext = getSuggestedNext()
   const isNew = history.length === 0
 
   return (
     <>
-      {showSplash && (
-        <div className="fixed inset-0 bg-[#0D0D1A] flex flex-col items-center justify-center z-50">
-          <img src="/icon.svg" className="w-20 h-20 mb-4 animate-bounce" alt="Repliqe" />
-          <div className="text-3xl font-bold tracking-widest text-white">REPLIQE</div>
-          <div className="text-sm text-[#7B7BFF] mt-2">Simple tracking. Real progress.</div>
-        </div>
-      )}
+      {showSplash && <SplashScreen onFinished={() => setShowSplash(false)} />}
 
       <div className="min-h-screen bg-[#0D0D1A] text-white pb-24">
         <div className="px-4 py-6 max-w-md mx-auto">
@@ -1087,7 +1171,6 @@ function App() {
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                         </div>
                         <div className="text-white font-bold text-base mb-1">No active programme</div>
-                        <div className="text-[#555] text-sm mb-2">Set up a programme in Plan to get personalised suggestions here.</div>
                         <div className="text-[#444] text-xs mb-4">Suggestions for your next routine will only be shown after you've created your first programme.</div>
                         <button type="button" onClick={() => setWorkoutTab('plan')} className="w-full py-2.5 border-2 border-[rgba(123,123,255,0.4)] rounded-[10px] bg-[rgba(123,123,255,0.04)] text-[#7B7BFF] text-sm font-bold">Go to Plan</button>
                       </div>
@@ -1117,7 +1200,7 @@ function App() {
                   <>
                     <div className="text-[13px] font-bold text-[#888] uppercase tracking-wider mb-0.5">Active Programme</div>
                     <div className="text-white text-[17px] font-bold mb-0.5">{activeProgramme.name}</div>
-                    <div className="text-[11px] text-[#555] mb-3">{activeProgramme.type === 'weekly' ? 'Weekly' : 'Rotation'} · Day {nextIdx >= 0 ? nextIdx + 1 : 1} of {routineIds.length}</div>
+                    <div className="text-[11px] text-[#555] mb-3">Day {nextIdx >= 0 ? nextIdx + 1 : 1} of {routineIds.length}</div>
                     <div className="flex gap-1.5 mb-1">
                       {routineIds.map((rtnId) => {
                         const rtn = routines.find(r => r.id === rtnId)
@@ -1227,7 +1310,7 @@ function App() {
                                     <span className="text-white font-bold text-[17px]">{prog.name}</span>
                                     {isActive && <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-[rgba(91,245,160,0.1)] text-[#5BF5A0] animate-up-next-pulse">Active</span>}
                                   </div>
-                                  <div className="text-[11px] text-[#555] mt-0.5">{progRoutines.length} routines · {prog.type === 'weekly' ? 'Weekly' : 'Rotation'}</div>
+                                  <div className="text-[11px] text-[#555] mt-0.5">{progRoutines.length} routines</div>
                                 </div>
                                 <button type="button" onClick={() => setProgrammeMenuProgramme(prog)} className="w-8 h-8 rounded-lg bg-white/[0.03] border border-[#1e1e35] flex items-center justify-center shrink-0" aria-label="Programme options">
                                   <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-[#666]"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
@@ -1268,7 +1351,12 @@ function App() {
                 <div className="flex items-center justify-between mb-3 shrink-0">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <h1 className="text-xl font-bold tracking-tight truncate">{workoutName || 'Workout'}</h1>
-                    <div className="flex items-center gap-1.5 text-[#5BF5A0] text-sm font-bold tabular-nums shrink-0"><div className="w-1.5 h-1.5 bg-[#5BF5A0] rounded-full animate-pulse" />{formatTime(workoutElapsed)}</div>
+                    <div className="flex items-center gap-2 text-sm font-bold tabular-nums shrink-0">
+                      <span className="flex items-center gap-1.5 text-[#5BF5A0]"><span className="w-1.5 h-1.5 bg-[#5BF5A0] rounded-full animate-pulse" />{formatTime(workoutElapsed)}</span>
+                      {exercises.some(ex => (ex.sets || []).some(s => !s.done)) && (
+                        <span className="text-[#888]">−{formatTime(getEstimatedSecondsRemaining())}</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button type="button" onClick={() => setShowActiveWorkoutSheet(false)} className="text-[#777] p-1.5 rounded-lg hover:bg-white/5" aria-label="Minimize">▼</button>
@@ -1299,7 +1387,7 @@ function App() {
                       onAddSet={addSet} onUpdateSet={updateSet} onDoneSet={doneSet} onUndoneSet={undoneSet} onDeleteSet={deleteSet}
                       onUpdateExerciseRest={updateExerciseRest} onUpdateExerciseNote={updateExerciseNote}
                       bestSet={getBestSet(ex.name)} previousSets={getPreviousSets(ex.name)}
-                      activeRest={activeRest} restTime={restTime} restDuration={restDuration} defaultRest={defaultRest} onSkipRest={skipRest}
+                      activeRest={activeRest} restTime={restTime} restDuration={restDuration} defaultRest={defaultRest}
                       bodyweight={bodyweight} unitWeight={unitWeight} unitDistance={unitDistance}
                       libraryEntry={getExerciseFromLibrary(ex.name)} />
                   ))}
@@ -1444,8 +1532,8 @@ function App() {
           </div>
         )}
 
-        {/* Set as active after creating programme */}
-        {showSetActiveAfterCreate && (() => {
+        {/* Set as active after creating programme — only when there are at least 2 programmes */}
+        {showSetActiveAfterCreate && programmes.length >= 2 && (() => {
           const prog = programmes.find(p => p.id === showSetActiveAfterCreate)
           if (!prog) return null
           return (
@@ -1493,12 +1581,7 @@ function App() {
               <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-4" />
               <h2 className="text-white text-base font-bold mb-3">Create Programme</h2>
               <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Name</label>
-              <input type="text" value={createProgrammeName} onChange={e => setCreateProgrammeName(e.target.value)} onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold outline-none focus:border-[#7B7BFF]" />
-              <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Schedule</label>
-              <div className="flex gap-1.5">
-                <button type="button" onClick={() => setCreateProgrammeType('rotation')} className={`flex-1 py-2.5 rounded-lg text-center text-[11px] font-bold ${createProgrammeType === 'rotation' ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#555]'}`}>Rotation</button>
-                <button type="button" onClick={() => setCreateProgrammeType('weekly')} className={`flex-1 py-2.5 rounded-lg text-center text-[11px] font-bold ${createProgrammeType === 'weekly' ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#555]'}`}>Weekly</button>
-              </div>
+              <input type="text" value={createProgrammeName} onChange={e => setCreateProgrammeName(e.target.value)} placeholder="e.g. 2 Split - Push/Pull" onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF]" />
               <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Routines</label>
               {createProgrammeRoutines.map((r, i) => (
                 <div key={i} className="flex justify-between items-center py-3 px-3 bg-[#1C1C38] rounded-[10px] border border-[#2A2A4A] mb-1.5">
@@ -1507,8 +1590,9 @@ function App() {
                   <button type="button" onClick={() => setCreateProgrammeRoutines(prev => prev.filter((_, j) => j !== i))} className="text-[rgba(255,85,85,0.5)] p-1">✕</button>
                 </div>
               ))}
-              <button type="button" onClick={() => { setEditingRoutineProgrammeId(null); setEditingRoutineId(null); setEditRoutineName('New Routine'); setEditRoutineExercises([]); setShowCreateRoutine(true); setShowCreateProgramme(false) }} className="w-full py-3 border border-dashed border-[#2A2A4A] rounded-xl text-[#7B7BFF] text-sm font-semibold mb-4">+ Add Routine</button>
-              <button type="button" onClick={() => { saveNewProgramme(createProgrammeName, createProgrammeType, null, createProgrammeRoutines); setCreateProgrammeRoutines([]) }} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold">Save Programme</button>
+              <button type="button" onClick={() => { setEditingRoutineProgrammeId(null); setEditingRoutineId(null); setEditRoutineName(''); setEditRoutineExercises([]); setShowCreateRoutine(true); setShowCreateProgramme(false) }} className="w-full py-3 border border-dashed border-[#2A2A4A] rounded-xl text-[#7B7BFF] text-sm font-semibold mb-4">+ Add Routine</button>
+              {!createProgrammeName.trim() && <p className="text-[#7B7BFF] text-sm font-medium mb-2">Indtast et navn på programmet for at kunne gemme.</p>}
+              <button type="button" onClick={() => { saveNewProgramme(createProgrammeName, 'rotation', null, createProgrammeRoutines); setCreateProgrammeRoutines([]) }} disabled={!createProgrammeName.trim()} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold disabled:opacity-50 disabled:pointer-events-none">Save Programme</button>
               <button type="button" onClick={() => { setShowCreateProgramme(false); setCreateProgrammeRoutines([]) }} className="w-full py-3 mt-2 text-[#666] text-xs font-semibold">Cancel</button>
             </div>
           </div>
@@ -1526,11 +1610,6 @@ function App() {
                 <h2 className="text-white text-base font-bold mb-3">Edit Programme</h2>
                 <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Name</label>
                 <input type="text" value={editProgrammeName} onChange={e => setEditProgrammeName(e.target.value)} onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold outline-none focus:border-[#7B7BFF]" />
-                <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Schedule</label>
-                <div className="flex gap-1.5">
-                  <button type="button" onClick={() => setEditProgrammeType('rotation')} className={`flex-1 py-2.5 rounded-lg text-center text-[11px] font-bold ${editProgrammeType === 'rotation' ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#555]'}`}>Rotation</button>
-                  <button type="button" onClick={() => setEditProgrammeType('weekly')} className={`flex-1 py-2.5 rounded-lg text-center text-[11px] font-bold ${editProgrammeType === 'weekly' ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#555]'}`}>Weekly</button>
-                </div>
                 <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Routines — drag to reorder or move to another programme</label>
                 {progRoutines.map((r, i) => {
                   const isDragging = dragRoutine?.rtnId === r.id
@@ -1594,11 +1673,11 @@ function App() {
                     </div>
                   </div>
                 )}
-                <button type="button" onClick={() => { setEditRoutineName('New Routine'); setEditRoutineExercises([]); setEditingRoutineId(null); setEditingRoutineProgrammeId(editingProgrammeId); setShowCreateRoutine(true); setEditingProgrammeId(null) }} className="w-full py-3 border border-dashed border-[#2A2A4A] rounded-xl text-[#7B7BFF] text-sm font-semibold mb-4">+ Add Routine</button>
+                <button type="button" onClick={() => { setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineId(null); setEditingRoutineProgrammeId(editingProgrammeId); setShowCreateRoutine(true); setEditingProgrammeId(null) }} className="w-full py-3 border border-dashed border-[#2A2A4A] rounded-xl text-[#7B7BFF] text-sm font-semibold mb-4">+ Add Routine</button>
                 <button type="button" onClick={() => {
                   const progId = editingProgrammeId
                   const programme = programmes.find(p => p.id === progId)
-                  saveEditedProgramme(progId, editProgrammeName, editProgrammeType, prog?.routineIds || [])
+                  saveEditedProgramme(progId, editProgrammeName, 'rotation', prog?.routineIds || [])
                   setEditingProgrammeId(null); setDragRoutine(null); setDragOverTarget(null)
                   if (programme && !programme.isActive) setShowSetActiveAfterEditProgramme(progId)
                 }} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold">Save Changes</button>
@@ -1630,7 +1709,7 @@ function App() {
                 <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-3 shrink-0" />
                 <h2 className="text-white text-base font-bold mb-3 shrink-0">{isEdit ? 'Edit Routine' : 'Create Routine'}</h2>
                 <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-1.5">Name</label>
-                <input type="text" value={name} onChange={e => setEditRoutineName(e.target.value)} onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold outline-none focus:border-[#7B7BFF] mb-4 shrink-0" />
+                <input type="text" value={name} onChange={e => setEditRoutineName(e.target.value)} placeholder="e.g. Day 1 - Pull" onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] mb-4 shrink-0" />
                 <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-2">Exercises</label>
                 <div className="overflow-y-auto flex-1 min-h-0 -mx-4 px-4 space-y-2">
                   {(exs || []).map((ex, i) => {
@@ -1715,11 +1794,12 @@ function App() {
                   <button type="button" onClick={() => setShowExercisePickerForRoutine(true)} className="w-full py-3 border border-dashed border-[#5BF5A0]/30 rounded-xl text-[#5BF5A0] text-sm font-semibold hover:bg-[#5BF5A0]/8 hover:border-[#5BF5A0] mb-2">+ Add exercise</button>
                 </div>
                 <div className="shrink-0 pt-3 space-y-2">
+                  {!isEdit && !editRoutineName.trim() && <p className="text-[#7B7BFF] text-sm font-medium">Indtast et navn på rutinen for at kunne gemme.</p>}
                   <button type="button" onClick={() => {
                     if (isEdit) { saveRoutineEdits(editingRoutineId, editRoutineName, editRoutineExercises); closeRoutineEditor() }
-                    else if (programmeId) { addRoutineToProgramme(programmeId, { name: editRoutineName, exercises: editRoutineExercises }); setShowCreateRoutine(false); setEditRoutineName('New Routine'); setEditRoutineExercises([]); setEditingRoutineProgrammeId(null); setEditingProgrammeId(programmeId); setEditProgrammeName(programmes.find(p => p.id === programmeId)?.name || ''); setEditProgrammeType(programmes.find(p => p.id === programmeId)?.type || 'rotation'); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
-                    else { setCreateProgrammeRoutines(prev => [...prev, { name: editRoutineName, exercises: editRoutineExercises }]); setShowCreateRoutine(false); setShowCreateProgramme(true); setEditRoutineName('New Routine'); setEditRoutineExercises([]); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
-                  }} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold">Save</button>
+                    else if (programmeId) { addRoutineToProgramme(programmeId, { name: editRoutineName, exercises: editRoutineExercises }); setShowCreateRoutine(false); setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineProgrammeId(null); setEditingProgrammeId(programmeId); setEditProgrammeName(programmes.find(p => p.id === programmeId)?.name || ''); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
+                    else { setCreateProgrammeRoutines(prev => [...prev, { name: editRoutineName, exercises: editRoutineExercises }]); setShowCreateRoutine(false); setShowCreateProgramme(true); setEditRoutineName(''); setEditRoutineExercises([]); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
+                  }} disabled={!isEdit && !editRoutineName.trim()} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold disabled:opacity-50 disabled:pointer-events-none">Save</button>
                   <button type="button" onClick={closeRoutineEditor} className="w-full py-3 text-[#666] text-xs font-semibold">Cancel</button>
                 </div>
               </div>
@@ -1841,7 +1921,7 @@ function App() {
         {showSaveAsRoutineModal && (
           <SaveAsRoutineModal
             programmes={programmes}
-            defaultNewProgrammeName={`My New Program ${programmes.length + 1}`}
+            newProgrammePlaceholder="e.g. 2 Split - Push/Pull"
             defaultRoutineName={workoutName}
             onSave={confirmSaveAsRoutine}
             onCancel={() => { setShowSaveAsRoutineModal(false); setShowFinishModal(true) }}
@@ -2034,11 +2114,11 @@ function SaveTemplateModal({ folders, onSave, onCancel }) {
   )
 }
 
-function SaveAsRoutineModal({ programmes, defaultNewProgrammeName, defaultRoutineName, onSave, onCancel }) {
+function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutineName, onSave, onCancel }) {
   const [mode, setMode] = useState(programmes.length > 0 ? 'existing' : 'new') // 'existing' | 'new'
   const [selectedProgId, setSelectedProgId] = useState(programmes[0]?.id || null)
-  const [newProgrammeName, setNewProgrammeName] = useState(defaultNewProgrammeName || '')
-  const [routineName, setRoutineName] = useState(defaultRoutineName || '')
+  const [newProgrammeName, setNewProgrammeName] = useState('')
+  const [routineName, setRoutineName] = useState('')
   const canSave = routineName.trim() && (mode === 'existing' ? selectedProgId : newProgrammeName.trim())
   function handleSave() {
     if (!canSave) return
@@ -2067,13 +2147,18 @@ function SaveAsRoutineModal({ programmes, defaultNewProgrammeName, defaultRoutin
             </button>
           </div>
           {mode === 'new' && (
-            <input type="text" placeholder="e.g. My New Program 1" value={newProgrammeName} onChange={(e) => setNewProgrammeName(e.target.value)} onFocus={e => e.target.select()} className="mt-2 w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors" />
+            <input type="text" placeholder={newProgrammePlaceholder || 'e.g. 2 Split - Push/Pull'} value={newProgrammeName} onChange={(e) => setNewProgrammeName(e.target.value)} onFocus={e => e.target.select()} className="mt-2 w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors" />
           )}
         </div>
         <div className="mb-5">
           <div className="text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-2">Routine name</div>
-          <input type="text" placeholder="e.g. Push Day A" value={routineName} onChange={(e) => setRoutineName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && handleSave()} className="w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors" />
+          <input type="text" placeholder="e.g. Day 1 - Pull" value={routineName} onChange={(e) => setRoutineName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && handleSave()} className="w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors" />
         </div>
+        {!canSave && (
+          <p className="text-[#7B7BFF] text-sm font-medium mb-3">
+            {mode === 'existing' ? 'Udfyld rutinenavn for at kunne gemme.' : 'Udfyld programnavn og rutinenavn for at kunne gemme.'}
+          </p>
+        )}
         <button onClick={handleSave} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${canSave ? 'bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] shadow-lg shadow-[#7B7BFF]/25' : 'bg-[#1C1C38] text-[#555]'}`} disabled={!canSave}>Save routine</button>
         <button type="button" onClick={onCancel} className="w-full py-3 text-sm font-semibold text-[#777]">Cancel</button>
       </div>

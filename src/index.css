@@ -8,6 +8,97 @@
   animation: up-next-pulse 2.5s ease-in-out infinite;
 }
 
+/* Splash screen — sequential glow, no bounce */
+.splash-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #0D0D1A;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+.splash-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.splash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: 80px;
+  height: 80px;
+}
+.splash-block {
+  border-radius: 8px;
+  opacity: 0;
+}
+.splash-block:nth-child(1) {
+  background: #7B7BFF;
+  animation: splashGlow 0.5s ease-out 0.2s forwards;
+}
+.splash-block:nth-child(2) {
+  background: #7B7BFF;
+  animation: splashGlow 0.5s ease-out 0.4s forwards;
+}
+.splash-block:nth-child(3) {
+  background: #7B7BFF;
+  animation: splashGlow 0.5s ease-out 0.6s forwards;
+}
+.splash-block:nth-child(4) {
+  background: #7B7BFF;
+  animation: splashGlow 0.5s ease-out 0.8s forwards;
+}
+.splash-block:nth-child(5) {
+  background: #7B7BFF;
+  animation: splashGlowDim 0.5s ease-out 1s forwards;
+}
+.splash-block:nth-child(6) {
+  background: #5BF5A0;
+  animation: splashGlowGreen 0.5s ease-out 1.2s forwards;
+}
+@keyframes splashGlow {
+  0%   { opacity: 0; }
+  40%  { opacity: 0.95; }
+  100% { opacity: 0.7; }
+}
+@keyframes splashGlowDim {
+  0%   { opacity: 0; }
+  40%  { opacity: 0.8; }
+  100% { opacity: 0.5; }
+}
+@keyframes splashGlowGreen {
+  0%   { opacity: 0; }
+  40%  { opacity: 1; }
+  100% { opacity: 0.9; }
+}
+.splash-name {
+  color: #fff;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  opacity: 0;
+  animation: splashFadeIn 0.6s ease-out 1.6s forwards;
+}
+.splash-tagline {
+  color: #7B7BFF;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  margin-top: 6px;
+  opacity: 0;
+  animation: splashFadeIn 0.6s ease-out 1.8s forwards;
+}
+@keyframes splashFadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 html, body {
   overflow-x: hidden;
   width: 100%;

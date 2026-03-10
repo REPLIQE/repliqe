@@ -4,7 +4,7 @@ import { MUSCLE_GROUPS } from './exerciseLibrary'
 
 const REST_PRESETS = [0, 30, 60, 90, 120, 180]
 
-function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onAddSet, onUpdateSet, onDoneSet, onUndoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote, bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, onSkipRest, bodyweight, unitWeight, unitDistance, libraryEntry }) {
+function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onAddSet, onUpdateSet, onDoneSet, onUndoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote, bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, bodyweight, unitWeight, unitDistance, libraryEntry }) {
   const [showRestPicker, setShowRestPicker] = useState(false)
   const [showNoteInput, setShowNoteInput] = useState(false)
   const [showExerciseMenu, setShowExerciseMenu] = useState(false)
@@ -44,6 +44,7 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
 
   function handleTouchStart(e, si) {
     if (e.target.tagName === 'INPUT') return
+    if (e.target.tagName === 'BUTTON' || e.target.closest?.('button')) return
     touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; touchDeltaRef.current = 0; isSwipingRef.current = false
   }
   function handleTouchMove(e, si) {
@@ -250,11 +251,10 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
             </div>
 
             {isActiveRest && (
-              <div className="flex items-center justify-center gap-3 py-2 my-1 rounded-lg relative overflow-hidden">
+              <div className="flex items-center justify-center gap-2 py-1 my-0.5 rounded-lg relative overflow-hidden min-h-0 pointer-events-none" style={{ height: '1.65rem' }}>
                 <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-[#5BF5A0]/10 to-[#4ECDC4]/5 rounded-lg transition-all duration-500" style={{ width: `${Math.max(0, (restTime / restDuration) * 100)}%` }} />
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-[#5BF5A0] relative z-10"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <span className="text-[#5BF5A0] font-bold text-lg tabular-nums relative z-10 min-w-[40px] text-center">{formatTime(restTime)}</span>
-                <button onClick={onSkipRest} className="border border-[#5BF5A0]/30 text-[#5BF5A0] text-sm font-semibold px-2.5 py-1 rounded-md relative z-10">Skip</button>
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3 h-3 stroke-[#5BF5A0] relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span className="text-[#5BF5A0] font-bold text-sm tabular-nums relative z-10 min-w-[36px] text-center">{formatTime(restTime)}</span>
               </div>
             )}
 
