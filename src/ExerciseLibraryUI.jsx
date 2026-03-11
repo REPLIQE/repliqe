@@ -33,8 +33,8 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
   const totalCount = allExercises.length
   const customCount = allExercises.filter(e => e.isCustom).length
 
-  const chipOff = 'bg-[#1C1C38] text-[#888] border-[#2A2A4A]'
-  const chipOn = 'bg-[#7B7BFF] text-white border-transparent'
+  const chipOff = 'bg-card-alt text-muted border-border-strong'
+  const chipOn = 'bg-accent text-on-accent border-transparent'
 
   function muscleChipStyle(m, isActive) {
     const mg = MUSCLE_GROUPS[m]
@@ -47,21 +47,21 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
       {/* Search */}
       <div className="mb-3">
         <input type="text" placeholder="Search exercises..." value={search} onChange={e => setSearch(e.target.value)}
-          className="w-full bg-[#1C1C38] border-[1.5px] border-[#2A2A4A] rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#555] outline-none focus:border-[#7B7BFF] transition-colors" />
+          className="w-full bg-card-alt border-[1.5px] border-border-strong rounded-xl px-4 py-2.5 text-sm text-text placeholder-muted-strong outline-none focus:border-accent transition-colors" />
       </div>
 
       {/* My exercises toggle */}
-      <div className="flex bg-[#1C1C38] border-[1.5px] border-[#2A2A4A] rounded-xl overflow-hidden mb-3">
-        <button onClick={() => setMyOnly(false)} className={`flex-1 py-2.5 text-sm font-bold transition-all ${!myOnly ? 'bg-[#7B7BFF] text-white' : 'text-[#888]'}`}>All exercises</button>
-        <button onClick={() => setMyOnly(true)} className={`flex-1 py-2.5 text-sm font-bold transition-all ${myOnly ? 'bg-[#5BF5A0]/15 text-[#5BF5A0]' : 'text-[#888]'}`}>My exercises{customCount > 0 ? ` (${customCount})` : ''}</button>
+      <div className="flex bg-card-alt border-[1.5px] border-border-strong rounded-xl overflow-hidden mb-3">
+        <button onClick={() => setMyOnly(false)} className={`flex-1 py-2.5 text-sm font-bold transition-all ${!myOnly ? 'bg-accent text-on-accent' : 'text-muted'}`}>All exercises</button>
+        <button onClick={() => setMyOnly(true)} className={`flex-1 py-2.5 text-sm font-bold transition-all ${myOnly ? 'bg-success/15 text-success' : 'text-muted'}`}>My exercises{customCount > 0 ? ` (${customCount})` : ''}</button>
       </div>
 
       {/* Create custom */}
-      <button onClick={onCreateCustom} className="flex items-center justify-center gap-1.5 w-full py-3 border-[1.5px] border-dashed border-[#5BF5A0]/40 rounded-xl text-[#5BF5A0] text-sm font-semibold mb-3 hover:bg-[#5BF5A0]/5 transition-colors">+ Create custom exercise</button>
+      <button onClick={onCreateCustom} className="flex items-center justify-center gap-1.5 w-full py-3 border-[1.5px] border-dashed border-success/40 rounded-xl text-success text-sm font-semibold mb-3 hover:bg-success/5 transition-colors">+ Create custom exercise</button>
 
       {/* Muscle group filter */}
       <div className="mb-2">
-        <div className="text-xs font-bold text-[#666] uppercase tracking-wider mb-1.5">Muscle Group</div>
+        <div className="text-xs font-bold text-muted-strong uppercase tracking-wider mb-1.5">Muscle Group</div>
         <div className="flex gap-1 flex-wrap">
           <button onClick={() => setMuscles([])}
             className={`px-2.5 py-1.5 rounded-lg text-sm font-semibold border-[1.5px] transition-all ${muscles.length === 0 ? chipOn : chipOff}`}>All</button>
@@ -77,7 +77,7 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
 
       {/* Equipment filter */}
       <div className="mb-3">
-        <div className="text-xs font-bold text-[#666] uppercase tracking-wider mb-1.5">Equipment</div>
+        <div className="text-xs font-bold text-muted-strong uppercase tracking-wider mb-1.5">Equipment</div>
         <div className="flex gap-1 flex-wrap">
           <button onClick={() => setEquipment('all')}
             className={`px-2.5 py-1.5 rounded-lg text-sm font-semibold border-[1.5px] transition-all ${equipment === 'all' ? chipOn : chipOff}`}>All</button>
@@ -88,13 +88,13 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
         </div>
       </div>
 
-      <div className="border-t border-[#1a1a30] my-2" />
+      <div className="border-t border-border my-2" />
 
       {/* Exercise list grouped by muscle */}
       {grouped.length === 0 && (
         <div className="text-center py-8">
-          <div className="text-base text-[#777]">No exercises found</div>
-          <div className="text-sm text-[#555] mt-1">Try adjusting your filters</div>
+          <div className="text-base text-muted-mid">No exercises found</div>
+          <div className="text-sm text-muted-strong mt-1">Try adjusting your filters</div>
         </div>
       )}
 
@@ -106,7 +106,7 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
             <div className="flex items-center gap-2 mt-3 mb-2">
               <MuscleIcon muscle={muscle} size={14} />
               <span className="text-sm font-bold uppercase tracking-wider" style={{ color: mg.color }}>{mg.label}</span>
-              <span className="text-sm font-semibold text-[#555]">{exs.length}</span>
+              <span className="text-sm font-semibold text-muted-strong">{exs.length}</span>
             </div>
 
             {/* Exercise items */}
@@ -117,16 +117,16 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
               return (
                 <div key={ex.name}
                   onClick={() => mode === 'modal' ? toggleSelected(ex.name) : (onEditExercise && ex.isCustom ? onEditExercise(ex) : null)}
-                  className={`flex items-center gap-3 bg-[#13132A] border rounded-xl px-3 py-2.5 mb-1 cursor-pointer transition-all ${isSelected ? 'border-[#7B7BFF] bg-[#7B7BFF]/5' : 'border-[#232340] hover:border-[#7B7BFF]'}`}>
+                  className={`flex items-center gap-3 bg-card border rounded-xl px-3 py-2.5 mb-1 cursor-pointer transition-all ${isSelected ? 'border-accent bg-accent/5' : 'border-border hover:border-accent'}`}>
                   <MuscleIcon muscle={ex.muscle} size={16} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-base font-bold text-white truncate">{ex.name}</span>
-                      {ex.isCustom && <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-[#5BF5A0]/10 text-[#5BF5A0] uppercase tracking-wide shrink-0">Custom</span>}
+                      <span className="text-base font-bold text-text truncate">{ex.name}</span>
+                      {ex.isCustom && <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-success/10 text-success uppercase tracking-wide shrink-0">Custom</span>}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/5 text-[#888]">{ex.equipment}</span>
-                      <span className="text-xs font-semibold text-[#555]">{typeLabel}</span>
+                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/5 text-muted">{ex.equipment}</span>
+                      <span className="text-xs font-semibold text-muted-strong">{typeLabel}</span>
                     </div>
                   </div>
                   {mode === 'modal' && (
@@ -153,11 +153,11 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
   if (mode === 'modal') {
     return (
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-        <div className="w-full max-w-md bg-[#0D0D1A] rounded-t-3xl flex flex-col" style={{ maxHeight: '88vh' }}>
+        <div className="w-full max-w-md bg-page rounded-t-3xl flex flex-col" style={{ maxHeight: '88vh' }}>
           {/* Header */}
           <div className="flex justify-between items-center px-5 pt-5 pb-2 shrink-0">
             <h2 className="text-lg font-bold">Add Exercise</h2>
-            <button onClick={onClose} className="text-sm font-semibold text-[#777]">Cancel</button>
+            <button onClick={onClose} className="text-sm font-semibold text-muted-mid">Cancel</button>
           </div>
 
           {/* Scrollable content */}
@@ -167,10 +167,10 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
 
           {/* Floating add bar */}
           {selected.length > 0 && (
-            <div className="px-5 pb-8 pt-3 shrink-0 border-t border-[#1a1a30]">
-              <button onClick={confirmAdd} className="w-full py-4 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-2xl font-bold text-sm shadow-lg shadow-[#7B7BFF]/25 flex items-center justify-center gap-2">
+            <div className="px-5 pb-8 pt-3 shrink-0 border-t border-border">
+              <button onClick={confirmAdd} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end rounded-2xl font-bold text-sm shadow-lg shadow-accent/25 flex items-center justify-center gap-2">
                 Add {selected.length} exercise{selected.length !== 1 ? 's' : ''}
-                <span className="bg-white/20 text-white text-sm font-extrabold px-2 py-0.5 rounded-md">{selected.length}</span>
+                <span className="bg-white/20 text-text text-sm font-extrabold px-2 py-0.5 rounded-md">{selected.length}</span>
               </button>
             </div>
           )}

@@ -59,7 +59,7 @@ function MusclePills({ exercises, getExerciseFromLibrary }) {
     <div className="flex flex-wrap gap-1.5">
       {sorted.map(([muscle, count]) => {
         const mg = MUSCLE_GROUPS[muscle]
-        if (!mg) return <span key={muscle} className="text-xs font-semibold px-2 py-0.5 rounded-md bg-white/5 text-[#888]">Other × {count}</span>
+        if (!mg) return <span key={muscle} className="text-xs font-semibold px-2 py-0.5 rounded-md bg-white/5 text-muted">Other × {count}</span>
         return (
           <span key={muscle} className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md" style={{ background: mg.bg, color: mg.color }}>
             <MuscleIcon muscle={muscle} size={10} bare />
@@ -115,7 +115,6 @@ function App() {
   const [weekStart, setWeekStart] = useState(() => { const s = localStorage.getItem('weekStart'); return s ? Number(s) : 0 }) // 0=Monday
   const [unitWeight, setUnitWeight] = useState(() => localStorage.getItem('unitWeight') || 'kg')
   const [unitDistance, setUnitDistance] = useState(() => localStorage.getItem('unitDistance') || 'km')
-  const [unitDecimal, setUnitDecimal] = useState(() => localStorage.getItem('unitDecimal') || '.')
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [showCreateExercise, setShowCreateExercise] = useState(false)
   const [editingCustomExercise, setEditingCustomExercise] = useState(null)
@@ -173,11 +172,28 @@ function App() {
   const [routineEditorNoteForIndex, setRoutineEditorNoteForIndex] = useState(null)
   const [focusNewExerciseAt, setFocusNewExerciseAt] = useState(null)
   const [focusWorkoutFirstFieldAt, setFocusWorkoutFirstFieldAt] = useState(null) // exIndex to focus first set first field after adding
+  const [theme, setTheme] = useState(() => {
+    const t = localStorage.getItem('theme') || 'dark'
+    return t === 'light-bone' ? 'bone' : t
+  })
+  const setThemeAndApply = (t) => {
+    setTheme(t)
+    document.documentElement.setAttribute('data-theme', t)
+    localStorage.setItem('theme', t)
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute('content', t === 'bone' ? '#FAF7F2' : '#0D0D1A')
+  }
   const restStartRef = useRef(null)
   const restAudioCtxRef = useRef(null)
   const routineEditorFirstInputRef = useRef(null)
   const currentRoutineIdRef = useRef(null)
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute('content', theme === 'bone' ? '#FAF7F2' : '#0D0D1A')
+  }, [theme])
   useEffect(() => { if (page === 'library') setPage('workout') }, [page])
   useEffect(() => {
     if (programmes.length === 1 && !programmes[0].isActive) {
@@ -192,7 +208,6 @@ function App() {
   useEffect(() => { localStorage.setItem('weekStart', String(weekStart)) }, [weekStart])
   useEffect(() => { localStorage.setItem('unitWeight', unitWeight) }, [unitWeight])
   useEffect(() => { localStorage.setItem('unitDistance', unitDistance) }, [unitDistance])
-  useEffect(() => { localStorage.setItem('unitDecimal', unitDecimal) }, [unitDecimal])
   useEffect(() => { localStorage.setItem('customExercises', JSON.stringify(customExercises)) }, [customExercises])
 
   useEffect(() => {
@@ -1173,34 +1188,34 @@ function App() {
     <>
       {showSplash && <SplashScreen onFinished={() => setShowSplash(false)} />}
 
-      <div className="min-h-screen bg-[#0D0D1A] text-white pb-24">
+      <div className="min-h-screen bg-page text-text pb-24">
         <div className="px-4 py-6 max-w-md mx-auto">
 
           {/* PROGRESS */}
           {page === 'progress' && (
             <div>
               <div className="flex items-center gap-3 mb-6"><RepliqeLogo size={28} /><h1 className="text-3xl font-bold tracking-tight">Progress</h1></div>
-              <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-5 mb-4">
+              <div className="bg-card border border-border rounded-2xl p-5 mb-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div><div className="text-3xl font-bold">{history.length}</div><div className="text-sm text-[#777]">Workouts</div></div>
-                  <div><div className="text-3xl font-bold">{history.reduce((sum, w) => sum + w.exercises.reduce((s, ex) => s + ex.sets.length, 0), 0)}</div><div className="text-sm text-[#777]">Sets logged</div></div>
+                  <div><div className="text-3xl font-bold">{history.length}</div><div className="text-sm text-muted-mid">Workouts</div></div>
+                  <div><div className="text-3xl font-bold">{history.reduce((sum, w) => sum + w.exercises.reduce((s, ex) => s + ex.sets.length, 0), 0)}</div><div className="text-sm text-muted-mid">Sets logged</div></div>
                 </div>
               </div>
               {history.length > 0 ? (
                 <div>
-                  <h3 className="text-sm font-semibold text-[#7B7BFF] uppercase tracking-wide mb-3">Recent workouts</h3>
+                  <h3 className="text-sm font-semibold text-accent uppercase tracking-wide mb-3">Recent workouts</h3>
                   {history.slice(0, 10).map((w, i) => (
-                    <div key={i} className="bg-[#13132A] border border-[#232340] rounded-xl p-4 mb-3">
-                      <div className="flex justify-between items-center mb-2"><span className="text-base font-bold">{w.name || w.date}</span><span className="text-sm text-[#777]">{relativeTime(w.date)}</span></div>
-                      <div className="flex items-center gap-3 mb-2 text-sm text-[#777]">{w.duration && <span>{formatDuration(w.duration)}</span>}<span>{w.exercises.reduce((s, ex) => s + ex.sets.length, 0)} sets</span></div>
-                      {w.exercises.map((ex, j) => <div key={j} className="text-sm text-[#666] ml-1">{ex.name} — {ex.sets.length} sets</div>)}
+                    <div key={i} className="bg-card border border-border rounded-xl p-4 mb-3">
+                      <div className="flex justify-between items-center mb-2"><span className="text-base font-bold">{w.name || w.date}</span><span className="text-sm text-muted-mid">{relativeTime(w.date)}</span></div>
+                      <div className="flex items-center gap-3 mb-2 text-sm text-muted-mid">{w.duration && <span>{formatDuration(w.duration)}</span>}<span>{w.exercises.reduce((s, ex) => s + ex.sets.length, 0)} sets</span></div>
+                      {w.exercises.map((ex, j) => <div key={j} className="text-sm text-muted-strong ml-1">{ex.name} — {ex.sets.length} sets</div>)}
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-12">
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-12 h-12 stroke-[#2A2A4A] mx-auto mb-4"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-                  <div className="text-[#777] text-sm">No workouts yet</div>
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-12 h-12 stroke-border-strong mx-auto mb-4"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                  <div className="text-muted-mid text-sm">No workouts yet</div>
                 </div>
               )}
             </div>
@@ -1218,20 +1233,20 @@ function App() {
 
               {/* Continue workout bar when minimized */}
               {workoutActive && !showActiveWorkoutSheet && (
-                <button type="button" onClick={() => setShowActiveWorkoutSheet(true)} className="w-full mb-4 py-3.5 px-4 rounded-xl border-2 border-[#5BF5A0] bg-[rgba(91,245,160,0.08)] flex items-center justify-between gap-3">
+                <button type="button" onClick={() => setShowActiveWorkoutSheet(true)} className="w-full mb-4 py-3.5 px-4 rounded-xl border-2 border-success bg-success/10 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-[#5BF5A0] rounded-full animate-pulse" />
-                    <span className="text-white font-bold text-sm">{workoutName || 'Workout'}</span>
-                    <span className="text-[#5BF5A0] text-xs font-semibold">{exercises.length} exercise{exercises.length !== 1 ? 's' : ''}</span>
+                    <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+                    <span className="text-text font-bold text-sm">{workoutName || 'Workout'}</span>
+                    <span className="text-success text-xs font-semibold">{exercises.length} exercise{exercises.length !== 1 ? 's' : ''}</span>
                   </div>
-                  <span className="text-[#5BF5A0] text-sm font-bold">Continue</span>
+                  <span className="text-success text-sm font-bold">Continue</span>
                 </button>
               )}
 
               {/* Tab bar: Start | Plan */}
-              <div className="flex rounded-[10px] p-[3px] mt-3 mb-5 border border-[#1e1e35] bg-[#111125]">
-                <button onClick={() => setWorkoutTab('start')} className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${workoutTab === 'start' ? 'bg-[#7B7BFF] text-white shadow-[0_2px_8px_rgba(123,123,255,.25)]' : 'text-[#555]'}`}>Start</button>
-                <button onClick={() => setWorkoutTab('plan')} className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${workoutTab === 'plan' ? 'bg-[#7B7BFF] text-white shadow-[0_2px_8px_rgba(123,123,255,.25)]' : 'text-[#555]'}`}>Plan</button>
+              <div className="flex rounded-[10px] p-[3px] mt-3 mb-5 border border-border-subtle bg-card-deep">
+                <button onClick={() => setWorkoutTab('start')} className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${workoutTab === 'start' ? 'bg-accent text-on-accent shadow-accent/25' : 'text-muted-strong'}`}>Start</button>
+                <button onClick={() => setWorkoutTab('plan')} className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${workoutTab === 'plan' ? 'bg-accent text-on-accent shadow-accent/25' : 'text-muted-strong'}`}>Plan</button>
               </div>
 
               {workoutTab === 'start' && (
@@ -1250,19 +1265,19 @@ function App() {
                 if (showAsNoProgramme) {
                   return (
                     <>
-                      <div className="rounded-2xl border border-[#232340] bg-[#13132A] p-6 text-center mb-5">
-                        <div className="w-12 h-12 rounded-full bg-[#1C1C38] flex items-center justify-center mx-auto mb-3 text-[#555]">
+                      <div className="rounded-2xl border border-border bg-card p-6 text-center mb-5">
+                        <div className="w-12 h-12 rounded-full bg-card-alt flex items-center justify-center mx-auto mb-3 text-muted-strong">
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                         </div>
-                        <div className="text-white font-bold text-base mb-1">No active programme</div>
-                        <div className="text-[#444] text-xs mb-4">Suggestions for your next routine will only be shown after you've created your first programme.</div>
-                        <button type="button" onClick={() => setWorkoutTab('plan')} className="w-full py-2.5 border-2 border-[rgba(123,123,255,0.4)] rounded-[10px] bg-[rgba(123,123,255,0.04)] text-[#7B7BFF] text-sm font-bold">Go to Plan</button>
+                        <div className="text-text font-bold text-base mb-1">No active programme</div>
+                        <div className="text-muted-deep text-xs mb-4">Suggestions for your next routine will only be shown after you've created your first programme.</div>
+                        <button type="button" onClick={() => setWorkoutTab('plan')} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">Go to Plan</button>
                       </div>
-                      <button type="button" onClick={startEmpty} className="w-full py-4 px-4 border-2 border-[rgba(123,123,255,0.4)] rounded-[14px] bg-[rgba(123,123,255,0.03)] flex items-center gap-3">
-                        <span className="w-[38px] h-[38px] rounded-[10px] bg-[rgba(123,123,255,0.06)] flex items-center justify-center text-[#7B7BFF] text-lg font-bold">+</span>
+                      <button type="button" onClick={startEmpty} className="w-full py-4 px-4 border-2 border-accent/40 rounded-[14px] bg-accent/5 flex items-center gap-3">
+                        <span className="w-[38px] h-[38px] rounded-[10px] bg-accent/10 flex items-center justify-center text-accent text-lg font-bold">+</span>
                         <div className="text-left">
-                          <div className="text-white text-sm font-bold">Empty Workout</div>
-                          <div className="text-[11px] text-[#555]">Start fresh and add exercises as you go</div>
+                          <div className="text-text text-sm font-bold">Empty Workout</div>
+                          <div className="text-[11px] text-muted-strong">Start fresh and add exercises as you go</div>
                         </div>
                       </button>
                     </>
@@ -1282,9 +1297,9 @@ function App() {
 
                 return (
                   <>
-                    <div className="text-[13px] font-bold text-[#888] uppercase tracking-wider mb-0.5">Active Programme</div>
-                    <div className="text-white text-[17px] font-bold mb-0.5">{activeProgramme.name}</div>
-                    <div className="text-[11px] text-[#555] mb-3">Day {nextIdx >= 0 ? nextIdx + 1 : 1} of {routineIds.length}</div>
+                    <div className="text-[13px] font-bold text-muted uppercase tracking-wider mb-0.5">Active Programme</div>
+                    <div className="text-text text-[17px] font-bold mb-0.5">{activeProgramme.name}</div>
+                    <div className="text-[11px] text-muted-strong mb-3">Day {nextIdx >= 0 ? nextIdx + 1 : 1} of {routineIds.length}</div>
                     <div className="flex gap-1.5 mb-1">
                       {routineIds.map((rtnId) => {
                         const rtn = routines.find(r => r.id === rtnId)
@@ -1299,11 +1314,11 @@ function App() {
                             key={rtnId}
                             type="button"
                             onClick={() => rtn && setSelectedStartRoutineId(rtnId)}
-                            className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border-[1.5px] transition-colors ${isSelected ? 'border-[#5BF5A0] bg-[rgba(91,245,160,0.04)]' : 'border-transparent bg-[#13132A] hover:bg-[#1C1C38] hover:border-[#2A2A4A] active:opacity-90'}`}
+                            className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border-[1.5px] transition-colors ${isSelected ? 'border-success bg-success/5' : 'border-transparent bg-card hover:bg-card-alt hover:border-border-strong active:opacity-90'}`}
                             style={isDone && !isSelected ? { opacity: 0.8 } : {}}
                           >
-                            <div className={`text-[11px] font-semibold truncate ${isSelected ? 'text-[#5BF5A0]' : isDone ? 'text-[#7a7a9a]' : 'text-[#888]'}`}>{rtn?.name || '—'}</div>
-                            {daysSinceText ? <div className="text-[9px] text-[#444] mt-0.5">{daysSinceText}</div> : null}
+                            <div className={`text-[11px] font-semibold truncate ${isSelected ? 'text-success' : isDone ? 'text-[#7a7a9a]' : 'text-muted'}`}>{rtn?.name || '—'}</div>
+                            {daysSinceText ? <div className="text-[9px] text-muted-deep mt-0.5">{daysSinceText}</div> : null}
                           </button>
                         )
                       })}
@@ -1318,29 +1333,29 @@ function App() {
                       ))}
                     </div>
                     {displayRtn && (
-                    <div className="border-[1.5px] border-[rgba(91,245,160,0.2)] rounded-[14px] p-4 bg-[rgba(91,245,160,0.02)] mb-5">
+                    <div className="border-[1.5px] border-success/20 rounded-[14px] p-4 bg-success/5 mb-5">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-white text-[15px] font-bold">{displayRtn.name}</span>
+                        <span className="text-text text-[15px] font-bold">{displayRtn.name}</span>
                         {displayRtnId === nextRtnId && (
-                          <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-[rgba(91,245,160,0.1)] text-[#5BF5A0] animate-up-next-pulse">Up Next</span>
+                          <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-success/10 text-success animate-up-next-pulse">Up Next</span>
                         )}
                       </div>
-                      <div className="text-[11px] text-[#555] mb-2">{exCount} exercises · {setCountR} sets · ~{estMin} min</div>
+                      <div className="text-[11px] text-muted-strong mb-2">{exCount} exercises · {setCountR} sets · ~{estMin} min</div>
                       <div className="flex flex-wrap gap-1 mb-3">
                         {(displayRtn.exercises || []).map((ex, i) => (
-                          <span key={i} className="text-[10px] font-semibold text-[#666] bg-white/5 px-2 py-0.5 rounded">{ex.exerciseId}</span>
+                          <span key={i} className="text-[10px] font-semibold text-muted-strong bg-white/5 px-2 py-0.5 rounded">{ex.exerciseId}</span>
                         ))}
                       </div>
-                      <button type="button" onClick={() => tryStart('routine', displayRtn)} className="w-full py-3.5 mt-3 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold flex items-center justify-center gap-1.5">
+                      <button type="button" onClick={() => tryStart('routine', displayRtn)} className="w-full py-3.5 mt-3 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold flex items-center justify-center gap-1.5">
                         <PlayIcon className="w-3.5 h-3.5" /> Start {displayRtn.name}
                       </button>
                     </div>
                     )}
-                    <button type="button" onClick={startEmpty} className="w-full py-4 px-4 mt-0 border-2 border-[rgba(123,123,255,0.4)] rounded-[14px] bg-[rgba(123,123,255,0.03)] flex items-center gap-3">
-                      <span className="w-[38px] h-[38px] rounded-[10px] bg-[rgba(123,123,255,0.06)] flex items-center justify-center text-[#7B7BFF] text-lg font-bold">+</span>
+                    <button type="button" onClick={startEmpty} className="w-full py-4 px-4 mt-0 border-2 border-accent/40 rounded-[14px] bg-accent/5 flex items-center gap-3">
+                      <span className="w-[38px] h-[38px] rounded-[10px] bg-accent/10 flex items-center justify-center text-accent text-lg font-bold">+</span>
                       <div className="text-left">
-                        <div className="text-white text-sm font-bold">Empty Workout</div>
-                        <div className="text-[11px] text-[#555]">Start fresh and add exercises as you go</div>
+                        <div className="text-text text-sm font-bold">Empty Workout</div>
+                        <div className="text-[11px] text-muted-strong">Start fresh and add exercises as you go</div>
                       </div>
                     </button>
                   </>
@@ -1361,43 +1376,43 @@ function App() {
                     if (programmesWithRoutines.length === 0) {
                       return (
                         <>
-                          <div className="rounded-2xl border border-[#232340] bg-[#13132A] p-6 text-center mb-4">
-                            <div className="w-12 h-12 rounded-full bg-[#1C1C38] flex items-center justify-center mx-auto mb-3 text-[#555]">
+                          <div className="rounded-2xl border border-border bg-card p-6 text-center mb-4">
+                            <div className="w-12 h-12 rounded-full bg-card-alt flex items-center justify-center mx-auto mb-3 text-muted-strong">
                               <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                             </div>
-                            <div className="text-white font-bold text-base mb-1">No programme yet</div>
-                            <div className="text-[#555] text-sm mb-4">Create your first programme and add routines to get started.</div>
-                            <button type="button" onClick={createProgramme} className="w-full py-2.5 border-2 border-[rgba(123,123,255,0.4)] rounded-[10px] bg-[rgba(123,123,255,0.04)] text-[#7B7BFF] text-sm font-bold">Create Programme</button>
+                            <div className="text-text font-bold text-base mb-1">No programme yet</div>
+                            <div className="text-muted-strong text-sm mb-4">Create your first programme and add routines to get started.</div>
+                            <button type="button" onClick={createProgramme} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">Create Programme</button>
                           </div>
-                          <div className="rounded-[14px] p-4 border border-[rgba(123,123,255,0.1)] bg-gradient-to-br from-[rgba(123,123,255,0.04)] to-[rgba(91,245,160,0.02)]">
-                            <div className="text-sm font-semibold text-white mb-1">Need help?</div>
-                            <div className="text-[11px] text-[#555] mb-3">Find a programme that fits your goals</div>
-                            <button type="button" disabled className="w-full py-2.5 rounded-lg bg-[#1C1C38] text-[#555] text-sm font-semibold cursor-not-allowed">Coming Soon</button>
+                          <div className="rounded-[14px] p-4 border border-accent/10 bg-gradient-to-br from-accent/5 to-success/5">
+                            <div className="text-sm font-semibold text-text mb-1">Need help?</div>
+                            <div className="text-[11px] text-muted-strong mb-3">Find a programme that fits your goals</div>
+                            <button type="button" disabled className="w-full py-2.5 rounded-lg bg-card-alt text-muted-strong text-sm font-semibold cursor-not-allowed">Coming Soon</button>
                           </div>
                         </>
                       )
                     }
                     return (
                       <>
-                        <h2 className="text-[13px] font-bold text-[#888] uppercase tracking-wider mb-3">My Programmes</h2>
+                        <h2 className="text-[13px] font-bold text-muted uppercase tracking-wider mb-3">My Programmes</h2>
                         {programmesWithRoutines.map((prog) => {
                           const progRoutines = (prog.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
                           const isActive = prog.isActive
                           return (
                             <div
                               key={prog.id}
-                              className={`rounded-[14px] p-4 mb-4 border ${isActive ? 'border-[1.5px] border-[rgba(91,245,160,0.2)] bg-[rgba(91,245,160,0.02)]' : 'border border-[#232340] bg-[#13132A]'}`}
+                              className={`rounded-[14px] p-4 mb-4 border ${isActive ? 'border-[1.5px] border-success/20 bg-success/5' : 'border border-border bg-card'}`}
                             >
                               <div className="flex items-start justify-between gap-2 mb-1">
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-white font-bold text-[17px]">{prog.name}</span>
-                                    {isActive && <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-[rgba(91,245,160,0.1)] text-[#5BF5A0] animate-up-next-pulse">Active</span>}
+                                    <span className="text-text font-bold text-[17px]">{prog.name}</span>
+                                    {isActive && <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-success/10 text-success animate-up-next-pulse">Active</span>}
                                   </div>
-                                  <div className="text-[11px] text-[#555] mt-0.5">{progRoutines.length} routines</div>
+                                  <div className="text-[11px] text-muted-strong mt-0.5">{progRoutines.length} routines</div>
                                 </div>
-                                <button type="button" onClick={() => setProgrammeMenuProgramme(prog)} className="w-8 h-8 rounded-lg bg-white/[0.03] border border-[#1e1e35] flex items-center justify-center shrink-0" aria-label="Programme options">
-                                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-[#666]"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
+                                <button type="button" onClick={() => setProgrammeMenuProgramme(prog)} className="w-8 h-8 rounded-lg bg-white/[0.03] border border-border-subtle flex items-center justify-center shrink-0" aria-label="Programme options">
+                                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-muted-strong"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
                                 </button>
                               </div>
                               <div className="flex gap-1.5">
@@ -1413,25 +1428,25 @@ function App() {
                                     }}
                                     className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border transition-colors ${
                                       isActive
-                                        ? 'border-[rgba(91,245,160,0.15)] bg-[rgba(91,245,160,0.04)]'
-                                        : 'bg-[#1C1C38] border-[#2A2A4A] hover:bg-[#1C1C38]/80 hover:border-[#3A3A5A]'
+                                        ? 'border-[rgba(91,245,160,0.15)] bg-success/5'
+                                        : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
                                     }`}
                                   >
-                                    <div className={`text-[11px] font-semibold truncate ${isActive ? 'text-[#5BF5A0]' : 'text-[#888]'}`}>{r.name}</div>
-                                    <div className="text-[9px] text-[#444] mt-0.5">{r.exercises?.length ?? 0} ex</div>
+                                    <div className={`text-[11px] font-semibold truncate ${isActive ? 'text-success' : 'text-muted'}`}>{r.name}</div>
+                                    <div className="text-[9px] text-muted-deep mt-0.5">{r.exercises?.length ?? 0} ex</div>
                                   </button>
                                 ))}
                               </div>
                             </div>
                           )
                         })}
-                        <button type="button" onClick={createProgramme} className="w-full py-3 border border-dashed border-[rgba(123,123,255,0.3)] rounded-xl bg-transparent text-[#7B7BFF] text-[13px] font-semibold mb-4">
+                        <button type="button" onClick={createProgramme} className="w-full py-3 border border-dashed border-accent/30 rounded-xl bg-transparent text-accent text-[13px] font-semibold mb-4">
                           + Create Programme
                         </button>
-                        <div className="rounded-[14px] p-4 border border-[rgba(123,123,255,0.1)] bg-gradient-to-br from-[rgba(123,123,255,0.04)] to-[rgba(91,245,160,0.02)]">
-                          <div className="text-sm font-semibold text-white mb-1">Need help?</div>
-                          <div className="text-[11px] text-[#555] mb-3">Find a programme that fits your goals</div>
-                          <button type="button" disabled className="w-full py-2.5 rounded-lg bg-[#1C1C38] text-[#555] text-sm font-semibold cursor-not-allowed">Coming Soon</button>
+                        <div className="rounded-[14px] p-4 border border-accent/10 bg-gradient-to-br from-accent/5 to-success/5">
+                          <div className="text-sm font-semibold text-text mb-1">Need help?</div>
+                          <div className="text-[11px] text-muted-strong mb-3">Find a programme that fits your goals</div>
+                          <button type="button" disabled className="w-full py-2.5 rounded-lg bg-card-alt text-muted-strong text-sm font-semibold cursor-not-allowed">Coming Soon</button>
                         </div>
                       </>
                     )
@@ -1444,36 +1459,36 @@ function App() {
           {/* ACTIVE WORKOUT - full bottom sheet */}
           {page === 'workout' && workoutActive && showActiveWorkoutSheet && !showCompleteScreen && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setShowActiveWorkoutSheet(false)}>
-              <div className="w-full max-w-md bg-[#0D0D1A] rounded-t-[20px] max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="sticky top-0 z-10 pt-2 pb-2 px-4 bg-[#0D0D1A]">
-                  <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-3 shrink-0" />
+              <div className="w-full max-w-md bg-page rounded-t-[20px] max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="sticky top-0 z-10 pt-2 pb-2 px-4 bg-page">
+                  <div className="w-9 h-1 bg-handle rounded mx-auto mb-3 shrink-0" />
                   <div className="flex items-center justify-between mb-1 shrink-0">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <h1 className="text-xl font-bold tracking-tight truncate">{workoutName || 'Workout'}</h1>
                       <div className="flex items-center gap-2 text-sm font-bold tabular-nums shrink-0">
-                        <span className="flex items-center gap-1.5 text-[#5BF5A0]"><span className="w-1.5 h-1.5 bg-[#5BF5A0] rounded-full animate-pulse" />{formatTime(workoutElapsed)}</span>
+                        <span className="flex items-center gap-1.5 text-success"><span className="w-1.5 h-1.5 bg-success rounded-full animate-pulse" />{formatTime(workoutElapsed)}</span>
                         {exercises.some(ex => (ex.sets || []).some(s => !s.done)) && (
-                          <span className="text-[#888]">−{formatTime(getEstimatedSecondsRemaining())}</span>
+                          <span className="text-muted">−{formatTime(getEstimatedSecondsRemaining())}</span>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button type="button" onClick={() => setShowActiveWorkoutSheet(false)} className="text-[#777] p-1.5 rounded-lg hover:bg-white/5" aria-label="Minimize">▼</button>
-                      <button type="button" onClick={() => setShowCancelWorkoutConfirm(true)} className="text-sm font-semibold text-[#777] border border-[#2A2A4A] px-3 py-1.5 rounded-lg hover:border-red-500/50 hover:text-red-400 transition-colors">Cancel</button>
+                      <button type="button" onClick={() => setShowActiveWorkoutSheet(false)} className="text-muted-mid p-1.5 rounded-lg hover:bg-white/5" aria-label="Minimize">▼</button>
+                      <button type="button" onClick={() => setShowCancelWorkoutConfirm(true)} className="text-sm font-semibold text-muted-mid border border-border-strong px-3 py-1.5 rounded-lg hover:border-red-500/50 hover:text-red-400 transition-colors">Cancel</button>
                     </div>
                   </div>
                   {activeRest && showStickyRestBar && (
                     <div className="flex items-center gap-2 mb-1">
-                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3 h-3 stroke-[#5BF5A0]">
+                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3 h-3 stroke-success">
                         <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                       </svg>
-                      <div className="flex-1 h-[6px] rounded-full bg-[#1C1C38] overflow-hidden">
+                      <div className="flex-1 h-[6px] rounded-full bg-card-alt overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-[#5BF5A0] to-[#4ECDC4]"
+                          className="h-full rounded-full bg-gradient-to-r from-success to-success"
                           style={{ width: `${Math.max(0, Math.min(100, (restTime / (restDuration || 1)) * 100))}%` }}
                         />
                       </div>
-                      <span className="text-[11px] font-semibold text-[#5BF5A0] tabular-nums min-w-[32px] text-right">
+                      <span className="text-[11px] font-semibold text-success tabular-nums min-w-[32px] text-right">
                         {formatTime(restTime)}
                       </span>
                     </div>
@@ -1481,16 +1496,16 @@ function App() {
                 </div>
 
                 {editingTemplate && (
-                  <div className="bg-[#7B7BFF]/10 border border-[#7B7BFF]/30 rounded-xl p-3 mb-3 shrink-0">
+                  <div className="bg-accent/10 border border-accent/30 rounded-xl p-3 mb-3 shrink-0">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0 mr-3">
-                        <div className="text-xs font-bold text-[#7B7BFF] uppercase tracking-wider mb-1">Editing template</div>
+                        <div className="text-xs font-bold text-accent uppercase tracking-wider mb-1">Editing template</div>
                         <input type="text" value={workoutName} onChange={(e) => setWorkoutName(e.target.value)} onFocus={e => e.target.select()}
-                          className="w-full bg-transparent border-b border-[#7B7BFF]/30 text-sm font-bold text-white outline-none focus:border-[#7B7BFF] transition-colors pb-1" />
+                          className="w-full bg-transparent border-b border-accent/30 text-sm font-bold text-text outline-none focus:border-accent transition-colors pb-1" />
                       </div>
                       <div className="flex gap-2 shrink-0">
-                        <button onClick={saveEditedTemplate} className="px-3 py-1.5 bg-[#7B7BFF] rounded-lg text-sm font-bold">Save</button>
-                        <button onClick={cancelEditTemplate} className="px-3 py-1.5 border border-[#2A2A4A] rounded-lg text-sm font-semibold text-[#888]">Cancel</button>
+                        <button onClick={saveEditedTemplate} className="px-3 py-1.5 bg-accent rounded-lg text-sm font-bold">Save</button>
+                        <button onClick={cancelEditTemplate} className="px-3 py-1.5 border border-border-strong rounded-lg text-sm font-semibold text-muted">Cancel</button>
                       </div>
                     </div>
                   </div>
@@ -1508,11 +1523,11 @@ function App() {
                       libraryEntry={getExerciseFromLibrary(ex.name)} />
                   ))}
 
-                  <button onClick={() => setShowAddExercise(true)} className="w-full py-3 mb-4 border border-dashed border-[#5BF5A0]/30 rounded-xl text-[#5BF5A0] text-sm font-semibold hover:bg-[#5BF5A0]/8 hover:border-[#5BF5A0] transition-colors">+ Add exercise</button>
+                  <button onClick={() => setShowAddExercise(true)} className="w-full py-3 mb-4 border border-dashed border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/8 hover:border-success transition-colors">+ Add exercise</button>
 
                   {exercises.length > 0 && !editingTemplate && (
                     <div className="flex flex-col gap-3 mt-2 mb-8">
-                      <button onClick={finishWorkout} className="w-full py-4 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-2xl font-bold text-base shadow-lg shadow-[#7B7BFF]/25 hover:translate-y-[-1px] active:translate-y-[1px] transition-transform">Finish workout</button>
+                      <button onClick={finishWorkout} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end rounded-2xl font-bold text-base shadow-lg shadow-accent/25 hover:translate-y-[-1px] active:translate-y-[1px] transition-transform">Finish workout</button>
                     </div>
                   )}
                 </div>
@@ -1524,56 +1539,70 @@ function App() {
           {page === 'profile' && (
             <div>
               <div className="flex items-center gap-3 mb-6"><RepliqeLogo size={28} /><h1 className="text-3xl font-bold tracking-tight">Profile</h1></div>
-              <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-5 mb-4">
-                <h3 className="text-sm font-semibold text-[#7B7BFF] uppercase tracking-wide mb-4">Settings</h3>
+              <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+                <h3 className="text-sm font-semibold text-accent uppercase tracking-wide mb-4">Settings</h3>
+                <div className="theme-selector mb-5">
+                  <div className="settings-label">Appearance</div>
+                  <div className="theme-options">
+                    <button type="button" className={`theme-option ${theme === 'dark' ? 'selected' : ''}`} onClick={() => setThemeAndApply('dark')}>
+                      <div className="theme-preview theme-preview-dark">
+                        <div className="tp-bar" />
+                        <div className="tp-block" />
+                        <div className="tp-block short" />
+                      </div>
+                      <span className="theme-option-name">Dark</span>
+                    </button>
+                    <button type="button" className={`theme-option ${theme === 'bone' ? 'selected' : ''}`} onClick={() => setThemeAndApply('bone')}>
+                      <div className="theme-preview theme-preview-bone">
+                        <div className="tp-bar" />
+                        <div className="tp-block" />
+                        <div className="tp-block short" />
+                      </div>
+                      <span className="theme-option-name">Bone</span>
+                    </button>
+                  </div>
+                </div>
                 <div className="mb-5">
                   <div className="text-sm font-semibold mb-1">Bodyweight</div>
-                  <div className="text-sm text-[#777] mb-3">Used for volume calculation on bodyweight exercises</div>
+                  <div className="text-sm text-muted-mid mb-3">Used for volume calculation on bodyweight exercises</div>
                   <div className="flex items-center gap-3">
-                    <input type="number" inputMode="decimal" value={bodyweight || ''} onChange={(e) => setBodyweight(e.target.value === '' ? '' : Number(e.target.value))} onBlur={() => { if (bodyweight === '' || bodyweight === 0) setBodyweight(0) }} className="w-24 bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-3 py-2 text-center text-sm font-bold text-white outline-none focus:border-[#7B7BFF] transition-colors" />
-                    <span className="text-sm text-[#777]">{unitWeight}</span>
+                    <input type="number" inputMode="decimal" value={bodyweight || ''} onChange={(e) => setBodyweight(e.target.value === '' ? '' : Number(e.target.value))} onBlur={() => { if (bodyweight === '' || bodyweight === 0) setBodyweight(0) }} className="w-24 bg-card-alt border border-border-strong rounded-xl px-3 py-2 text-center text-sm font-bold text-text outline-none focus:border-accent transition-colors" />
+                    <span className="text-sm text-muted-mid">{unitWeight}</span>
                   </div>
                 </div>
                 <div className="mb-5">
                   <div className="text-sm font-semibold mb-1">Weight unit</div>
-                  <div className="text-sm text-[#777] mb-3">Used across all exercises</div>
+                  <div className="text-sm text-muted-mid mb-3">Used across all exercises</div>
                   <div className="flex gap-2">
-                    {['kg', 'lbs'].map(u => <button key={u} onClick={() => setUnitWeight(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitWeight === u ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#888] hover:border-[#7B7BFF]'}`}>{u}</button>)}
+                    {['kg', 'lbs'].map(u => <button key={u} onClick={() => setUnitWeight(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitWeight === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
                   </div>
                 </div>
                 <div className="mb-5">
                   <div className="text-sm font-semibold mb-1">Distance unit</div>
-                  <div className="text-sm text-[#777] mb-3">Used for distance exercises</div>
+                  <div className="text-sm text-muted-mid mb-3">Used for distance exercises</div>
                   <div className="flex gap-2">
-                    {['km', 'miles'].map(u => <button key={u} onClick={() => setUnitDistance(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitDistance === u ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#888] hover:border-[#7B7BFF]'}`}>{u}</button>)}
-                  </div>
-                </div>
-                <div className="mb-5">
-                  <div className="text-sm font-semibold mb-1">Decimal separator</div>
-                  <div className="text-sm text-[#777] mb-3">How decimals are displayed</div>
-                  <div className="flex gap-2">
-                    {['.', ','].map(u => <button key={u} onClick={() => setUnitDecimal(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitDecimal === u ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#888] hover:border-[#7B7BFF]'}`}>{u === '.' ? '1.5' : '1,5'}</button>)}
+                    {['km', 'miles'].map(u => <button key={u} onClick={() => setUnitDistance(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitDistance === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
                   </div>
                 </div>
                 <div className="mb-5">
                   <div className="text-sm font-semibold mb-1">Rest timer</div>
-                  <div className="text-sm text-[#777] mb-3">Default rest duration between sets</div>
+                  <div className="text-sm text-muted-mid mb-3">Default rest duration between sets</div>
                   <div className="flex gap-2 flex-wrap">
-                    {REST_PRESETS.map(s => <button key={s} onClick={() => setDefaultRest(s)} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${defaultRest === s ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#888] hover:border-[#7B7BFF]'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
+                    {REST_PRESETS.map(s => <button key={s} onClick={() => setDefaultRest(s)} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${defaultRest === s ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
                   </div>
-                  <div className="text-sm text-[#444] mt-3">Current: {defaultRest === 0 ? 'None' : formatTime(defaultRest)}</div>
+                  <div className="text-sm text-muted-deep mt-3">Current: {defaultRest === 0 ? 'None' : formatTime(defaultRest)}</div>
                 </div>
                 <div className="mb-2">
                   <div className="text-sm font-semibold mb-1">Week starts on</div>
-                  <div className="text-sm text-[#777] mb-3">Used for weekly streak tracking</div>
+                  <div className="text-sm text-muted-mid mb-3">Used for weekly streak tracking</div>
                   <div className="flex gap-2 flex-wrap">
-                    {WEEK_DAYS.map((d, i) => <button key={i} onClick={() => setWeekStart(i)} className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${weekStart === i ? 'bg-[#7B7BFF] text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#888] hover:border-[#7B7BFF]'}`}>{d.slice(0,3)}</button>)}
+                    {WEEK_DAYS.map((d, i) => <button key={i} onClick={() => setWeekStart(i)} className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${weekStart === i ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{d.slice(0,3)}</button>)}
                   </div>
                 </div>
               </div>
-              <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-5">
-                <h3 className="text-sm font-semibold text-[#7B7BFF] uppercase tracking-wide mb-4">About</h3>
-                <div className="text-sm text-[#777]">
+              <div className="bg-card border border-border rounded-2xl p-5">
+                <h3 className="text-sm font-semibold text-accent uppercase tracking-wide mb-4">About</h3>
+                <div className="text-sm text-muted-mid">
                   <div className="mb-1">REPLIQE v1.4</div>
                   <div>Simple tracking. Real progress.</div>
                 </div>
@@ -1586,36 +1615,36 @@ function App() {
         {/* Programme Menu (bottom sheet) */}
         {programmeMenuProgramme && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setProgrammeMenuProgramme(null)}>
-            <div className="w-full max-w-md bg-[#13132A] rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-4" />
-              <h2 className="text-white text-base font-bold mb-3">{programmeMenuProgramme.name}</h2>
+            <div className="w-full max-w-md bg-card rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="w-9 h-1 bg-handle rounded mx-auto mb-4" />
+              <h2 className="text-text text-base font-bold mb-3">{programmeMenuProgramme.name}</h2>
               <button type="button" onClick={() => setProgrammeActive(programmeMenuProgramme.id)} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
                 <span className="w-9 h-9 rounded-lg bg-[rgba(91,245,160,0.06)] flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#5BF5A0" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-success"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 </span>
                 <div className="text-left flex-1">
-                  <div className="text-white text-sm font-semibold">Set as Active</div>
-                  <div className="text-[#555] text-[11px] mt-0.5">Use this programme on Start tab</div>
+                  <div className="text-text text-sm font-semibold">Set as Active</div>
+                  <div className="text-muted-strong text-[11px] mt-0.5">Use this programme on Start tab</div>
                 </div>
                 <span className="text-[#333] text-base">›</span>
               </button>
               <button type="button" onClick={() => openEditProgramme(programmeMenuProgramme.id)} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
-                <span className="w-9 h-9 rounded-lg bg-[rgba(123,123,255,0.06)] flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#7B7BFF" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <span className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-accent"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                 </span>
                 <div className="text-left flex-1">
-                  <div className="text-white text-sm font-semibold">Edit Programme</div>
-                  <div className="text-[#555] text-[11px] mt-0.5">Rename, add or reorder routines</div>
+                  <div className="text-text text-sm font-semibold">Edit Programme</div>
+                  <div className="text-muted-strong text-[11px] mt-0.5">Rename, add or reorder routines</div>
                 </div>
                 <span className="text-[#333] text-base">›</span>
               </button>
               <button type="button" onClick={() => copyProgramme(programmeMenuProgramme.id)} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
-                <span className="w-9 h-9 rounded-lg bg-[#1C1C38] flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 text-[#888]"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span className="w-9 h-9 rounded-lg bg-card-alt flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 text-muted"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 </span>
                 <div className="text-left flex-1">
-                  <div className="text-white text-sm font-semibold">Copy Programme</div>
-                  <div className="text-[#555] text-[11px] mt-0.5">Duplicate with all routines</div>
+                  <div className="text-text text-sm font-semibold">Copy Programme</div>
+                  <div className="text-muted-strong text-[11px] mt-0.5">Duplicate with all routines</div>
                 </div>
                 <span className="text-[#333] text-base">›</span>
               </button>
@@ -1625,11 +1654,11 @@ function App() {
                 </span>
                 <div className="text-left flex-1">
                   <div className="text-red-400 text-sm font-semibold">Delete Programme</div>
-                  <div className="text-[#555] text-[11px] mt-0.5">Permanently remove this programme</div>
+                  <div className="text-muted-strong text-[11px] mt-0.5">Permanently remove this programme</div>
                 </div>
                 <span className="text-[#333] text-base">›</span>
               </button>
-              <button type="button" onClick={() => setProgrammeMenuProgramme(null)} className="w-full py-3 mt-2 border border-[#2A2A4A] rounded-lg text-[#666] text-xs font-semibold">Cancel</button>
+              <button type="button" onClick={() => setProgrammeMenuProgramme(null)} className="w-full py-3 mt-2 border border-border-strong rounded-lg text-muted-strong text-xs font-semibold">Cancel</button>
             </div>
           </div>
         )}
@@ -1637,15 +1666,15 @@ function App() {
         {/* Delete Programme confirmation (centered) */}
         {showDeleteProgrammeConfirm && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
-            <div className="w-full max-w-sm bg-[#13132A] rounded-[18px] p-7 text-center">
+            <div className="w-full max-w-sm bg-card rounded-[18px] p-7 text-center">
               <div className="w-12 h-12 rounded-full bg-[rgba(255,85,85,0.1)] flex items-center justify-center mx-auto mb-4">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#FF5555" strokeWidth="2" strokeLinecap="round" className="w-6 h-6"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </div>
-              <h2 className="text-white text-lg font-bold mb-2">Delete Programme?</h2>
-              <p className="text-[#888] text-sm mb-5">{programmes.find(p => p.id === showDeleteProgrammeConfirm)?.name} and all its routines will be permanently deleted.</p>
+              <h2 className="text-text text-lg font-bold mb-2">Delete Programme?</h2>
+              <p className="text-muted text-sm mb-5">{programmes.find(p => p.id === showDeleteProgrammeConfirm)?.name} and all its routines will be permanently deleted.</p>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setShowDeleteProgrammeConfirm(null)} className="flex-1 py-3 border border-[#2A2A4A] rounded-xl text-[#888] text-sm font-semibold">Cancel</button>
-                <button type="button" onClick={() => confirmDeleteProgrammeAction(showDeleteProgrammeConfirm)} className="flex-1 py-3 bg-[#FF5555] rounded-xl text-white text-sm font-bold">Delete</button>
+                <button type="button" onClick={() => setShowDeleteProgrammeConfirm(null)} className="flex-1 py-3 border border-border-strong rounded-xl text-muted text-sm font-semibold">Cancel</button>
+                <button type="button" onClick={() => confirmDeleteProgrammeAction(showDeleteProgrammeConfirm)} className="flex-1 py-3 bg-[#FF5555] rounded-xl text-text text-sm font-bold">Delete</button>
               </div>
             </div>
           </div>
@@ -1657,15 +1686,15 @@ function App() {
           if (!prog) return null
           return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
-              <div className="w-full max-w-sm bg-[#13132A] rounded-[18px] p-7 text-center">
-                <div className="w-12 h-12 rounded-full bg-[rgba(91,245,160,0.1)] flex items-center justify-center mx-auto mb-4">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#5BF5A0" strokeWidth="2" strokeLinecap="round" className="w-6 h-6"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <div className="w-full max-w-sm bg-card rounded-[18px] p-7 text-center">
+                <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-success"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 </div>
-                <h2 className="text-white text-lg font-bold mb-2">Set as active programme?</h2>
-                <p className="text-[#888] text-sm mb-5">Use &quot;{prog.name}&quot; on the Start tab as your active programme?</p>
+                <h2 className="text-text text-lg font-bold mb-2">Set as active programme?</h2>
+                <p className="text-muted text-sm mb-5">Use &quot;{prog.name}&quot; on the Start tab as your active programme?</p>
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => { setShowSetActiveAfterCreate(null) }} className="flex-1 py-3 border border-[#2A2A4A] rounded-xl text-[#888] text-sm font-semibold">Not now</button>
-                  <button type="button" onClick={() => { setProgrammeActive(showSetActiveAfterCreate); setShowSetActiveAfterCreate(null) }} className="flex-1 py-3 bg-[#5BF5A0] rounded-xl text-[#0D0D1A] text-sm font-bold">Set as active</button>
+                  <button type="button" onClick={() => { setShowSetActiveAfterCreate(null) }} className="flex-1 py-3 border border-border-strong rounded-xl text-muted text-sm font-semibold">Not now</button>
+                  <button type="button" onClick={() => { setProgrammeActive(showSetActiveAfterCreate); setShowSetActiveAfterCreate(null) }} className="flex-1 py-3 bg-success rounded-xl text-on-success text-sm font-bold">Set as active</button>
                 </div>
               </div>
             </div>
@@ -1678,15 +1707,15 @@ function App() {
           if (!prog) return null
           return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
-              <div className="w-full max-w-sm bg-[#13132A] rounded-[18px] p-7 text-center">
-                <div className="w-12 h-12 rounded-full bg-[rgba(91,245,160,0.1)] flex items-center justify-center mx-auto mb-4">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#5BF5A0" strokeWidth="2" strokeLinecap="round" className="w-6 h-6"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <div className="w-full max-w-sm bg-card rounded-[18px] p-7 text-center">
+                <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-success"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 </div>
-                <h2 className="text-white text-lg font-bold mb-2">Set as active programme?</h2>
-                <p className="text-[#888] text-sm mb-5">Use &quot;{prog.name}&quot; on the Start tab as your active programme?</p>
+                <h2 className="text-text text-lg font-bold mb-2">Set as active programme?</h2>
+                <p className="text-muted text-sm mb-5">Use &quot;{prog.name}&quot; on the Start tab as your active programme?</p>
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => setShowSetActiveAfterEditProgramme(null)} className="flex-1 py-3 border border-[#2A2A4A] rounded-xl text-[#888] text-sm font-semibold">Not now</button>
-                  <button type="button" onClick={() => { setProgrammeActive(showSetActiveAfterEditProgramme); setShowSetActiveAfterEditProgramme(null) }} className="flex-1 py-3 bg-[#5BF5A0] rounded-xl text-[#0D0D1A] text-sm font-bold">Set as active</button>
+                  <button type="button" onClick={() => setShowSetActiveAfterEditProgramme(null)} className="flex-1 py-3 border border-border-strong rounded-xl text-muted text-sm font-semibold">Not now</button>
+                  <button type="button" onClick={() => { setProgrammeActive(showSetActiveAfterEditProgramme); setShowSetActiveAfterEditProgramme(null) }} className="flex-1 py-3 bg-success rounded-xl text-on-success text-sm font-bold">Set as active</button>
                 </div>
               </div>
             </div>
@@ -1696,23 +1725,23 @@ function App() {
         {/* Create Programme modal */}
         {showCreateProgramme && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setShowCreateProgramme(false)}>
-            <div className="w-full max-w-md bg-[#13132A] rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-4" />
-              <h2 className="text-white text-base font-bold mb-3">Create Programme</h2>
-              <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Name</label>
-              <input type="text" value={createProgrammeName} onChange={e => setCreateProgrammeName(e.target.value)} placeholder="e.g. 2 Split - Push/Pull" onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF]" />
-              <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Routines</label>
+            <div className="w-full max-w-md bg-card rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="w-9 h-1 bg-handle rounded mx-auto mb-4" />
+              <h2 className="text-text text-base font-bold mb-3">Create Programme</h2>
+              <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mt-3 mb-1.5">Name</label>
+              <input type="text" value={createProgrammeName} onChange={e => setCreateProgrammeName(e.target.value)} placeholder="e.g. 2 Split - Push/Pull" onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent" />
+              <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mt-3 mb-1.5">Routines</label>
               {createProgrammeRoutines.map((r, i) => (
-                <div key={i} className="flex justify-between items-center py-3 px-3 bg-[#1C1C38] rounded-[10px] border border-[#2A2A4A] mb-1.5">
-                  <span className="text-white text-sm font-semibold">{r.name}</span>
-                  <span className="text-[#555] text-xs">{r.exercises?.length ?? 0} exercises</span>
+                <div key={i} className="flex justify-between items-center py-3 px-3 bg-card-alt rounded-[10px] border border-border-strong mb-1.5">
+                  <span className="text-text text-sm font-semibold">{r.name}</span>
+                  <span className="text-muted-strong text-xs">{r.exercises?.length ?? 0} exercises</span>
                   <button type="button" onClick={() => setCreateProgrammeRoutines(prev => prev.filter((_, j) => j !== i))} className="text-[rgba(255,85,85,0.5)] p-1">✕</button>
                 </div>
               ))}
-              <button type="button" onClick={() => { setEditingRoutineProgrammeId(null); setEditingRoutineId(null); setEditRoutineName(''); setEditRoutineExercises([]); setShowCreateRoutine(true); setShowCreateProgramme(false) }} className="w-full py-3 border border-dashed border-[#2A2A4A] rounded-xl text-[#7B7BFF] text-sm font-semibold mb-4">+ Add Routine</button>
-              {!createProgrammeName.trim() && <p className="text-[#7B7BFF] text-sm font-medium mb-2">Indtast et navn på programmet for at kunne gemme.</p>}
-              <button type="button" onClick={() => { saveNewProgramme(createProgrammeName, 'rotation', null, createProgrammeRoutines); setCreateProgrammeRoutines([]) }} disabled={!createProgrammeName.trim()} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold disabled:opacity-50 disabled:pointer-events-none">Save Programme</button>
-              <button type="button" onClick={() => { setShowCreateProgramme(false); setCreateProgrammeRoutines([]) }} className="w-full py-3 mt-2 text-[#666] text-xs font-semibold">Cancel</button>
+              <button type="button" onClick={() => { setEditingRoutineProgrammeId(null); setEditingRoutineId(null); setEditRoutineName(''); setEditRoutineExercises([]); setShowCreateRoutine(true); setShowCreateProgramme(false) }} className="w-full py-3 border border-dashed border-border-strong rounded-xl text-accent text-sm font-semibold mb-4">+ Add Routine</button>
+              {!createProgrammeName.trim() && <p className="text-accent text-sm font-medium mb-2">Indtast et navn på programmet for at kunne gemme.</p>}
+              <button type="button" onClick={() => { saveNewProgramme(createProgrammeName, 'rotation', null, createProgrammeRoutines); setCreateProgrammeRoutines([]) }} disabled={!createProgrammeName.trim()} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold disabled:opacity-50 disabled:pointer-events-none">Save Programme</button>
+              <button type="button" onClick={() => { setShowCreateProgramme(false); setCreateProgrammeRoutines([]) }} className="w-full py-3 mt-2 text-muted-strong text-xs font-semibold">Cancel</button>
             </div>
           </div>
         )}
@@ -1724,12 +1753,12 @@ function App() {
           const closeEditProgramme = () => { setEditingProgrammeId(null); setDragRoutine(null); setDragOverTarget(null) }
           return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={closeEditProgramme}>
-              <div className="w-full max-w-md bg-[#13132A] rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-4" />
-                <h2 className="text-white text-base font-bold mb-3">Edit Programme</h2>
-                <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Name</label>
-                <input type="text" value={editProgrammeName} onChange={e => setEditProgrammeName(e.target.value)} onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold outline-none focus:border-[#7B7BFF]" />
-                <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mt-3 mb-1.5">Routines — drag to reorder or move to another programme</label>
+              <div className="w-full max-w-md bg-card rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="w-9 h-1 bg-handle rounded mx-auto mb-4" />
+                <h2 className="text-text text-base font-bold mb-3">Edit Programme</h2>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mt-3 mb-1.5">Name</label>
+                <input type="text" value={editProgrammeName} onChange={e => setEditProgrammeName(e.target.value)} onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold outline-none focus:border-accent" />
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mt-3 mb-1.5">Routines — drag to reorder or move to another programme</label>
                 {progRoutines.map((r, i) => {
                   const isDragging = dragRoutine?.rtnId === r.id
                   const isDropTarget = dragOverTarget?.type === 'index' && dragOverTarget.progId === editingProgrammeId && dragOverTarget.index === i
@@ -1746,27 +1775,33 @@ function App() {
                           setDragRoutine(null); setDragOverTarget(null)
                         } catch (_) {}
                       }}
-                      className={`flex justify-between items-center py-3 px-3 rounded-[10px] border mb-1.5 transition-colors ${isDragging ? 'opacity-50 bg-[#1C1C38] border-[#2A2A4A]' : isDropTarget ? 'bg-[#7B7BFF]/10 border-[#7B7BFF]/40' : 'bg-[#1C1C38] border-[#2A2A4A]'}`}
+                      className={`flex justify-between items-center py-3 px-3 rounded-[10px] border mb-1.5 transition-colors ${isDragging ? 'opacity-50 bg-card-alt border-border-strong' : isDropTarget ? 'bg-accent/10 border-accent/40' : 'bg-card-alt border-border-strong'}`}
                     >
                       <span
                         draggable
                         onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/json', JSON.stringify({ rtnId: r.id, progId: editingProgrammeId })); setDragRoutine({ rtnId: r.id, progId: editingProgrammeId }) }}
                         onDragEnd={() => { setDragRoutine(null); setDragOverTarget(null) }}
-                        className="text-[#888] mr-2 cursor-grab active:cursor-grabbing touch-none"
+                        className="text-muted mr-2 cursor-grab active:cursor-grabbing touch-none"
                       >⋮⋮</span>
-                      <span className="text-white text-sm font-semibold flex-1 min-w-0 truncate">{r.name}</span>
-                      <span className="text-[#555] text-xs shrink-0">{r.exercises?.length ?? 0} ex</span>
+                      <span className="text-text text-sm font-semibold flex-1 min-w-0 truncate">{r.name}</span>
+                      <span className="text-muted-strong text-xs shrink-0">{r.exercises?.length ?? 0} ex</span>
                       <div className="flex items-center gap-1 shrink-0 ml-2">
-                        <button type="button" onClick={() => { setEditRoutineName(r.name); setEditRoutineExercises(r.exercises || []); setEditingRoutineId(r.id); setEditingRoutineProgrammeId(editingProgrammeId); setEditingProgrammeId(null) }} className="text-[#7B7BFF] text-xs font-semibold px-1.5 py-0.5">Edit</button>
-                        <button type="button" onClick={() => copyRoutine(r.id, editingProgrammeId)} className="text-[#888] text-xs font-semibold px-1.5 py-0.5 hover:text-white" title="Copy routine">Copy</button>
+                        <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'up')} className={`p-1 rounded-md ${i === 0 ? 'opacity-20' : 'hover:bg-white/5'}`} disabled={i === 0} aria-label="Move routine up">
+                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-accent"><polyline points="18 15 12 9 6 15"/></svg>
+                        </button>
+                        <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'down')} className={`p-1 rounded-md ${i === progRoutines.length - 1 ? 'opacity-20' : 'hover:bg-white/5'}`} disabled={i === progRoutines.length - 1} aria-label="Move routine down">
+                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-accent"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <button type="button" onClick={() => { setEditRoutineName(r.name); setEditRoutineExercises(r.exercises || []); setEditingRoutineId(r.id); setEditingRoutineProgrammeId(editingProgrammeId); setEditingProgrammeId(null) }} className="text-accent text-xs font-semibold px-1.5 py-0.5">Edit</button>
+                        <button type="button" onClick={() => copyRoutine(r.id, editingProgrammeId)} className="text-muted text-xs font-semibold px-1.5 py-0.5 hover:text-text" title="Copy routine">Copy</button>
                         <button type="button" onClick={() => removeRoutineFromProgramme(editingProgrammeId, r.id)} className="text-[rgba(255,85,85,0.5)] p-1 hover:text-red-400">✕</button>
                       </div>
                     </div>
                   )
                 })}
                 {dragRoutine && programmes.filter(p => p.id !== dragRoutine.progId).length > 0 && (
-                  <div className="mt-2 mb-2 p-2 rounded-lg bg-[#1C1C38] border border-[#2A2A4A]">
-                    <div className="text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-2">Move to programme</div>
+                  <div className="mt-2 mb-2 p-2 rounded-lg bg-card-alt border border-border-strong">
+                    <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Move to programme</div>
                     <div className="flex flex-wrap gap-1.5">
                       {programmes.filter(p => p.id !== dragRoutine.progId).map((p) => {
                         const isTarget = dragOverTarget?.type === 'programme' && dragOverTarget.progId === p.id
@@ -1783,7 +1818,7 @@ function App() {
                                 setDragRoutine(null); setDragOverTarget(null)
                               } catch (_) {}
                             }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${isTarget ? 'bg-[#7B7BFF]/20 text-[#7B7BFF] border border-[#7B7BFF]/40' : 'bg-[#0D0D1A] text-[#888] border border-[#2A2A4A] hover:border-[#7B7BFF]/40'}`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${isTarget ? 'bg-accent/20 text-accent border border-accent/40' : 'bg-page text-muted border border-border-strong hover:border-accent/40'}`}
                           >
                             {p.name}
                           </div>
@@ -1792,15 +1827,15 @@ function App() {
                     </div>
                   </div>
                 )}
-                <button type="button" onClick={() => { setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineId(null); setEditingRoutineProgrammeId(editingProgrammeId); setShowCreateRoutine(true); setEditingProgrammeId(null) }} className="w-full py-3 border border-dashed border-[#2A2A4A] rounded-xl text-[#7B7BFF] text-sm font-semibold mb-4">+ Add Routine</button>
+                <button type="button" onClick={() => { setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineId(null); setEditingRoutineProgrammeId(editingProgrammeId); setShowCreateRoutine(true); setEditingProgrammeId(null) }} className="w-full py-3 border border-dashed border-border-strong rounded-xl text-accent text-sm font-semibold mb-4">+ Add Routine</button>
                 <button type="button" onClick={() => {
                   const progId = editingProgrammeId
                   const programme = programmes.find(p => p.id === progId)
                   saveEditedProgramme(progId, editProgrammeName, 'rotation', prog?.routineIds || [])
                   setEditingProgrammeId(null); setDragRoutine(null); setDragOverTarget(null)
                   if (programme && !programme.isActive) setShowSetActiveAfterEditProgramme(progId)
-                }} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold">Save Changes</button>
-                <button type="button" onClick={closeEditProgramme} className="w-full py-3 mt-2 text-[#666] text-xs font-semibold">Cancel</button>
+                }} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold">Save Changes</button>
+                <button type="button" onClick={closeEditProgramme} className="w-full py-3 mt-2 text-muted-strong text-xs font-semibold">Cancel</button>
               </div>
             </div>
           )
@@ -1824,12 +1859,12 @@ function App() {
           }
           return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={closeRoutineEditor}>
-              <div className="w-full max-w-md bg-[#0D0D1A] rounded-t-[20px] pt-2 pb-10 px-4 max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="w-9 h-1 bg-[#2a2a45] rounded mx-auto mb-3 shrink-0" />
-                <h2 className="text-white text-base font-bold mb-3 shrink-0">{isEdit ? 'Edit Routine' : 'Create Routine'}</h2>
-                <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-1.5">Name</label>
-                <input type="text" value={name} onChange={e => setEditRoutineName(e.target.value)} placeholder="e.g. Day 1 - Pull" onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-[#1C1C38] border border-[#2A2A4A] rounded-[10px] text-white text-sm font-semibold placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] mb-4 shrink-0" />
-                <label className="block text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-2">Exercises</label>
+              <div className="w-full max-w-md bg-page rounded-t-[20px] pt-2 pb-10 px-4 max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="w-9 h-1 bg-handle rounded mx-auto mb-3 shrink-0" />
+                <h2 className="text-text text-base font-bold mb-3 shrink-0">{isEdit ? 'Edit Routine' : 'Create Routine'}</h2>
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Name</label>
+                <input type="text" value={name} onChange={e => setEditRoutineName(e.target.value)} placeholder="e.g. Day 1 - Pull" onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent mb-4 shrink-0" />
+                <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Exercises</label>
                 <div className="overflow-y-auto flex-1 min-h-0 -mx-4 px-4 space-y-2">
                   {(exs || []).map((ex, i) => {
                     const setConfigs = getSetConfigs(ex)
@@ -1851,20 +1886,20 @@ function App() {
                     const setRest = (val) => { setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, restOverride: val })); setRoutineEditorRestForIndex(null) }
                     const updateNote = (val) => setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, note: val }))
                     return (
-                      <div key={i} className="bg-[#13132A] border border-[#232340] rounded-2xl p-3.5">
+                      <div key={i} className="bg-card border border-border rounded-2xl p-3.5">
                         <div className="flex justify-between items-start gap-2 mb-2">
                           <div className="flex items-start gap-2 min-w-0 flex-1">
                             {lib ? <div className="mt-0.5"><MuscleIcon muscle={lib.muscle} size={14} /></div> : null}
                             <div className="min-w-0">
-                              <span className="text-lg font-bold tracking-tight text-white block truncate">{ex.exerciseId}</span>
-                              {lib && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/5 text-[#888]">{lib.equipment}</span>}
+                              <span className="text-lg font-bold tracking-tight text-text block truncate">{ex.exerciseId}</span>
+                              {lib && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/5 text-muted">{lib.equipment}</span>}
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
-                            <button type="button" onClick={() => setRoutineEditorNoteForIndex(routineEditorNoteForIndex === i ? null : i)} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold transition-colors ${note ? 'bg-[#7B7BFF]/10 text-[#7B7BFF] border border-[#7B7BFF]/20' : 'bg-[#1C1C38] text-[#777] border border-[#2A2A4A]'}`}>
+                            <button type="button" onClick={() => setRoutineEditorNoteForIndex(routineEditorNoteForIndex === i ? null : i)} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold transition-colors ${note ? 'bg-accent/10 text-accent border border-accent/20' : 'bg-card-alt text-muted-mid border border-border-strong'}`}>
                               <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                             </button>
-                            <button type="button" onClick={() => setRoutineEditorRestForIndex(routineEditorRestForIndex === i ? null : i)} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold transition-colors ${restOverride !== null ? 'bg-[#5BF5A0]/10 text-[#5BF5A0] border border-[#5BF5A0]/20' : 'bg-[#1C1C38] text-[#777] border border-[#2A2A4A]'}`}>
+                            <button type="button" onClick={() => setRoutineEditorRestForIndex(routineEditorRestForIndex === i ? null : i)} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold transition-colors ${restOverride !== null ? 'bg-success/10 text-success border border-success/20' : 'bg-card-alt text-muted-mid border border-border-strong'}`}>
                               <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                               {restOverride === null || restOverride === undefined ? 'Rest' : (restOverride === 0 ? 'None' : formatTime(restOverride))}
                             </button>
@@ -1873,53 +1908,53 @@ function App() {
                         </div>
                         {routineEditorNoteForIndex === i && (
                           <div className="mt-2 flex gap-2 mb-2">
-                            <input type="text" placeholder="Add a note..." value={note} onChange={(e) => updateNote(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setRoutineEditorNoteForIndex(null)} autoFocus className="flex-1 bg-[#1C1C38] border border-[#2A2A4A] rounded-lg px-3 py-2 text-sm text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF]" />
-                            <button type="button" onClick={() => setRoutineEditorNoteForIndex(null)} className="px-3 py-2 bg-[#7B7BFF] rounded-lg text-sm font-bold">Done</button>
+                            <input type="text" placeholder="Add a note..." value={note} onChange={(e) => updateNote(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setRoutineEditorNoteForIndex(null)} autoFocus className="flex-1 bg-card-alt border border-border-strong rounded-lg px-3 py-2 text-sm text-text placeholder-muted-deep outline-none focus:border-accent" />
+                            <button type="button" onClick={() => setRoutineEditorNoteForIndex(null)} className="px-3 py-2 bg-accent rounded-lg text-sm font-bold">Done</button>
                           </div>
                         )}
                         {note && routineEditorNoteForIndex !== i && (
-                          <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-[#1C1C38] rounded-lg border border-[#2A2A4A]">
-                            <span className="text-sm text-[#888] italic flex-1">{note}</span>
-                            <button type="button" onClick={() => updateNote('')} className="text-[#777] hover:text-red-400 shrink-0">✕</button>
+                          <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-card-alt rounded-lg border border-border-strong">
+                            <span className="text-sm text-muted italic flex-1">{note}</span>
+                            <button type="button" onClick={() => updateNote('')} className="text-muted-mid hover:text-red-400 shrink-0">✕</button>
                           </div>
                         )}
                         {routineEditorRestForIndex === i && (
-                          <div className="mt-2 mb-2 p-3 bg-[#1C1C38] rounded-xl border border-[#2A2A4A]">
-                            <div className="text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-2">Rest for this exercise</div>
+                          <div className="mt-2 mb-2 p-3 bg-card-alt rounded-xl border border-border-strong">
+                            <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Rest for this exercise</div>
                             <div className="flex gap-1.5 flex-wrap">
-                              <button type="button" onClick={() => setRest(null)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === null ? 'bg-[#7B7BFF] text-white' : 'bg-[#13132A] border border-[#2A2A4A] text-[#888]'}`}>Default</button>
-                              {REST_PRESETS.map(s => <button key={s} type="button" onClick={() => setRest(s)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === s ? 'bg-[#5BF5A0] text-[#0D0D1A]' : 'bg-[#13132A] border border-[#2A2A4A] text-[#888]'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
+                              <button type="button" onClick={() => setRest(null)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === null ? 'bg-accent text-on-accent' : 'bg-card border border-border-strong text-muted'}`}>Default</button>
+                              {REST_PRESETS.map(s => <button key={s} type="button" onClick={() => setRest(s)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === s ? 'bg-success text-[#0D0D1A]' : 'bg-card border border-border-strong text-muted'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
                             </div>
                           </div>
                         )}
                         <div className="gap-1.5 mt-2 mb-1 grid items-center" style={{ gridTemplateColumns: '28px 1fr 1fr 30px' }}>
-                          <span className="text-xs font-bold text-[#666] uppercase text-center">Set</span>
-                          <span className="text-xs font-bold text-[#666] uppercase text-center">{unitWeight}</span>
-                          <span className="text-xs font-bold text-[#666] uppercase text-center">Reps</span>
+                          <span className="text-xs font-bold text-muted-strong uppercase text-center">Set</span>
+                          <span className="text-xs font-bold text-muted-strong uppercase text-center">{unitWeight}</span>
+                          <span className="text-xs font-bold text-muted-strong uppercase text-center">Reps</span>
                           <span />
                         </div>
                         {setConfigs.map((setCfg, setIdx) => (
                           <div key={setIdx} className="gap-1.5 grid items-center mb-1" style={{ gridTemplateColumns: '28px 1fr 1fr 30px' }}>
-                            <span className="text-sm font-bold text-[#888] text-center">{setIdx + 1}</span>
-                            <input ref={i === focusNewExerciseAt && setIdx === 0 ? routineEditorFirstInputRef : undefined} type="number" inputMode="decimal" value={setCfg.targetKg ?? ''} onChange={e => updateSetAt(setIdx, 'targetKg', e.target.value)} placeholder={unitWeight} onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-[#1C1C38] border border-[#2A2A4A] px-1.5 py-1.5 text-center text-white text-sm font-bold outline-none focus:border-[#7B7BFF]" />
-                            <input type="number" inputMode="numeric" value={setCfg.targetReps ?? ''} onChange={e => updateSetAt(setIdx, 'targetReps', e.target.value)} placeholder="reps" onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-[#1C1C38] border border-[#2A2A4A] px-1.5 py-1.5 text-center text-white text-sm font-bold outline-none focus:border-[#7B7BFF]" />
-                            {setConfigs.length > 1 ? <button type="button" onClick={() => removeSetAt(setIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg text-[#555] hover:text-red-400 hover:bg-red-500/10 shrink-0" aria-label="Delete set">✕</button> : <span className="w-7 shrink-0" />}
+                            <span className="text-sm font-bold text-muted text-center">{setIdx + 1}</span>
+                            <input ref={i === focusNewExerciseAt && setIdx === 0 ? routineEditorFirstInputRef : undefined} type="number" inputMode="decimal" value={setCfg.targetKg ?? ''} onChange={e => updateSetAt(setIdx, 'targetKg', e.target.value)} placeholder={unitWeight} onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-card-alt border border-border-strong px-1.5 py-1.5 text-center text-text text-sm font-bold outline-none focus:border-accent" />
+                            <input type="number" inputMode="numeric" value={setCfg.targetReps ?? ''} onChange={e => updateSetAt(setIdx, 'targetReps', e.target.value)} placeholder="reps" onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-card-alt border border-border-strong px-1.5 py-1.5 text-center text-text text-sm font-bold outline-none focus:border-accent" />
+                            {setConfigs.length > 1 ? <button type="button" onClick={() => removeSetAt(setIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-strong hover:text-red-400 hover:bg-red-500/10 shrink-0" aria-label="Delete set">✕</button> : <span className="w-7 shrink-0" />}
                           </div>
                         ))}
-                        <button type="button" onClick={addSet} className="w-full py-2 mt-2 border border-dashed border-[#2A2A4A] rounded-lg text-[#777] text-sm font-semibold hover:border-[#7B7BFF] hover:text-[#7B7BFF]">+ Add set</button>
+                        <button type="button" onClick={addSet} className="w-full py-2 mt-2 border border-dashed border-border-strong rounded-lg text-muted-mid text-sm font-semibold hover:border-accent hover:text-accent">+ Add set</button>
                       </div>
                     )
                   })}
-                  <button type="button" onClick={() => setShowExercisePickerForRoutine(true)} className="w-full py-3 border border-dashed border-[#5BF5A0]/30 rounded-xl text-[#5BF5A0] text-sm font-semibold hover:bg-[#5BF5A0]/8 hover:border-[#5BF5A0] mb-2">+ Add exercise</button>
+                  <button type="button" onClick={() => setShowExercisePickerForRoutine(true)} className="w-full py-3 border border-dashed border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/8 hover:border-success mb-2">+ Add exercise</button>
                 </div>
                 <div className="shrink-0 pt-3 space-y-2">
-                  {!isEdit && !editRoutineName.trim() && <p className="text-[#7B7BFF] text-sm font-medium">Indtast et navn på rutinen for at kunne gemme.</p>}
+                  {!isEdit && !editRoutineName.trim() && <p className="text-accent text-sm font-medium">Indtast et navn på rutinen for at kunne gemme.</p>}
                   <button type="button" onClick={() => {
                     if (isEdit) { saveRoutineEdits(editingRoutineId, editRoutineName, editRoutineExercises); closeRoutineEditor() }
                     else if (programmeId) { addRoutineToProgramme(programmeId, { name: editRoutineName, exercises: editRoutineExercises }); setShowCreateRoutine(false); setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineProgrammeId(null); setEditingProgrammeId(programmeId); setEditProgrammeName(programmes.find(p => p.id === programmeId)?.name || ''); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
                     else { setCreateProgrammeRoutines(prev => [...prev, { name: editRoutineName, exercises: editRoutineExercises }]); setShowCreateRoutine(false); setShowCreateProgramme(true); setEditRoutineName(''); setEditRoutineExercises([]); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
-                  }} disabled={!isEdit && !editRoutineName.trim()} className="w-full py-3.5 border-2 border-[#5BF5A0] rounded-xl bg-[rgba(91,245,160,0.05)] text-[#5BF5A0] text-sm font-bold disabled:opacity-50 disabled:pointer-events-none">Save</button>
-                  <button type="button" onClick={closeRoutineEditor} className="w-full py-3 text-[#666] text-xs font-semibold">Cancel</button>
+                  }} disabled={!isEdit && !editRoutineName.trim()} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold disabled:opacity-50 disabled:pointer-events-none">Save</button>
+                  <button type="button" onClick={closeRoutineEditor} className="w-full py-3 text-muted-strong text-xs font-semibold">Cancel</button>
                 </div>
               </div>
             </div>
@@ -1968,48 +2003,48 @@ function App() {
 
         {showEmptyNameModal && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-            <div className="w-full max-w-md bg-[#13132A] rounded-t-3xl p-6 pb-10">
+            <div className="w-full max-w-md bg-card rounded-t-3xl p-6 pb-10">
               <h2 className="text-lg font-bold text-center mb-5">Name your workout</h2>
-              <input type="text" placeholder="e.g. Push Day, Upper Body..." value={emptyWorkoutName} onChange={(e) => setEmptyWorkoutName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && confirmEmptyStart()} autoFocus className="w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors mb-4" />
-              <button onClick={confirmEmptyStart} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${emptyWorkoutName ? 'bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] shadow-lg shadow-[#7B7BFF]/25' : 'bg-[#1C1C38] text-[#555]'}`} disabled={!emptyWorkoutName}>Start workout</button>
-              <button onClick={() => setShowEmptyNameModal(false)} className="w-full py-3 text-sm font-semibold text-[#777]">Cancel</button>
+              <input type="text" placeholder="e.g. Push Day, Upper Body..." value={emptyWorkoutName} onChange={(e) => setEmptyWorkoutName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && confirmEmptyStart()} autoFocus className="w-full bg-card-alt border border-border-strong rounded-xl px-4 py-3 text-text placeholder-muted-deep outline-none focus:border-accent transition-colors mb-4" />
+              <button onClick={confirmEmptyStart} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${emptyWorkoutName ? 'bg-gradient-to-r from-accent to-accent-end shadow-lg shadow-accent/25' : 'bg-card-alt text-muted-strong'}`} disabled={!emptyWorkoutName}>Start workout</button>
+              <button onClick={() => setShowEmptyNameModal(false)} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
             </div>
           </div>
         )}
 
         {showFinishModal && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-            <div className="w-full max-w-md bg-[#13132A] rounded-t-3xl p-6 pb-10">
+            <div className="w-full max-w-md bg-card rounded-t-3xl p-6 pb-10">
               <h2 className="text-lg font-bold text-center mb-2">Finish workout</h2>
               {isRoutineBased() ? (<>
-                <p className="text-sm text-[#777] text-center mb-6">Update this routine in your programme with today's sets and reps?</p>
-                <button onClick={() => confirmFinish(true)} className="w-full py-4 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-[#7B7BFF]/25">Save & update routine</button>
-                <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-[#2A2A4A] rounded-2xl text-sm font-semibold text-[#888] mb-3">Save without updating routine</button>
+                <p className="text-sm text-muted-mid text-center mb-6">Update this routine in your programme with today's sets and reps?</p>
+                <button onClick={() => confirmFinish(true)} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-accent/25">Save & update routine</button>
+                <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-border-strong rounded-2xl text-sm font-semibold text-muted mb-3">Save without updating routine</button>
               </>) : isTemplateBased() ? (<>
-                <p className="text-sm text-[#777] text-center mb-6">Update templates with today's values?</p>
-                <button onClick={() => confirmFinish(true)} className="w-full py-4 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-[#7B7BFF]/25">Save & update all templates</button>
-                <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-[#2A2A4A] rounded-2xl text-sm font-semibold text-[#888] mb-3">Save without updating templates</button>
+                <p className="text-sm text-muted-mid text-center mb-6">Update templates with today's values?</p>
+                <button onClick={() => confirmFinish(true)} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-accent/25">Save & update all templates</button>
+                <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-border-strong rounded-2xl text-sm font-semibold text-muted mb-3">Save without updating templates</button>
               </>) : (<>
-                <p className="text-sm text-[#777] text-center mb-6">Save this workout as a routine in a programme?</p>
-                <button onClick={() => { setShowFinishModal(false); setShowSaveAsRoutineModal(true) }} className="w-full py-4 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-[#7B7BFF]/25">Save as routine</button>
-                <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-[#2A2A4A] rounded-2xl text-sm font-semibold text-[#888] mb-3">Save without adding to programme</button>
+                <p className="text-sm text-muted-mid text-center mb-6">Save this workout as a routine in a programme?</p>
+                <button onClick={() => { setShowFinishModal(false); setShowSaveAsRoutineModal(true) }} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-accent/25">Save as routine</button>
+                <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-border-strong rounded-2xl text-sm font-semibold text-muted mb-3">Save without adding to programme</button>
               </>)}
-              <button onClick={() => setShowFinishModal(false)} className="w-full py-3 text-sm font-semibold text-[#777]">Cancel</button>
+              <button onClick={() => setShowFinishModal(false)} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
             </div>
           </div>
         )}
 
         {showCancelWorkoutConfirm && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-6">
-            <div className="w-full max-w-sm bg-[#13132A] border border-[#232340] rounded-2xl p-6">
+            <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-6">
               <h2 className="text-base font-bold text-center mb-2">Cancel workout?</h2>
-              <p className="text-sm text-[#888] text-center mb-5">This will discard your current workout and all sets.</p>
+              <p className="text-sm text-muted text-center mb-5">This will discard your current workout and all sets.</p>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setShowCancelWorkoutConfirm(false)} className="flex-1 py-3 border border-[#2A2A4A] rounded-xl text-[#888] text-sm font-semibold">Keep workout</button>
+                <button type="button" onClick={() => setShowCancelWorkoutConfirm(false)} className="flex-1 py-3 border border-border-strong rounded-xl text-muted text-sm font-semibold">Keep workout</button>
                 <button
                   type="button"
                   onClick={() => { setShowCancelWorkoutConfirm(false); cancelWorkout(); }}
-                  className="flex-1 py-3 bg-red-500 rounded-xl text-white text-sm font-bold"
+                  className="flex-1 py-3 bg-red-500 rounded-xl text-text text-sm font-bold"
                 >
                   Discard workout
                 </button>
@@ -2020,37 +2055,37 @@ function App() {
 
         {pendingStart && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-6">
-            <div className="w-full max-w-sm bg-[#13132A] border border-[#232340] rounded-2xl p-6">
-              <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-[#7B7BFF]/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-[#7B7BFF]"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div></div>
+            <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-6">
+              <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-accent"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div></div>
               <h2 className="text-base font-bold text-center mb-2">Active workout</h2>
-              <p className="text-sm text-[#888] text-center mb-5">You have an active workout with <span className="font-bold text-white">{exercises.length} exercise{exercises.length !== 1 ? 's' : ''}</span>. Starting a new one will discard it.</p>
+              <p className="text-sm text-muted text-center mb-5">You have an active workout with <span className="font-bold text-text">{exercises.length} exercise{exercises.length !== 1 ? 's' : ''}</span>. Starting a new one will discard it.</p>
               <button onClick={confirmDiscardAndStart} className="w-full py-3 bg-red-500 rounded-xl font-bold text-sm mb-2">Discard & start new</button>
-              <button onClick={() => setPendingStart(null)} className="w-full py-3 text-sm font-semibold text-[#777]">Keep current workout</button>
+              <button onClick={() => setPendingStart(null)} className="w-full py-3 text-sm font-semibold text-muted-mid">Keep current workout</button>
             </div>
           </div>
         )}
 
         {deletingFolder !== null && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-6">
-            <div className="w-full max-w-sm bg-[#13132A] border border-[#232340] rounded-2xl p-6">
+            <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-6">
               <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-red-400"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div></div>
               <h2 className="text-base font-bold text-center mb-2">Delete "{folders[deletingFolder]?.name}"?</h2>
-              <p className="text-sm text-[#888] text-center mb-1">This folder contains <span className="font-bold text-white">{folders[deletingFolder]?.templates.length} template{folders[deletingFolder]?.templates.length !== 1 ? 's' : ''}</span>.</p>
-              <p className="text-sm text-[#777] text-center mb-5">Templates will be moved to "{folders.find((_, i) => i !== deletingFolder)?.name}".</p>
+              <p className="text-sm text-muted text-center mb-1">This folder contains <span className="font-bold text-text">{folders[deletingFolder]?.templates.length} template{folders[deletingFolder]?.templates.length !== 1 ? 's' : ''}</span>.</p>
+              <p className="text-sm text-muted-mid text-center mb-5">Templates will be moved to "{folders.find((_, i) => i !== deletingFolder)?.name}".</p>
               <button onClick={confirmDeleteFolder} className="w-full py-3 bg-red-500 rounded-xl font-bold text-sm mb-2">Delete folder</button>
-              <button onClick={() => setDeletingFolder(null)} className="w-full py-3 text-sm font-semibold text-[#777]">Cancel</button>
+              <button onClick={() => setDeletingFolder(null)} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
             </div>
           </div>
         )}
 
         {deletingTemplate && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-6">
-            <div className="w-full max-w-sm bg-[#13132A] border border-[#232340] rounded-2xl p-6">
+            <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-6">
               <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-red-400"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div></div>
               <h2 className="text-base font-bold text-center mb-2">Delete template?</h2>
-              <p className="text-sm text-[#888] text-center mb-5">"{folders[deletingTemplate.fi]?.templates[deletingTemplate.ti]?.name}" will be permanently deleted.</p>
+              <p className="text-sm text-muted text-center mb-5">"{folders[deletingTemplate.fi]?.templates[deletingTemplate.ti]?.name}" will be permanently deleted.</p>
               <button onClick={confirmDeleteTemplate} className="w-full py-3 bg-red-500 rounded-xl font-bold text-sm mb-2">Delete template</button>
-              <button onClick={() => setDeletingTemplate(null)} className="w-full py-3 text-sm font-semibold text-[#777]">Cancel</button>
+              <button onClick={() => setDeletingTemplate(null)} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
             </div>
           </div>
         )}
@@ -2069,27 +2104,27 @@ function App() {
         {/* INCOMPLETE SETS WARNING */}
         {incompleteSetsWarning && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-6">
-            <div className="w-full max-w-sm bg-[#13132A] border border-[#232340] rounded-2xl p-6">
-              <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-[#7B7BFF]/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-[#7B7BFF]"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div></div>
+            <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-6">
+              <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-accent"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div></div>
               <h2 className="text-base font-bold text-center mb-2">
                 {incompleteSetsWarning.noneDone ? 'No sets marked as done' : 'Incomplete sets'}
               </h2>
-              <p className="text-sm text-[#888] text-center mb-5">
+              <p className="text-sm text-muted text-center mb-5">
                 {incompleteSetsWarning.noneDone
                   ? 'You have not marked any sets as done. This workout will be saved without completed sets.'
-                  : <>You completed <span className="font-bold text-white">{incompleteSetsWarning.done} of {incompleteSetsWarning.total}</span> sets. Incomplete sets won&apos;t be saved.</>}
+                  : <>You completed <span className="font-bold text-text">{incompleteSetsWarning.done} of {incompleteSetsWarning.total}</span> sets. Incomplete sets won&apos;t be saved.</>}
               </p>
-              <button onClick={() => { setIncompleteSetsWarning(null); setShowFinishModal(true) }} className="w-full py-3 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-xl font-bold text-sm mb-2 shadow-lg shadow-[#7B7BFF]/25">Finish anyway</button>
-              <button onClick={() => setIncompleteSetsWarning(null)} className="w-full py-3 text-sm font-semibold text-[#777]">Continue workout</button>
+              <button onClick={() => { setIncompleteSetsWarning(null); setShowFinishModal(true) }} className="w-full py-3 bg-gradient-to-r from-accent to-accent-end rounded-xl font-bold text-sm mb-2 shadow-lg shadow-accent/25">Finish anyway</button>
+              <button onClick={() => setIncompleteSetsWarning(null)} className="w-full py-3 text-sm font-semibold text-muted-mid">Continue workout</button>
             </div>
           </div>
         )}
 
         {/* BOTTOM NAV */}
-        <div className="fixed bottom-0 left-0 right-0 bg-[#0D0D1A]/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-3 pb-8 flex justify-around max-w-md mx-auto">
-          <button onClick={() => setPage('progress')} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-[#7B7BFF]' : 'stroke-white'}`}><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-xs font-semibold ${page === 'progress' ? 'text-[#7B7BFF]' : 'text-white'}`}>Progress</span></button>
-          <button onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-[#7B7BFF]' : 'stroke-white'}`}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-xs font-semibold ${page === 'workout' ? 'text-[#7B7BFF]' : 'text-white'}`}>Workout</span></button>
-          <button onClick={() => setPage('profile')} className={`flex flex-col items-center gap-1 ${page === 'profile' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'profile' ? 'stroke-[#7B7BFF]' : 'stroke-white'}`}><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg><span className={`text-xs font-semibold ${page === 'profile' ? 'text-[#7B7BFF]' : 'text-white'}`}>Profile</span></button>
+        <div className="fixed bottom-0 left-0 right-0 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-3 pb-8 flex justify-around max-w-md mx-auto">
+          <button onClick={() => setPage('progress')} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-accent' : 'stroke-text'}`}><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-xs font-semibold ${page === 'progress' ? 'text-accent' : 'text-text'}`}>Progress</span></button>
+          <button onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-accent' : 'stroke-text'}`}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-xs font-semibold ${page === 'workout' ? 'text-accent' : 'text-text'}`}>Workout</span></button>
+          <button onClick={() => setPage('profile')} className={`flex flex-col items-center gap-1 ${page === 'profile' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'profile' ? 'stroke-accent' : 'stroke-text'}`}><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg><span className={`text-xs font-semibold ${page === 'profile' ? 'text-accent' : 'text-text'}`}>Profile</span></button>
         </div>
       </div>
     </>
@@ -2104,50 +2139,50 @@ function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDurat
     <div>
       {/* Celebration */}
       <div className="text-center py-6">
-        <div className="w-16 h-16 rounded-full bg-[#5BF5A0]/12 flex items-center justify-center mx-auto mb-4 animate-bounce">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 stroke-[#5BF5A0]"><polyline points="20 6 9 17 4 12"/></svg>
+        <div className="w-16 h-16 rounded-full bg-success/12 flex items-center justify-center mx-auto mb-4 animate-bounce">
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 stroke-success"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <h1 className="text-3xl font-extrabold tracking-tight">Workout Complete!</h1>
-        <div className="text-sm font-semibold text-[#7B7BFF] mt-1">{name}</div>
+        <div className="text-sm font-semibold text-accent mt-1">{name}</div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-[#13132A] border border-[#232340] rounded-xl p-3.5 text-center">
+        <div className="bg-card border border-border rounded-xl p-3.5 text-center">
           <div className="text-3xl font-extrabold">{Math.floor(duration/60)}</div>
-          <div className="text-sm font-bold text-[#777] uppercase tracking-wider mt-1">Minutes</div>
+          <div className="text-sm font-bold text-muted-mid uppercase tracking-wider mt-1">Minutes</div>
         </div>
-        <div className="bg-[#13132A] border border-[#232340] rounded-xl p-3.5 text-center">
+        <div className="bg-card border border-border rounded-xl p-3.5 text-center">
           <div className="text-3xl font-extrabold">{setCount}</div>
-          <div className="text-sm font-bold text-[#777] uppercase tracking-wider mt-1">Sets</div>
+          <div className="text-sm font-bold text-muted-mid uppercase tracking-wider mt-1">Sets</div>
         </div>
-        <div className="bg-[#13132A] border border-[#232340] rounded-xl p-3.5 text-center">
+        <div className="bg-card border border-border rounded-xl p-3.5 text-center">
           <div className="text-3xl font-extrabold">{volume.toLocaleString()}</div>
-          <div className="text-sm font-bold text-[#777] uppercase tracking-wider mt-1">{unitWeight} Volume</div>
+          <div className="text-sm font-bold text-muted-mid uppercase tracking-wider mt-1">{unitWeight} Volume</div>
         </div>
       </div>
 
       {/* PRs */}
-      <div className={`border rounded-2xl p-4 mb-3 ${newPRs.length > 0 ? 'bg-gradient-to-br from-[#7B7BFF]/8 to-[#5BF5A0]/5 border-[#7B7BFF]/15' : 'bg-[#13132A] border-[#232340]'}`}>
+      <div className={`border rounded-2xl p-4 mb-3 ${newPRs.length > 0 ? 'bg-gradient-to-br from-[#7B7BFF]/8 to-[#5BF5A0]/5 border-accent/15' : 'bg-card border-border'}`}>
         <div className="flex items-center gap-1.5 mb-2.5">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 ${newPRs.length > 0 ? 'stroke-[#7B7BFF]' : 'stroke-[#444]'}`}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <span className={`text-sm font-bold uppercase tracking-wider ${newPRs.length > 0 ? 'text-[#7B7BFF]' : 'text-[#444]'}`}>Personal Records</span>
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 ${newPRs.length > 0 ? 'stroke-accent' : 'stroke-muted-deep'}`}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span className={`text-sm font-bold uppercase tracking-wider ${newPRs.length > 0 ? 'text-accent' : 'text-muted-deep'}`}>Personal Records</span>
         </div>
         {newPRs.length > 0 ? newPRs.map((pr, i) => (
           <div key={i} className="flex items-center justify-between py-1.5">
             <span className="text-sm font-semibold">{pr.name}</span>
-            <span className="text-sm font-extrabold text-[#5BF5A0]">{pr.display}</span>
+            <span className="text-sm font-extrabold text-success">{pr.display}</span>
           </div>
         )) : (
-          <div className="text-sm text-[#777] italic">No new records today — keep pushing!</div>
+          <div className="text-sm text-muted-mid italic">No new records today — keep pushing!</div>
         )}
       </div>
 
       {/* Progression */}
-      <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-4 mb-3">
+      <div className="bg-card border border-border rounded-2xl p-4 mb-3">
         <div className="flex items-center gap-1.5 mb-2.5">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-[#7B7BFF]"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-          <span className="text-sm font-bold text-[#777] uppercase tracking-wider">
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-accent"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          <span className="text-sm font-bold text-muted-mid uppercase tracking-wider">
             {templateName ? `vs. last ${templateName}` : 'Progression'}
           </span>
         </div>
@@ -2156,9 +2191,9 @@ function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDurat
             <span className="text-sm text-[#aaa]">Volume</span>
             {(() => {
               const diff = progression.curVolume - progression.prevVolume
-              if (diff > 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#5BF5A0]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#5BF5A0]"><polyline points="18 15 12 9 6 15"/></svg>+{diff.toLocaleString()} {unitWeight}</span>
+              if (diff > 0) return <span className="flex items-center gap-1 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>+{diff.toLocaleString()} {unitWeight}</span>
               if (diff < 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#ff6b6b]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#ff6b6b]"><polyline points="6 9 12 15 18 9"/></svg>{diff.toLocaleString()} {unitWeight}</span>
-              return <span className="text-sm font-bold text-[#555]">Same ({progression.curVolume.toLocaleString()} {unitWeight})</span>
+              return <span className="text-sm font-bold text-muted-strong">Same ({progression.curVolume.toLocaleString()} {unitWeight})</span>
             })()}
           </div>
           {progression.prevDuration > 0 && (
@@ -2166,9 +2201,9 @@ function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDurat
             <span className="text-sm text-[#aaa]">Duration</span>
             {(() => {
               const diffMin = Math.floor(progression.curDuration/60) - Math.floor(progression.prevDuration/60)
-              if (diffMin < 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#5BF5A0]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#5BF5A0]"><polyline points="18 15 12 9 6 15"/></svg>{Math.abs(diffMin)} min faster</span>
+              if (diffMin < 0) return <span className="flex items-center gap-1 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>{Math.abs(diffMin)} min faster</span>
               if (diffMin > 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#ff6b6b]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#ff6b6b]"><polyline points="6 9 12 15 18 9"/></svg>{diffMin} min slower</span>
-              return <span className="text-sm font-bold text-[#555]">Same ({Math.floor(progression.curDuration/60)} min)</span>
+              return <span className="text-sm font-bold text-muted-strong">Same ({Math.floor(progression.curDuration/60)} min)</span>
             })()}
           </div>
           )}
@@ -2176,31 +2211,31 @@ function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDurat
             <span className="text-sm text-[#aaa]">Sets completed</span>
             {(() => {
               const diff = progression.curSetCount - progression.prevSetCount
-              if (diff > 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#5BF5A0]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#5BF5A0]"><polyline points="18 15 12 9 6 15"/></svg>+{diff} sets</span>
+              if (diff > 0) return <span className="flex items-center gap-1 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>+{diff} sets</span>
               if (diff < 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#ff6b6b]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#ff6b6b]"><polyline points="6 9 12 15 18 9"/></svg>{diff} sets</span>
-              return <span className="text-sm font-bold text-[#555]">Same ({progression.curSetCount})</span>
+              return <span className="text-sm font-bold text-muted-strong">Same ({progression.curSetCount})</span>
             })()}
           </div>
         </>) : (
-          <div className="text-sm text-[#666] italic">{templateName ? `Shown after ${templateName} has been used twice` : 'Will show when you start using templates'}</div>
+          <div className="text-sm text-muted-strong italic">{templateName ? `Shown after ${templateName} has been used twice` : 'Will show when you start using templates'}</div>
         )}
       </div>
 
       {/* Streak */}
-      <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-4 mb-3 flex items-center gap-4">
+      <div className="bg-card border border-border rounded-2xl p-4 mb-3 flex items-center gap-4">
         <div className="text-center shrink-0">
-          <div className="text-[28px] font-extrabold text-[#5BF5A0]">{weekWorkouts}</div>
-          <div className="text-xs font-bold text-[#555] uppercase tracking-wider">This week</div>
+          <div className="text-[28px] font-extrabold text-success">{weekWorkouts}</div>
+          <div className="text-xs font-bold text-muted-strong uppercase tracking-wider">This week</div>
         </div>
         <div className="flex-1">
           <div className="flex gap-1.5 mb-1.5">
             {weekStreak.map((d, i) => (
-              <div key={i} className={`w-[28px] h-2 rounded-full ${d.isToday ? 'bg-[#7B7BFF]' : d.worked ? 'bg-[#5BF5A0]' : 'bg-[#1C1C38] border border-[#2A2A4A]'}`} />
+              <div key={i} className={`w-[28px] h-2 rounded-full ${d.isToday ? 'bg-accent' : d.worked ? 'bg-success' : 'bg-card-alt border border-border-strong'}`} />
             ))}
           </div>
           <div className="flex gap-1.5">
             {weekDays.map((d, i) => (
-              <span key={i} className={`w-[28px] text-center text-xs font-semibold ${weekStreak[i]?.isToday ? 'text-[#7B7BFF]' : 'text-[#444]'}`}>{d}</span>
+              <span key={i} className={`w-[28px] text-center text-xs font-semibold ${weekStreak[i]?.isToday ? 'text-accent' : 'text-muted-deep'}`}>{d}</span>
             ))}
           </div>
         </div>
@@ -2208,11 +2243,11 @@ function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDurat
 
       {/* Suggested next */}
       {suggestedNext && (
-        <div className="bg-[#13132A] border border-[#232340] rounded-2xl p-4 mb-4">
-          <div className="text-sm font-bold text-[#777] uppercase tracking-wider mb-2">Suggested next</div>
+        <div className="bg-card border border-border rounded-2xl p-4 mb-4">
+          <div className="text-sm font-bold text-muted-mid uppercase tracking-wider mb-2">Suggested next</div>
           <div className="flex justify-between items-center">
             <span className="text-lg font-bold">{suggestedNext.template.name}</span>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-[#5BF5A0]/10 text-[#5BF5A0]">Up next</span>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-success/10 text-success">Up next</span>
           </div>
           <div className="flex flex-wrap gap-1 mt-2">
             <MusclePills exercises={suggestedNext.template.exercises} getExerciseFromLibrary={getExerciseFromLibrary} />
@@ -2221,7 +2256,7 @@ function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDurat
       )}
 
       {/* Done */}
-      <button onClick={onDone} className="w-full py-4 bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] rounded-2xl font-bold text-base shadow-lg shadow-[#7B7BFF]/25 hover:translate-y-[-1px] active:translate-y-[1px] transition-transform mb-8">
+      <button onClick={onDone} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end rounded-2xl font-bold text-base shadow-lg shadow-accent/25 hover:translate-y-[-1px] active:translate-y-[1px] transition-transform mb-8">
         Done
       </button>
     </div>
@@ -2234,25 +2269,25 @@ function SaveTemplateModal({ folders, onSave, onCancel }) {
   function handleSave() { if (!templateName) return; onSave(selectedFolder, templateName) }
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-      <div className="w-full max-w-md bg-[#13132A] rounded-t-3xl p-6 pb-10">
+      <div className="w-full max-w-md bg-card rounded-t-3xl p-6 pb-10">
         <h2 className="text-lg font-bold text-center mb-5">Save as template</h2>
         <div className="mb-4">
-          <div className="text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-2">Template name</div>
-          <input type="text" placeholder="e.g. Push Day A" value={templateName} onChange={(e) => setTemplateName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && handleSave()} autoFocus className="w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors" />
+          <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Template name</div>
+          <input type="text" placeholder="e.g. Push Day A" value={templateName} onChange={(e) => setTemplateName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && handleSave()} autoFocus className="w-full bg-card-alt border border-border-strong rounded-xl px-4 py-3 text-text placeholder-muted-deep outline-none focus:border-accent transition-colors" />
         </div>
         <div className="mb-5">
-          <div className="text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-2">Save to folder</div>
+          <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Save to folder</div>
           <div className="flex flex-col gap-1.5">
             {folders.map((f, i) => (
-              <button key={i} onClick={() => setSelectedFolder(i)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-all ${selectedFolder === i ? 'bg-[#7B7BFF]/15 border border-[#7B7BFF]/40 text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#888]'}`}>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 shrink-0 ${selectedFolder === i ? 'stroke-[#7B7BFF] fill-[#7B7BFF]/10' : 'stroke-[#555]'}`}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                {f.name}<span className="text-sm text-[#777] ml-auto">{f.templates.length}</span>
+              <button key={i} onClick={() => setSelectedFolder(i)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-all ${selectedFolder === i ? 'bg-accent/15 border border-accent/40 text-text' : 'bg-card-alt border border-border-strong text-muted'}`}>
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 shrink-0 ${selectedFolder === i ? 'stroke-accent fill-accent/10' : 'stroke-muted-strong'}`}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                {f.name}<span className="text-sm text-muted-mid ml-auto">{f.templates.length}</span>
               </button>
             ))}
           </div>
         </div>
-        <button onClick={handleSave} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${templateName ? 'bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] shadow-lg shadow-[#7B7BFF]/25' : 'bg-[#1C1C38] text-[#555]'}`} disabled={!templateName}>Save template</button>
-        <button onClick={onCancel} className="w-full py-3 text-sm font-semibold text-[#777]">Cancel</button>
+        <button onClick={handleSave} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${templateName ? 'bg-gradient-to-r from-accent to-accent-end shadow-lg shadow-accent/25' : 'bg-card-alt text-muted-strong'}`} disabled={!templateName}>Save template</button>
+        <button onClick={onCancel} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
       </div>
     </div>
   )
@@ -2281,16 +2316,16 @@ function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutin
   }
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-      <div className="w-full max-w-md bg-[#13132A] rounded-t-3xl p-6 pb-10 max-h-[95vh] overflow-y-auto">
+      <div className="w-full max-w-md bg-card rounded-t-3xl p-6 pb-10 max-h-[95vh] overflow-y-auto">
         <h2 className="text-lg font-bold text-center mb-5">Save as routine</h2>
         <div className="mb-4">
-          <div className="text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-2">Programme</div>
+          <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Programme</div>
           {programmes.length > 0 && (
             <div className="flex flex-col gap-1.5 mb-3">
               {programmes.map((p) => (
-                <button key={p.id} type="button" onClick={() => { setMode('existing'); setSelectedProgId(p.id) }} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-all ${mode === 'existing' && selectedProgId === p.id ? 'bg-[#7B7BFF]/15 border border-[#7B7BFF]/40 text-white' : 'bg-[#1C1C38] border border-[#2A2A4A] text-[#888]'}`}>
+                <button key={p.id} type="button" onClick={() => { setMode('existing'); setSelectedProgId(p.id) }} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-all ${mode === 'existing' && selectedProgId === p.id ? 'bg-accent/15 border border-accent/40 text-text' : 'bg-card-alt border border-border-strong text-muted'}`}>
                   <span className="truncate">{p.name}</span>
-                  <span className="text-sm text-[#777] ml-auto">{(p.routineIds || []).length}</span>
+                  <span className="text-sm text-muted-mid ml-auto">{(p.routineIds || []).length}</span>
                 </button>
               ))}
             </div>
@@ -2300,8 +2335,8 @@ function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutin
             onClick={() => setMode('new')}
             className={`w-full flex items-center justify-center gap-2 px-4 py-3 mt-1 rounded-xl text-sm font-semibold border border-dashed transition-all ${
               mode === 'new'
-                ? 'border-[#7B7BFF] text-[#7B7BFF] bg-[#7B7BFF]/5'
-                : 'border-[#2A2A4A] text-[#7B7BFF] bg-transparent hover:border-[#7B7BFF]'
+                ? 'border-accent text-accent bg-accent/5'
+                : 'border-border-strong text-accent bg-transparent hover:border-accent'
             }`}
           >
             <span className="text-base leading-none">+</span>
@@ -2315,21 +2350,21 @@ function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutin
               value={newProgrammeName}
               onChange={(e) => setNewProgrammeName(e.target.value)}
               onFocus={e => e.target.select()}
-              className="mt-2 w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors"
+              className="mt-2 w-full bg-card-alt border border-border-strong rounded-xl px-4 py-3 text-text placeholder-muted-deep outline-none focus:border-accent transition-colors"
             />
           )}
         </div>
         <div className="mb-5">
-          <div className="text-[10px] font-semibold text-[#888] uppercase tracking-wider mb-2">Routine name</div>
-          <input type="text" placeholder="e.g. Day 1 - Pull" value={routineName} onChange={(e) => setRoutineName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && handleSave()} className="w-full bg-[#1C1C38] border border-[#2A2A4A] rounded-xl px-4 py-3 text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors" />
+          <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Routine name</div>
+          <input type="text" placeholder="e.g. Day 1 - Pull" value={routineName} onChange={(e) => setRoutineName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && handleSave()} className="w-full bg-card-alt border border-border-strong rounded-xl px-4 py-3 text-text placeholder-muted-deep outline-none focus:border-accent transition-colors" />
         </div>
         {!canSave && (
-          <p className="text-[#7B7BFF] text-sm font-medium mb-3">
+          <p className="text-accent text-sm font-medium mb-3">
             {mode === 'existing' ? 'Udfyld rutinenavn for at kunne gemme.' : 'Udfyld programnavn og rutinenavn for at kunne gemme.'}
           </p>
         )}
-        <button onClick={handleSave} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${canSave ? 'bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] shadow-lg shadow-[#7B7BFF]/25' : 'bg-[#1C1C38] text-[#555]'}`} disabled={!canSave}>Save routine</button>
-        <button type="button" onClick={onCancel} className="w-full py-3 text-sm font-semibold text-[#777]">Cancel</button>
+        <button onClick={handleSave} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${canSave ? 'bg-gradient-to-r from-accent to-accent-end shadow-lg shadow-accent/25' : 'bg-card-alt text-muted-strong'}`} disabled={!canSave}>Save routine</button>
+        <button type="button" onClick={onCancel} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
       </div>
     </div>
   )

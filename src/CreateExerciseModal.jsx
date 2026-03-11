@@ -51,32 +51,32 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
     })
   }
 
-  const chipOff = 'bg-[#1C1C38] text-[#888] border-[#2A2A4A]'
-  const chipOn = 'bg-[#7B7BFF] text-white border-transparent'
+  const chipOff = 'bg-card-alt text-muted border-border-strong'
+  const chipOn = 'bg-accent text-on-accent border-transparent'
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-      <div className="w-full max-w-md bg-[#13132A] rounded-t-3xl p-5 pb-10" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+      <div className="w-full max-w-md bg-card rounded-t-3xl p-5 pb-10" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
         <h2 className="text-lg font-bold text-center mb-1">{isEditing ? 'Edit Exercise' : 'Create Exercise'}</h2>
-        <p className="text-sm text-[#777] text-center mb-5">Define your custom exercise</p>
+        <p className="text-sm text-muted-mid text-center mb-5">Define your custom exercise</p>
 
         {/* Name */}
         <div className="mb-4">
-          <div className="text-xs font-bold text-[#666] uppercase tracking-wider mb-1.5">Name</div>
+          <div className="text-xs font-bold text-muted-strong uppercase tracking-wider mb-1.5">Name</div>
           <input type="text" placeholder="e.g. Svend Press" value={name} onChange={e => setName(e.target.value)} autoFocus
-            className="w-full bg-[#1C1C38] border-[1.5px] border-[#2A2A4A] rounded-xl px-4 py-3 text-sm text-white placeholder-[#3a3a55] outline-none focus:border-[#7B7BFF] transition-colors" />
+            className="w-full bg-card-alt border-[1.5px] border-border-strong rounded-xl px-4 py-3 text-sm text-text placeholder-muted-deep outline-none focus:border-accent transition-colors" />
         </div>
 
         {/* Muscle group */}
         <div className="mb-4">
-          <div className="text-xs font-bold text-[#666] uppercase tracking-wider mb-1.5">Muscle Group</div>
+          <div className="text-xs font-bold text-muted-strong uppercase tracking-wider mb-1.5">Muscle Group</div>
           <div className="grid grid-cols-3 gap-1.5">
             {MUSCLE_KEYS.map(m => {
               const mg = MUSCLE_GROUPS[m]
               const active = muscle === m
               return (
                 <button key={m} onClick={() => setMuscle(m)}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold border-[1.5px] transition-all ${active ? 'border-transparent' : 'border-[#2A2A4A] bg-[#1C1C38]'}`}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold border-[1.5px] transition-all ${active ? 'border-transparent' : 'border-border-strong bg-card-alt'}`}
                   style={active ? { background: mg.bg, borderColor: mg.color + '66', color: mg.color } : { color: '#888' }}>
                   <MuscleIcon muscle={m} size={12} />
                   {mg.label}
@@ -88,7 +88,7 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
 
         {/* Equipment */}
         <div className="mb-4">
-          <div className="text-xs font-bold text-[#666] uppercase tracking-wider mb-1.5">Equipment</div>
+          <div className="text-xs font-bold text-muted-strong uppercase tracking-wider mb-1.5">Equipment</div>
           <div className="flex gap-1.5 flex-wrap">
             {EQUIPMENT_TYPES.map(e => (
               <button key={e} onClick={() => setEquipment(e)}
@@ -100,7 +100,7 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
         {/* Movement (only for arms, legs, core) */}
         {needsManualMovement && muscle !== 'core' && (
           <div className="mb-4">
-            <div className="text-xs font-bold text-[#666] uppercase tracking-wider mb-1.5">Movement</div>
+            <div className="text-xs font-bold text-muted-strong uppercase tracking-wider mb-1.5">Movement</div>
             <div className="flex gap-1.5">
               {MOVEMENT_OPTIONS.map(m => (
                 <button key={m.id} onClick={() => setMovement(m.id)}
@@ -112,11 +112,11 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
 
         {/* Exercise type */}
         <div className="mb-5">
-          <div className="text-xs font-bold text-[#666] uppercase tracking-wider mb-1.5">Exercise Type</div>
+          <div className="text-xs font-bold text-muted-strong uppercase tracking-wider mb-1.5">Exercise Type</div>
           <div className="flex flex-col gap-1.5">
             {TYPE_KEYS.map(t => (
               <button key={t} onClick={() => setType(t)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-left border-[1.5px] transition-all ${type === t ? 'border-[#7B7BFF] bg-[#7B7BFF]/8 text-white' : 'border-[#2A2A4A] bg-[#1C1C38] text-[#888]'}`}>
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-left border-[1.5px] transition-all ${type === t ? 'border-accent bg-accent/10 text-text' : 'border-border-strong bg-card-alt text-muted'}`}>
                 <span className="text-sm font-semibold">{TYPE_LABELS[t]}</span>
               </button>
             ))}
@@ -125,7 +125,7 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
 
         {/* Save */}
         <button onClick={handleSave}
-          className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${canSave ? 'bg-gradient-to-r from-[#7B7BFF] to-[#6060DD] shadow-lg shadow-[#7B7BFF]/25 text-white' : 'bg-[#1C1C38] text-[#555]'}`}
+          className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${canSave ? 'bg-gradient-to-r from-accent to-accent-end shadow-lg shadow-accent/25 text-text' : 'bg-card-alt text-muted-strong'}`}
           disabled={!canSave}>
           {isEditing ? 'Save changes' : 'Create exercise'}
         </button>
@@ -137,17 +137,17 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
               <button onClick={() => setShowDelete(true)} className="w-full py-3 text-sm font-semibold text-red-400 mb-1">Delete exercise</button>
             ) : (
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-3">
-                <p className="text-sm text-[#aaa] text-center mb-3">Delete "{editExercise.name}"? This cannot be undone.</p>
+                <p className="text-sm text-muted text-center mb-3">Delete "{editExercise.name}"? This cannot be undone.</p>
                 <div className="flex gap-2">
                   <button onClick={() => onDelete(editExercise)} className="flex-1 py-2.5 bg-red-500 rounded-xl text-sm font-bold">Delete</button>
-                  <button onClick={() => setShowDelete(false)} className="flex-1 py-2.5 border border-[#2A2A4A] rounded-xl text-sm font-semibold text-[#888]">Cancel</button>
+                  <button onClick={() => setShowDelete(false)} className="flex-1 py-2.5 border border-border-strong rounded-xl text-sm font-semibold text-muted">Cancel</button>
                 </div>
               </div>
             )}
           </>
         )}
 
-        <button onClick={onCancel} className="w-full py-3 text-sm font-semibold text-[#777]">Cancel</button>
+        <button onClick={onCancel} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
       </div>
     </div>
   )
