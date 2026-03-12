@@ -4,7 +4,11 @@ import { MUSCLE_GROUPS } from './exerciseLibrary'
 
 const REST_PRESETS = [0, 30, 60, 90, 120, 180]
 
-function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onAddSet, onUpdateSet, onDoneSet, onUndoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote, bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, bodyweight, unitWeight, unitDistance, libraryEntry }) {
+function ExerciseCard({
+  exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onAddSet, onUpdateSet, onDoneSet, onUndoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote,
+  bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, bodyweight, unitWeight, unitDistance, libraryEntry,
+  supersetRole = null, supersetIsNext = false, supersetNextSetIndex = null, isLinkModeActive = false, isLinkSource = false, isLinkTarget = false, onTapAsTarget, onStartLinkMode, onBreakSuperset
+}) {
   const [showRestPicker, setShowRestPicker] = useState(false)
   const [showNoteInput, setShowNoteInput] = useState(false)
   const [showExerciseMenu, setShowExerciseMenu] = useState(false)
@@ -30,14 +34,25 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
     }
   }
 
+  function getBaseline(set) {
+    return {
+      kg: set.initialKg !== undefined ? set.initialKg : set.kg,
+      reps: set.initialReps !== undefined ? set.initialReps : set.reps,
+      time: set.initialTime !== undefined ? set.initialTime : set.time,
+      distance: set.initialDistance !== undefined ? set.initialDistance : set.distance,
+      bwSign: set.initialBwSign !== undefined ? set.initialBwSign : (set.bwSign || '+')
+    }
+  }
+
   function isPrevDifferent(set, prevSet) {
     if (!prevSet) return false
+    const b = getBaseline(set)
     switch (type) {
-      case 'weight_reps': return String(set.kg) !== String(prevSet.kg) || String(set.reps) !== String(prevSet.reps)
-      case 'bw_reps': return String(set.kg) !== String(prevSet.kg) || String(set.reps) !== String(prevSet.reps) || (set.bwSign || '+') !== (prevSet.bwSign || '+')
-      case 'reps_only': return String(set.reps) !== String(prevSet.reps)
-      case 'time_only': return String(set.time) !== String(prevSet.time)
-      case 'distance_time': return String(set.distance) !== String(prevSet.distance) || String(set.time) !== String(prevSet.time)
+      case 'weight_reps': return String(b.kg) !== String(prevSet.kg) || String(b.reps) !== String(prevSet.reps)
+      case 'bw_reps': return String(b.kg) !== String(prevSet.kg) || String(b.reps) !== String(prevSet.reps) || (b.bwSign || '+') !== (prevSet.bwSign || '+')
+      case 'reps_only': return String(b.reps) !== String(prevSet.reps)
+      case 'time_only': return String(b.time) !== String(prevSet.time)
+      case 'distance_time': return String(b.distance) !== String(prevSet.distance) || String(b.time) !== String(prevSet.time)
       default: return false
     }
   }
@@ -135,8 +150,17 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
     }
   }
 
+  const displayName = exercise.name ?? exercise.exerciseId ?? ''
+  const borderClass = isLinkSource ? 'border-accent/50 bg-card-alt' : isLinkTarget ? 'border-success/40 cursor-pointer' : 'border-border'
+  const outerClass = [
+    'bg-card border rounded-2xl p-3.5 mb-2 transition-all duration-200',
+    borderClass,
+    isLinkModeActive && !isLinkSource && !isLinkTarget ? 'opacity-40 pointer-events-none' : '',
+    isLinkTarget ? 'animate-pulse-border' : ''
+  ].filter(Boolean).join(' ')
+
   return (
-    <div className="bg-card border border-border rounded-2xl p-3.5 mb-2">
+    <div className={outerClass} onClick={isLinkTarget ? onTapAsTarget : undefined}>
       <div className="flex justify-between items-start gap-2">
         {isEditing && (
           <div className="flex items-center gap-0.5 shrink-0">
@@ -149,12 +173,12 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
             {libraryEntry ? <div className="mt-0.5 shrink-0"><MuscleIcon muscle={libraryEntry.muscle} size={14} /></div> : null}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-lg font-bold tracking-tight">{exercise.name}</span>
+                <span className="text-lg font-bold tracking-tight">{displayName}</span>
               </div>
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 {type === 'bw_reps' && <span className="text-xs text-muted-mid">BW: {bodyweight} {unitWeight}</span>}
                 {bestSet && type === 'weight_reps' && <span className="text-xs text-muted-mid">PR: {bestSet.kg}×{bestSet.reps}</span>}
-                {!isEditing && (
+                {!isEditing && supersetRole !== 'A' && (
                   <span className="flex items-center gap-1 text-xs text-muted-mid">
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     {currentRest === 0 ? 'None' : formatTime(currentRest)}
@@ -164,17 +188,45 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
             </div>
           </div>
         </div>
-        <button onClick={() => setShowExerciseMenu(!showExerciseMenu)} className="shrink-0 p-2 rounded-lg hover:bg-card-alt border border-transparent hover:border-border-strong transition-colors" aria-label="Exercise options">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-5 h-5 stroke-muted-strong"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-        </button>
+        <div className="flex items-center shrink-0">
+          {supersetRole && (
+            <span className="text-xs font-extrabold mr-1" style={{ color: supersetRole === 'A' ? 'var(--accent-primary)' : 'var(--success)' }}>
+              {supersetRole}
+            </span>
+          )}
+          {supersetIsNext && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide bg-success/15 text-success border border-success/40 mr-1.5 animate-up-next-pulse">Next</span>
+          )}
+          <button onClick={() => setShowExerciseMenu(!showExerciseMenu)} className="p-2 rounded-lg hover:bg-card-alt border border-transparent hover:border-border-strong transition-colors" aria-label="Exercise options">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-5 h-5 stroke-muted-strong"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+          </button>
+        </div>
       </div>
 
       {showExerciseMenu && (
         <div className="mt-2 bg-card-alt border border-border-strong rounded-xl overflow-hidden">
+          {!isLinkSource && !isLinkModeActive && (exerciseCount > 1
+            ? (exercise.supersetGroupId
+              ? (
+                <button onClick={() => { setShowExerciseMenu(false); onBreakSuperset?.() }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                  Break superset
+                </button>
+              )
+              : (
+                <button onClick={() => { setShowExerciseMenu(false); onStartLinkMode?.() }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                  Create superset
+                </button>
+              ))
+            : null)}
+          <div className="border-t border-border-strong" />
+          {supersetRole !== 'A' && (
           <button onClick={() => { setShowExerciseMenu(false); setShowRestPicker(true) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Rest timer {exercise.restOverride !== null && exercise.restOverride !== undefined ? `· ${currentRest === 0 ? 'None' : formatTime(currentRest)}` : '· Default'}
+            Rest timer {exercise.restOverride !== null && exercise.restOverride !== undefined ? `· ${currentRest === 0 ? 'None' : formatTime(currentRest)}` : `· Default (${formatTime(defaultRest)})`}
           </button>
+          )}
           <button onClick={() => { setShowExerciseMenu(false); setShowNoteInput(true) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
             {exercise.note ? 'Edit note' : 'Add note'}
@@ -227,15 +279,16 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
         const hasCompletedRest = set.done && set.restTime && !isActiveRest
         const prevSet = previousSets && previousSets[j]
         const prevChanged = prevSet && isPrevDifferent(set, prevSet)
+        const isNextSet = supersetIsNext && supersetNextSetIndex === j
 
         return (
           <div key={j}>
-            <div className="relative overflow-hidden rounded-lg mb-1">
-              <button onClick={() => confirmDelete(j)} className="absolute right-0 top-0 bottom-0 w-20 flex items-center justify-center bg-red-500 rounded-r-lg z-0">
+            <div className="relative overflow-hidden rounded-lg mb-1" style={{ isolation: 'isolate' }}>
+              <button onClick={() => confirmDelete(j)} className="absolute right-0 top-0 bottom-0 w-20 flex items-center justify-center bg-red-500 rounded-r-lg z-0" style={{ backfaceVisibility: 'hidden' }}>
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-white mr-1"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 <span className="text-white text-sm font-bold">Delete</span>
               </button>
-              <div ref={(el) => { rowRefs.current[j] = el }} className="gap-1.5 items-center bg-card relative z-10" style={{ display: 'grid', ...gridStyle, touchAction: 'pan-y' }}
+              <div ref={(el) => { rowRefs.current[j] = el }} className={`gap-1.5 items-center bg-card relative z-10 ${isNextSet ? 'ring-2 ring-success/60 rounded-lg' : ''}`} style={{ display: 'grid', ...gridStyle, touchAction: 'pan-y', boxShadow: '2px 0 0 0 var(--bg-card)' }}
                 onTouchStart={(e) => { tapOutside(j); handleTouchStart(e, j) }} onTouchMove={(e) => handleTouchMove(e, j)} onTouchEnd={(e) => handleTouchEnd(e, j)}>
                 <span className="text-sm font-bold text-muted text-center">{j + 1}</span>
                 {hasPrevious && (
@@ -245,14 +298,14 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
                 {set.done ? (
                   <button onClick={() => onUndoneSet(exIndex, j)} className="w-7 h-7 bg-success rounded-md flex items-center justify-center mx-auto hover:bg-success/80 transition-colors active:scale-90"><svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-3.5 h-3.5 stroke-page"><polyline points="20 6 9 17 4 12" /></svg></button>
                 ) : (
-                  <button onClick={() => onDoneSet(exIndex, j)} className="w-7 h-7 border-2 border-border-strong rounded-md flex items-center justify-center mx-auto hover:border-success transition-colors active:scale-90">
-                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-3.5 h-3.5 stroke-muted-strong"><polyline points="20 6 9 17 4 12" /></svg>
+                  <button onClick={() => onDoneSet(exIndex, j)} className={`w-7 h-7 border-2 rounded-md flex items-center justify-center mx-auto transition-colors active:scale-90 ${isNextSet ? 'border-success bg-success/10 ring-2 ring-success/50 animate-up-next-pulse' : 'border-border-strong hover:border-success'}`}>
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className={`w-3.5 h-3.5 ${isNextSet ? 'stroke-success' : 'stroke-muted-strong'}`}><polyline points="20 6 9 17 4 12" /></svg>
                   </button>
                 )}
               </div>
             </div>
 
-            {isActiveRest && (
+            {supersetRole !== 'A' && isActiveRest && (
               <div data-rest-active="1" className="flex items-center justify-center gap-2 py-1 my-0.5 rounded-lg relative overflow-hidden min-h-0 pointer-events-none" style={{ height: '1.65rem' }}>
                 <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-success/10 to-success/5 rounded-lg transition-all duration-500" style={{ width: `${Math.max(0, (restTime / restDuration) * 100)}%` }} />
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3 h-3 stroke-success relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -260,7 +313,7 @@ function ExerciseCard({ exercise, exIndex, isEditing, exerciseCount, onMoveUp, o
               </div>
             )}
 
-            {hasCompletedRest && (
+            {supersetRole !== 'A' && hasCompletedRest && (
               <div className="flex items-center justify-center gap-1.5 py-1 my-0.5">
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3 h-3 stroke-muted-strong"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 <span className="text-muted-mid text-sm font-semibold">{formatTime(set.restTime)}</span>

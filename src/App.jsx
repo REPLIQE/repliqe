@@ -3,6 +3,9 @@ import ExerciseCard from './ExerciseCard'
 import ExerciseLibrary from './ExerciseLibraryUI'
 import CreateExerciseModal from './CreateExerciseModal'
 import MuscleIcon from './MuscleIcon'
+import { useSuperset } from './useSuperset'
+import SupersetWrapper from './SupersetWrapper'
+import LinkModeBanner from './LinkModeBanner'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
 
 const REST_PRESETS = [0, 30, 60, 90, 120, 180]
@@ -101,7 +104,12 @@ function App() {
   const [workoutName, setWorkoutName] = useState('')
   const [workoutStartTime, setWorkoutStartTime] = useState(null)
   const [workoutElapsed, setWorkoutElapsed] = useState(0)
-  const [exercises, setExercises] = useState(() => { const s = localStorage.getItem('exercises'); return s ? JSON.parse(s) : [] })
+  const [exercises, setExercises] = useState(() => {
+    const s = localStorage.getItem('exercises')
+    if (!s) return []
+    const list = JSON.parse(s)
+    return list.map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null }))
+  })
   const [history, setHistory] = useState(() => { const s = localStorage.getItem('history'); return s ? JSON.parse(s) : [] })
   const [folders, setFolders] = useState(() => {
     const s = localStorage.getItem('folders')
@@ -170,6 +178,7 @@ function App() {
   const [editRoutineExercises, setEditRoutineExercises] = useState([])
   const [routineEditorRestForIndex, setRoutineEditorRestForIndex] = useState(null)
   const [routineEditorNoteForIndex, setRoutineEditorNoteForIndex] = useState(null)
+  const [routineEditorSupersetMenuForId, setRoutineEditorSupersetMenuForId] = useState(null)
   const [focusNewExerciseAt, setFocusNewExerciseAt] = useState(null)
   const [focusWorkoutFirstFieldAt, setFocusWorkoutFirstFieldAt] = useState(null) // exIndex to focus first set first field after adding
   const [theme, setTheme] = useState(() => {
@@ -187,6 +196,16 @@ function App() {
   const restAudioCtxRef = useRef(null)
   const routineEditorFirstInputRef = useRef(null)
   const currentRoutineIdRef = useRef(null)
+
+  const { linkMode, startLinkMode, confirmSuperset, cancelLinkMode, breakSuperset, getGrouped } = useSuperset(exercises, setExercises)
+  const {
+    linkMode: routineLinkMode,
+    startLinkMode: routineStartLinkMode,
+    confirmSuperset: routineConfirmSuperset,
+    cancelLinkMode: routineCancelLinkMode,
+    breakSuperset: routineBreakSuperset,
+    getGrouped: getRoutineGrouped
+  } = useSuperset(editRoutineExercises, setEditRoutineExercises)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -209,6 +228,13 @@ function App() {
   useEffect(() => { localStorage.setItem('unitWeight', unitWeight) }, [unitWeight])
   useEffect(() => { localStorage.setItem('unitDistance', unitDistance) }, [unitDistance])
   useEffect(() => { localStorage.setItem('customExercises', JSON.stringify(customExercises)) }, [customExercises])
+
+  useEffect(() => {
+    if (editingProgrammeId) {
+      const prog = programmes.find(p => p.id === editingProgrammeId)
+      setEditProgrammeName(prog?.name ?? '')
+    }
+  }, [editingProgrammeId])
 
   useEffect(() => {
     if (exercises.length > 0) {
@@ -366,14 +392,48 @@ function App() {
     currentRoutineIdRef.current = null
     if (type === 'template') {
       setWorkoutName(data.name)
-      setExercises(data.exercises.map(ex => ({ name: ex.name, type: ex.type || 'weight_reps', sets: ex.sets.map(s => ({ ...s, done: false })), restOverride: ex.restOverride !== undefined ? ex.restOverride : null, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement })))
+      setExercises(data.exercises.map(ex => ({
+        name: ex.name,
+        type: ex.type || 'weight_reps',
+        sets: ex.sets.map(s => ({
+          ...s,
+          done: false,
+          initialKg: s.kg,
+          initialReps: s.reps,
+          initialTime: s.time,
+          initialDistance: s.distance,
+          initialBwSign: s.bwSign ?? '+'
+        })),
+        restOverride: ex.restOverride !== undefined ? ex.restOverride : null,
+        note: ex.note || '',
+        muscle: ex.muscle,
+        equipment: ex.equipment,
+        movement: ex.movement
+      })))
     } else if (type === 'routine') {
       currentRoutineIdRef.current = data.id
       setWorkoutName(data.name)
       setExercises(routineToWorkoutExercises(data))
     } else if (type === 'last') {
       setWorkoutName(data.name || data.date)
-      setExercises(data.exercises.map(ex => ({ name: ex.name, type: ex.type || 'weight_reps', sets: ex.sets.map(s => ({ ...s, done: false })), restOverride: ex.restOverride !== undefined ? ex.restOverride : null, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement })))
+      setExercises(data.exercises.map(ex => ({
+        name: ex.name,
+        type: ex.type || 'weight_reps',
+        sets: ex.sets.map(s => ({
+          ...s,
+          done: false,
+          initialKg: s.kg,
+          initialReps: s.reps,
+          initialTime: s.time,
+          initialDistance: s.distance,
+          initialBwSign: s.bwSign ?? '+'
+        })),
+        restOverride: ex.restOverride !== undefined ? ex.restOverride : null,
+        note: ex.note || '',
+        muscle: ex.muscle,
+        equipment: ex.equipment,
+        movement: ex.movement
+      })))
     } else if (type === 'empty') {
       setWorkoutName(data.name)
       setExercises([])
@@ -463,9 +523,12 @@ function App() {
       const setConfigs = getSetConfigs(ex)
       const sets = setConfigs.map((cfg, i) => {
         const empty = emptySetForType(type)
-        return { ...empty, kg: cfg.targetKg ?? '', reps: cfg.targetReps ?? '' }
+        const kg = cfg.targetKg ?? ''
+        const reps = cfg.targetReps ?? ''
+        return { ...empty, kg, reps, initialKg: kg, initialReps: reps, initialTime: empty.time, initialDistance: empty.distance, initialBwSign: empty.bwSign || '+' }
       })
       return {
+        id: crypto.randomUUID(),
         name: ex.exerciseId,
         type,
         sets,
@@ -473,7 +536,9 @@ function App() {
         note: ex.note ?? '',
         muscle: lib?.muscle,
         equipment: lib?.equipment,
-        movement: lib?.movement
+        movement: lib?.movement,
+        supersetGroupId: ex.supersetGroupId ?? null,
+        supersetRole: ex.supersetRole ?? null
       }
     })
   }
@@ -552,10 +617,13 @@ function App() {
 
   function saveRoutineEdits(rtnId, name, exercises) {
     const normalized = (exercises || []).map(ex => ({
+      id: ex.id ?? crypto.randomUUID(),
       exerciseId: ex.exerciseId,
       setConfigs: getSetConfigs(ex).map(s => ({ targetReps: String(s.targetReps ?? '') || '8-10', targetKg: String(s.targetKg ?? '') ?? '' })),
       restOverride: ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null,
-      note: ex.note ?? ''
+      note: ex.note ?? '',
+      supersetGroupId: ex.supersetGroupId ?? null,
+      supersetRole: ex.supersetRole ?? null
     }))
     setRoutines(prev => prev.map(r => r.id === rtnId ? { ...r, name, exercises: normalized } : r))
     setEditingRoutineId(null)
@@ -738,8 +806,10 @@ function App() {
     const newExs = exList.map(ex => {
       const type = ex.type || 'weight_reps'
       return {
+        id: crypto.randomUUID(),
         name: ex.name, type, sets: [emptySetForType(type)], restOverride: null, note: '',
-        muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement
+        muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement,
+        supersetGroupId: null, supersetRole: null
       }
     })
     setExercises([...exercises, ...newExs])
@@ -807,7 +877,17 @@ function App() {
   function addSet(index) {
     const n = [...exercises]; const ex = n[index]; const sets = ex.sets
     const lastSet = sets[sets.length - 1]
-    sets.push(lastSet ? copySet(lastSet, ex.type || 'weight_reps') : emptySetForType(ex.type || 'weight_reps'))
+    const type = ex.type || 'weight_reps'
+    const newSet = lastSet ? copySet(lastSet, type) : emptySetForType(type)
+    const withInitial = {
+      ...newSet,
+      initialKg: newSet.kg,
+      initialReps: newSet.reps,
+      initialTime: newSet.time,
+      initialDistance: newSet.distance,
+      initialBwSign: newSet.bwSign ?? '+'
+    }
+    sets.push(withInitial)
     setExercises(n)
     setTimeout(() => {
       const type = ex.type || 'weight_reps'
@@ -858,6 +938,7 @@ function App() {
     }
     const dur = ex.restOverride !== null && ex.restOverride !== undefined ? ex.restOverride : defaultRest
     if (dur === 0) return
+    if (ex.supersetRole === 'A') return
     restStartRef.current = Date.now()
     setActiveRest({ exIndex, setIndex })
     setRestTime(dur)
@@ -881,7 +962,78 @@ function App() {
 
   function moveExerciseUp(i) { if (i === 0) return; const n = [...exercises]; [n[i-1], n[i]] = [n[i], n[i-1]]; setExercises(n) }
   function moveExerciseDown(i) { if (i >= exercises.length-1) return; const n = [...exercises]; [n[i+1], n[i]] = [n[i], n[i+1]]; setExercises(n) }
-  function removeExercise(i) { const n = [...exercises]; n.splice(i, 1); setExercises(n) }
+  function removeExercise(i) {
+    const ex = exercises[i]
+    if (ex?.supersetGroupId) breakSuperset(ex.supersetGroupId)
+    const n = [...exercises]
+    n.splice(i, 1)
+    setExercises(n)
+  }
+
+  function getSupersetNextSet(a, b) {
+    const setsA = a?.sets || []
+    const setsB = b?.sets || []
+    const maxLen = Math.max(setsA.length, setsB.length)
+    for (let i = 0; i < maxLen; i++) {
+      const doneA = setsA[i]?.done === true
+      const doneB = setsB[i]?.done === true
+      if (!doneA) return { nextSetIndex: i, nextIsA: true }
+      if (!doneB) return { nextSetIndex: i, nextIsA: false }
+    }
+    return null
+  }
+
+  function isGroupComplete(group) {
+    if (group.type === 'exercise') {
+      const ex = group.exercise
+      const allDone = ex.sets.every(s => s.done)
+      if (!allDone) return false
+      const exIndex = exercises.indexOf(ex)
+      const lastSetIndex = ex.sets.length - 1
+      const restActive = activeRest && activeRest.exIndex === exIndex && activeRest.setIndex === lastSetIndex
+      return !restActive
+    }
+    const { a, b } = group
+    const allDone = (a.sets || []).every(s => s.done) && (b.sets || []).every(s => s.done)
+    if (!allDone) return false
+    const iB = exercises.indexOf(b)
+    const lastSetIndex = (b.sets || []).length - 1
+    const restActive = activeRest && activeRest.exIndex === iB && activeRest.setIndex === lastSetIndex
+    return !restActive
+  }
+
+  function getGlobalNextSet() {
+    const groups = getGrouped()
+    for (let g = 0; g < groups.length; g++) {
+      const group = groups[g]
+      const prevGroupsComplete = g === 0 || groups.slice(0, g).every(gr => isGroupComplete(gr))
+      if (!prevGroupsComplete) continue
+      if (group.type === 'exercise') {
+        const ex = group.exercise
+        const exIndex = exercises.indexOf(ex)
+        const setIdx = ex.sets.findIndex(s => !s.done)
+        if (setIdx < 0) continue
+        const restOk = setIdx === 0
+          ? (exIndex === 0 || !(activeRest && activeRest.exIndex === exIndex - 1 && activeRest.setIndex === exercises[exIndex - 1].sets.length - 1))
+          : !(activeRest && activeRest.exIndex === exIndex && activeRest.setIndex === setIdx - 1)
+        if (restOk) return { exIndex, setIndex: setIdx }
+      } else {
+        const nextInfo = getSupersetNextSet(group.a, group.b)
+        if (!nextInfo) continue
+        const iA = exercises.indexOf(group.a)
+        const iB = exercises.indexOf(group.b)
+        const exIndex = nextInfo.nextIsA ? iA : iB
+        const setIdx = nextInfo.nextSetIndex
+        const prevInOrder = setIdx === 0 && exIndex === iB ? { exIndex: iA, setIndex: 0 }
+          : setIdx === 0 ? null
+          : exIndex === iA ? { exIndex: iB, setIndex: setIdx - 1 }
+          : { exIndex: iA, setIndex: setIdx }
+        const restOk = !prevInOrder || !(activeRest && activeRest.exIndex === prevInOrder.exIndex && activeRest.setIndex === prevInOrder.setIndex)
+        if (restOk) return { exIndex, setIndex: setIdx }
+      }
+    }
+    return null
+  }
 
   function getPreviousSets(exerciseName) {
     for (const w of history) for (const ex of w.exercises) if (ex.name === exerciseName) return ex.sets
@@ -942,10 +1094,13 @@ function App() {
 
     if (routineId && updateRoutineOrTemplate) {
       const newExercises = exercises.map(ex => ({
+        id: ex.id ?? crypto.randomUUID(),
         exerciseId: ex.name,
         setConfigs: (ex.sets || []).map(s => ({ targetReps: String(s.reps ?? '') || '8-10', targetKg: String(s.kg ?? '') ?? '' })),
         restOverride: ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null,
-        note: ex.note ?? ''
+        note: ex.note ?? '',
+        supersetGroupId: ex.supersetGroupId ?? null,
+        supersetRole: ex.supersetRole ?? null
       }))
       setRoutines(prev => prev.map(r => r.id !== routineId ? r : { ...r, exercises: newExercises }))
     }
@@ -1013,10 +1168,13 @@ function App() {
     const converted = exercises.map(ex => {
       const sets = ex.sets && ex.sets.length ? ex.sets : [{ reps: '8-10', kg: '' }]
       return {
+        id: ex.id ?? crypto.randomUUID(),
         exerciseId: ex.name,
         setConfigs: sets.map(s => ({ targetReps: String(s.reps ?? '') || '8-10', targetKg: String(s.kg ?? '') ?? '' })),
         restOverride: ex.restOverride !== undefined ? ex.restOverride : null,
-        note: ex.note ?? ''
+        note: ex.note ?? '',
+        supersetGroupId: ex.supersetGroupId ?? null,
+        supersetRole: ex.supersetRole ?? null
       }
     })
     const routineData = { name: routineName || workoutName || 'New Routine', exercises: converted }
@@ -1075,14 +1233,14 @@ function App() {
 
   function saveTemplate() { if (exercises.length === 0) return; setShowSaveModal(true) }
   function confirmSaveTemplate(folderIndex, templateName) {
-    const template = { name: templateName, exercises: exercises.map(ex => ({ name: ex.name, type: ex.type || 'weight_reps', sets: ex.sets.map(s => { const c = { ...s }; delete c.done; delete c.restTime; return c }), restOverride: ex.restOverride, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement })) }
+    const template = { name: templateName, exercises: exercises.map(ex => ({ id: ex.id ?? crypto.randomUUID(), name: ex.name, type: ex.type || 'weight_reps', sets: ex.sets.map(s => { const c = { ...s }; delete c.done; delete c.restTime; return c }), restOverride: ex.restOverride, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement, supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })) }
     const nf = [...folders]; nf[folderIndex].templates.push(template); setFolders(nf); setShowSaveModal(false)
     confirmFinish(false)
   }
 
   function editTemplate(fi, ti) {
     const t = folders[fi].templates[ti]
-    setExercises(t.exercises.map(ex => ({ name: ex.name, type: ex.type || 'weight_reps', sets: ex.sets.map(s => ({ ...s, done: false })), restOverride: ex.restOverride !== undefined ? ex.restOverride : null, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement })))
+    setExercises(t.exercises.map(ex => ({ id: ex.id ?? crypto.randomUUID(), name: ex.name, type: ex.type || 'weight_reps', sets: ex.sets.map(s => ({ ...s, done: false })), restOverride: ex.restOverride !== undefined ? ex.restOverride : null, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement, supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })))
     setEditingTemplate({ folderIndex: fi, templateIndex: ti }); setWorkoutActive(true); setWorkoutName(t.name)
   }
 
@@ -1421,8 +1579,9 @@ function App() {
                                     key={r.id}
                                     type="button"
                                     onClick={() => {
+                                      setEditProgrammeName(prog.name ?? '')
                                       setEditRoutineName(r.name)
-                                      setEditRoutineExercises(r.exercises || [])
+                                      setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })))
                                       setEditingRoutineId(r.id)
                                       setEditingRoutineProgrammeId(prog.id)
                                     }}
@@ -1512,16 +1671,122 @@ function App() {
                 )}
 
                 <div className="overflow-y-auto flex-1 min-h-0 -mx-4 px-4 pt-1" onScroll={handleWorkoutScroll}>
-                  {exercises.map((ex, i) => (
-                    <ExerciseCard key={i} exercise={ex} exIndex={i} isEditing={!!editingTemplate} exerciseCount={exercises.length}
-                      onMoveUp={moveExerciseUp} onMoveDown={moveExerciseDown} onRemoveExercise={removeExercise}
-                      onAddSet={addSet} onUpdateSet={updateSet} onDoneSet={doneSet} onUndoneSet={undoneSet} onDeleteSet={deleteSet}
-                      onUpdateExerciseRest={updateExerciseRest} onUpdateExerciseNote={updateExerciseNote}
-                      bestSet={getBestSet(ex.name)} previousSets={getPreviousSets(ex.name)}
-                      activeRest={activeRest} restTime={restTime} restDuration={restDuration} defaultRest={defaultRest}
-                      bodyweight={bodyweight} unitWeight={unitWeight} unitDistance={unitDistance}
-                      libraryEntry={getExerciseFromLibrary(ex.name)} />
-                  ))}
+                  {linkMode.active && (
+                    <div className="sticky top-0 z-10 -mx-4 px-4 pt-1 pb-2 bg-page">
+                      <LinkModeBanner
+                        sourceName={exercises.find(e => e.id === linkMode.sourceId)?.name ?? ''}
+                        onCancel={cancelLinkMode}
+                      />
+                    </div>
+                  )}
+                  {(() => {
+                    const globalNext = getGlobalNextSet()
+                    return getGrouped().map(group => {
+                      if (group.type === 'superset') {
+                        const nextSetInfo = getSupersetNextSet(group.a, group.b)
+                        const iA = exercises.indexOf(group.a)
+                        const iB = exercises.indexOf(group.b)
+                        const focusA = globalNext && globalNext.exIndex === iA && globalNext.setIndex === nextSetInfo?.nextSetIndex && nextSetInfo?.nextIsA
+                        const focusB = globalNext && globalNext.exIndex === iB && globalNext.setIndex === nextSetInfo?.nextSetIndex && !nextSetInfo?.nextIsA
+                        return (
+                          <SupersetWrapper
+                            key={group.groupId}
+                            groupId={group.groupId}
+                            exerciseA={group.a}
+                            exerciseB={group.b}
+                            nextSetInfo={nextSetInfo}
+                            onBreak={() => breakSuperset(group.groupId)}
+                            renderCard={(exercise, role, { supersetIsNext: _supersetIsNext, supersetNextSetIndex: _supersetNextSetIndex }) => {
+                              const exIndex = exercises.indexOf(exercise)
+                              const isA = role === 'A'
+                              const supersetIsNext = isA ? focusA : focusB
+                              const supersetNextSetIndex = supersetIsNext && nextSetInfo ? nextSetInfo.nextSetIndex : null
+                              return (
+                            <ExerciseCard
+                              key={exercise.id}
+                              exercise={exercise}
+                              exIndex={exIndex}
+                              isEditing={!!editingTemplate}
+                              exerciseCount={exercises.length}
+                              supersetRole={role}
+                              supersetIsNext={supersetIsNext}
+                              supersetNextSetIndex={supersetNextSetIndex}
+                              isLinkModeActive={false}
+                              isLinkSource={false}
+                              isLinkTarget={false}
+                              onStartLinkMode={() => startLinkMode(exercise.id)}
+                              onBreakSuperset={() => breakSuperset(exercise.supersetGroupId)}
+                              onMoveUp={moveExerciseUp}
+                              onMoveDown={moveExerciseDown}
+                              onRemoveExercise={removeExercise}
+                              onAddSet={addSet}
+                              onUpdateSet={updateSet}
+                              onDoneSet={doneSet}
+                              onUndoneSet={undoneSet}
+                              onDeleteSet={deleteSet}
+                              onUpdateExerciseRest={updateExerciseRest}
+                              onUpdateExerciseNote={updateExerciseNote}
+                              bestSet={getBestSet(exercise.name)}
+                              previousSets={getPreviousSets(exercise.name)}
+                              activeRest={activeRest}
+                              restTime={restTime}
+                              restDuration={restDuration}
+                              defaultRest={defaultRest}
+                              bodyweight={bodyweight}
+                              unitWeight={unitWeight}
+                              unitDistance={unitDistance}
+                              libraryEntry={getExerciseFromLibrary(exercise.name)}
+                            />
+                          ); }}
+                        />
+                      )
+                    }
+                    const ex = group.exercise
+                    const exIndex = exercises.indexOf(ex)
+                    const isSource = linkMode.sourceId === ex.id
+                    const isTarget = linkMode.active && !isSource && !ex.supersetGroupId
+                    const nextSetIndexStandalone = ex.sets.findIndex(s => !s.done)
+                    const showNextFocusStandalone = globalNext && globalNext.exIndex === exIndex && globalNext.setIndex === nextSetIndexStandalone
+                    return (
+                      <ExerciseCard
+                        key={ex.id}
+                        exercise={ex}
+                        exIndex={exIndex}
+                        isEditing={!!editingTemplate}
+                        exerciseCount={exercises.length}
+                        supersetRole={null}
+                        supersetIsNext={!!showNextFocusStandalone}
+                        supersetNextSetIndex={showNextFocusStandalone ? nextSetIndexStandalone : null}
+                        isLinkModeActive={linkMode.active}
+                        isLinkSource={isSource}
+                        isLinkTarget={isTarget}
+                        onTapAsTarget={isTarget ? () => confirmSuperset(ex.id, (groupId) => { setTimeout(() => document.getElementById('superset-' + groupId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150) }) : undefined}
+                        onStartLinkMode={() => startLinkMode(ex.id)}
+                        onBreakSuperset={() => breakSuperset(ex.supersetGroupId)}
+                        onMoveUp={moveExerciseUp}
+                        onMoveDown={moveExerciseDown}
+                        onRemoveExercise={removeExercise}
+                        onAddSet={addSet}
+                        onUpdateSet={updateSet}
+                        onDoneSet={doneSet}
+                        onUndoneSet={undoneSet}
+                        onDeleteSet={deleteSet}
+                        onUpdateExerciseRest={updateExerciseRest}
+                        onUpdateExerciseNote={updateExerciseNote}
+                        bestSet={getBestSet(ex.name)}
+                        previousSets={getPreviousSets(ex.name)}
+                        activeRest={activeRest}
+                        restTime={restTime}
+                        restDuration={restDuration}
+                        defaultRest={defaultRest}
+                        bodyweight={bodyweight}
+                        unitWeight={unitWeight}
+                        unitDistance={unitDistance}
+                        libraryEntry={getExerciseFromLibrary(ex.name)}
+                      />
+                    )
+                  });
+                  })()}
 
                   <button onClick={() => setShowAddExercise(true)} className="w-full py-3 mb-4 border border-dashed border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/8 hover:border-success transition-colors">+ Add exercise</button>
 
@@ -1729,7 +1994,7 @@ function App() {
               <div className="w-9 h-1 bg-handle rounded mx-auto mb-4" />
               <h2 className="text-text text-base font-bold mb-3">Create Programme</h2>
               <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mt-3 mb-1.5">Name</label>
-              <input type="text" value={createProgrammeName} onChange={e => setCreateProgrammeName(e.target.value)} placeholder="e.g. 2 Split - Push/Pull" onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent" />
+              <input type="text" value={createProgrammeName} onChange={e => setCreateProgrammeName(e.target.value)} placeholder="e.g. 2 Split - Push/Pull" onFocus={e => e.target.select()} autoFocus={!createProgrammeName.trim()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent" />
               <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mt-3 mb-1.5">Routines</label>
               {createProgrammeRoutines.map((r, i) => (
                 <div key={i} className="flex justify-between items-center py-3 px-3 bg-card-alt rounded-[10px] border border-border-strong mb-1.5">
@@ -1739,7 +2004,7 @@ function App() {
                 </div>
               ))}
               <button type="button" onClick={() => { setEditingRoutineProgrammeId(null); setEditingRoutineId(null); setEditRoutineName(''); setEditRoutineExercises([]); setShowCreateRoutine(true); setShowCreateProgramme(false) }} className="w-full py-3 border border-dashed border-border-strong rounded-xl text-accent text-sm font-semibold mb-4">+ Add Routine</button>
-              {!createProgrammeName.trim() && <p className="text-accent text-sm font-medium mb-2">Indtast et navn på programmet for at kunne gemme.</p>}
+              {!createProgrammeName.trim() && <p className="text-accent text-sm font-medium mb-2">Enter a programme name to save.</p>}
               <button type="button" onClick={() => { saveNewProgramme(createProgrammeName, 'rotation', null, createProgrammeRoutines); setCreateProgrammeRoutines([]) }} disabled={!createProgrammeName.trim()} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold disabled:opacity-50 disabled:pointer-events-none">Save Programme</button>
               <button type="button" onClick={() => { setShowCreateProgramme(false); setCreateProgrammeRoutines([]) }} className="w-full py-3 mt-2 text-muted-strong text-xs font-semibold">Cancel</button>
             </div>
@@ -1792,7 +2057,7 @@ function App() {
                         <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'down')} className={`p-1 rounded-md ${i === progRoutines.length - 1 ? 'opacity-20' : 'hover:bg-white/5'}`} disabled={i === progRoutines.length - 1} aria-label="Move routine down">
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-accent"><polyline points="6 9 12 15 18 9"/></svg>
                         </button>
-                        <button type="button" onClick={() => { setEditRoutineName(r.name); setEditRoutineExercises(r.exercises || []); setEditingRoutineId(r.id); setEditingRoutineProgrammeId(editingProgrammeId); setEditingProgrammeId(null) }} className="text-accent text-xs font-semibold px-1.5 py-0.5">Edit</button>
+                        <button type="button" onClick={() => { setEditProgrammeName(prog?.name ?? ''); setEditRoutineName(r.name); setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null }))); setEditingRoutineId(r.id); setEditingRoutineProgrammeId(editingProgrammeId); setEditingProgrammeId(null) }} className="text-accent text-xs font-semibold px-1.5 py-0.5">Edit</button>
                         <button type="button" onClick={() => copyRoutine(r.id, editingProgrammeId)} className="text-muted text-xs font-semibold px-1.5 py-0.5 hover:text-text" title="Copy routine">Copy</button>
                         <button type="button" onClick={() => removeRoutineFromProgramme(editingProgrammeId, r.id)} className="text-[rgba(255,85,85,0.5)] p-1 hover:text-red-400">✕</button>
                       </div>
@@ -1827,7 +2092,7 @@ function App() {
                     </div>
                   </div>
                 )}
-                <button type="button" onClick={() => { setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineId(null); setEditingRoutineProgrammeId(editingProgrammeId); setShowCreateRoutine(true); setEditingProgrammeId(null) }} className="w-full py-3 border border-dashed border-border-strong rounded-xl text-accent text-sm font-semibold mb-4">+ Add Routine</button>
+                <button type="button" onClick={() => { setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineId(null); setEditingRoutineProgrammeId(editingProgrammeId); setEditProgrammeName(programmes.find(p => p.id === editingProgrammeId)?.name || ''); setShowCreateRoutine(true); setEditingProgrammeId(null) }} className="w-full py-3 border border-dashed border-border-strong rounded-xl text-accent text-sm font-semibold mb-4">+ Add Routine</button>
                 <button type="button" onClick={() => {
                   const progId = editingProgrammeId
                   const programme = programmes.find(p => p.id === progId)
@@ -1855,57 +2120,110 @@ function App() {
             setRoutineEditorRestForIndex(null)
             setRoutineEditorNoteForIndex(null)
             setFocusNewExerciseAt(null)
-            if (progId) setEditingProgrammeId(progId)
+            if (progId) {
+              setEditingProgrammeId(progId)
+              setEditProgrammeName(programmes.find(p => p.id === progId)?.name || '')
+            }
           }
           return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={closeRoutineEditor}>
               <div className="w-full max-w-md bg-page rounded-t-[20px] pt-2 pb-10 px-4 max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="w-9 h-1 bg-handle rounded mx-auto mb-3 shrink-0" />
                 <h2 className="text-text text-base font-bold mb-3 shrink-0">{isEdit ? 'Edit Routine' : 'Create Routine'}</h2>
+                {programmeId && (
+                  <>
+                    <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Program</label>
+                    <input type="text" value={editProgrammeName} onChange={e => setEditProgrammeName(e.target.value)} placeholder="Program name" onFocus={e => e.target.select()} autoFocus={!isEdit && !editProgrammeName.trim()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent mb-3 shrink-0" />
+                  </>
+                )}
                 <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-1.5">Name</label>
-                <input type="text" value={name} onChange={e => setEditRoutineName(e.target.value)} placeholder="e.g. Day 1 - Pull" onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent mb-4 shrink-0" />
+                <input type="text" value={name} onChange={e => setEditRoutineName(e.target.value)} placeholder="e.g. Day 1 - Pull" onFocus={e => e.target.select()} autoFocus={!isEdit && !editRoutineName.trim() && (!programmeId || editProgrammeName.trim())} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent mb-4 shrink-0" />
                 <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Exercises</label>
                 <div className="overflow-y-auto flex-1 min-h-0 -mx-4 px-4 space-y-2">
-                  {(exs || []).map((ex, i) => {
-                    const setConfigs = getSetConfigs(ex)
-                    const lib = getExerciseFromLibrary(ex.exerciseId)
-                    const restOverride = ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null
-                    const note = ex.note ?? ''
-                    const updateSetConfigs = (newConfigs) => {
-                      const next = newConfigs.length < 1 ? [{ targetReps: '8-10', targetKg: '' }] : newConfigs
-                      setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, setConfigs: next }))
-                    }
-                    const updateSetAt = (setIdx, field, value) => {
-                      setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, setConfigs: setConfigs.map((s, si) => si === setIdx ? { ...s, [field]: value } : s) }))
-                    }
-                    const addSet = () => {
-                      const last = setConfigs[setConfigs.length - 1]
-                      updateSetConfigs([...setConfigs, { targetReps: last?.targetReps ?? '8-10', targetKg: last?.targetKg ?? '' }])
-                    }
-                    const removeSetAt = (setIdx) => updateSetConfigs(setConfigs.filter((_, si) => si !== setIdx))
-                    const setRest = (val) => { setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, restOverride: val })); setRoutineEditorRestForIndex(null) }
-                    const updateNote = (val) => setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, note: val }))
-                    return (
-                      <div key={i} className="bg-card border border-border rounded-2xl p-3.5">
-                        <div className="flex justify-between items-start gap-2 mb-2">
-                          <div className="flex items-start gap-2 min-w-0 flex-1">
-                            {lib ? <div className="mt-0.5"><MuscleIcon muscle={lib.muscle} size={14} /></div> : null}
-                            <div className="min-w-0">
-                              <span className="text-lg font-bold tracking-tight text-text block truncate">{ex.exerciseId}</span>
-                              {lib && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/5 text-muted">{lib.equipment}</span>}
+                  {routineLinkMode.active && (
+                    <div className="sticky top-0 z-10 -mx-4 px-4 pt-0 pb-2 bg-page">
+                      <LinkModeBanner sourceName={editRoutineExercises.find(e => e.id === routineLinkMode.sourceId)?.exerciseId ?? ''} onCancel={routineCancelLinkMode} />
+                    </div>
+                  )}
+                  {getRoutineGrouped().map(group => {
+                    const renderRoutineRow = (ex, supersetRole, isLinkSource, isLinkTarget, onTapAsTarget, onStartLinkMode, onBreakSuperset) => {
+                      const i = editRoutineExercises.indexOf(ex)
+                      const setConfigs = getSetConfigs(ex)
+                      const lib = getExerciseFromLibrary(ex.exerciseId)
+                      const restOverride = ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null
+                      const currentRestSec = restOverride !== null ? restOverride : defaultRest
+                      const note = ex.note ?? ''
+                      const updateSetConfigs = (newConfigs) => {
+                        const next = newConfigs.length < 1 ? [{ targetReps: '8-10', targetKg: '' }] : newConfigs
+                        setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, setConfigs: next }))
+                      }
+                      const updateSetAt = (setIdx, field, value) => {
+                        setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, setConfigs: setConfigs.map((s, si) => si === setIdx ? { ...s, [field]: value } : s) }))
+                      }
+                      const addSet = () => {
+                        const last = setConfigs[setConfigs.length - 1]
+                        updateSetConfigs([...setConfigs, { targetReps: last?.targetReps ?? '8-10', targetKg: last?.targetKg ?? '' }])
+                      }
+                      const removeSetAt = (setIdx) => updateSetConfigs(setConfigs.filter((_, si) => si !== setIdx))
+                      const setRest = (val) => { setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, restOverride: val })); setRoutineEditorRestForIndex(null) }
+                      const updateNote = (val) => setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, note: val }))
+                      const removeEx = () => { if (ex.supersetGroupId) routineBreakSuperset(ex.supersetGroupId); setEditRoutineExercises(prev => prev.filter(e => e.id !== ex.id)); setRoutineEditorSupersetMenuForId(null) }
+                      const rowBorderClass = isLinkSource ? 'border-accent/50 bg-card-alt' : isLinkTarget ? 'border-success/40 cursor-pointer' : 'border-border'
+                      const rowClass = `bg-card border rounded-2xl p-3.5 transition-all duration-200 ${rowBorderClass} ${routineLinkMode.active && !isLinkSource && !isLinkTarget ? 'opacity-40 pointer-events-none' : ''} ${isLinkTarget ? 'animate-pulse-border' : ''}`
+                      return (
+                        <div key={ex.id} className={rowClass} onClick={isLinkTarget ? onTapAsTarget : undefined}>
+                          <div className="flex justify-between items-start gap-2 mb-2">
+                            <div className="flex items-start gap-2 min-w-0 flex-1">
+                              {lib ? <div className="mt-0.5"><MuscleIcon muscle={lib.muscle} size={14} /></div> : null}
+                              <div className="min-w-0">
+                                <span className="text-lg font-bold tracking-tight text-text block truncate">{ex.exerciseId}</span>
+                                {lib && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/5 text-muted">{lib.equipment}</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {supersetRole && <span className="text-xs font-extrabold mr-0.5" style={{ color: supersetRole === 'A' ? 'var(--accent-primary)' : 'var(--success)' }}>{supersetRole}</span>}
+                              <div className="relative">
+                                <button type="button" onClick={(e) => { e.stopPropagation(); setRoutineEditorSupersetMenuForId(routineEditorSupersetMenuForId === ex.id ? null : ex.id) }} className="p-2 rounded-lg hover:bg-card-alt border border-transparent hover:border-border-strong transition-colors" aria-label="Exercise options">
+                                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-5 h-5 stroke-muted-strong"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                                </button>
+                                {routineEditorSupersetMenuForId === ex.id && (
+                                  <div className="mt-2 absolute right-0 top-full bg-card-alt border border-border-strong rounded-xl overflow-hidden shadow-xl z-10 min-w-[200px]">
+                                    {exs.length > 1 && (ex.supersetGroupId ? (
+                                      <button type="button" onClick={() => { onBreakSuperset?.(); setRoutineEditorSupersetMenuForId(null) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
+                                        <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                                        Break superset
+                                      </button>
+                                    ) : (
+                                      <button type="button" onClick={() => { onStartLinkMode?.(); setRoutineEditorSupersetMenuForId(null) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
+                                        <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                                        Create superset
+                                      </button>
+                                    ))}
+                                    {exs.length > 1 && <div className="border-t border-border-strong" />}
+                                    <button type="button" onClick={() => { setRoutineEditorRestForIndex(i); setRoutineEditorSupersetMenuForId(null) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
+                                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                      Rest timer {restOverride !== null && restOverride !== undefined ? `· ${restOverride === 0 ? 'None' : formatTime(restOverride)}` : `· Default (${formatTime(defaultRest)})`}
+                                    </button>
+                                    <button type="button" onClick={() => { setRoutineEditorNoteForIndex(i); setRoutineEditorSupersetMenuForId(null) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong">
+                                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                      {note ? 'Edit note' : 'Add note'}
+                                    </button>
+                                    <button type="button" onClick={() => { removeEx(); setRoutineEditorSupersetMenuForId(null) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-colors border-t border-border-strong">
+                                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                      Remove exercise
+                                    </button>
+                                    <button type="button" onClick={() => setRoutineEditorSupersetMenuForId(null)} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-muted-mid hover:bg-white/5 transition-colors border-t border-border-strong">
+                                      Cancel
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button type="button" onClick={() => setRoutineEditorNoteForIndex(routineEditorNoteForIndex === i ? null : i)} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold transition-colors ${note ? 'bg-accent/10 text-accent border border-accent/20' : 'bg-card-alt text-muted-mid border border-border-strong'}`}>
-                              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                            </button>
-                            <button type="button" onClick={() => setRoutineEditorRestForIndex(routineEditorRestForIndex === i ? null : i)} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold transition-colors ${restOverride !== null ? 'bg-success/10 text-success border border-success/20' : 'bg-card-alt text-muted-mid border border-border-strong'}`}>
-                              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                              {restOverride === null || restOverride === undefined ? 'Rest' : (restOverride === 0 ? 'None' : formatTime(restOverride))}
-                            </button>
-                            <button type="button" onClick={() => setEditRoutineExercises(prev => prev.filter((_, j) => j !== i))} className="text-[rgba(255,85,85,0.6)] hover:text-red-400 p-1 shrink-0" aria-label="Remove exercise">✕</button>
+                          <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-mid">
+                            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            {currentRestSec === 0 ? 'None' : formatTime(currentRestSec)}
                           </div>
-                        </div>
                         {routineEditorNoteForIndex === i && (
                           <div className="mt-2 flex gap-2 mb-2">
                             <input type="text" placeholder="Add a note..." value={note} onChange={(e) => updateNote(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setRoutineEditorNoteForIndex(null)} autoFocus className="flex-1 bg-card-alt border border-border-strong rounded-lg px-3 py-2 text-sm text-text placeholder-muted-deep outline-none focus:border-accent" />
@@ -1920,7 +2238,7 @@ function App() {
                         )}
                         {routineEditorRestForIndex === i && (
                           <div className="mt-2 mb-2 p-3 bg-card-alt rounded-xl border border-border-strong">
-                            <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Rest for this exercise</div>
+                            <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Rest timer for this exercise</div>
                             <div className="flex gap-1.5 flex-wrap">
                               <button type="button" onClick={() => setRest(null)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === null ? 'bg-accent text-on-accent' : 'bg-card border border-border-strong text-muted'}`}>Default</button>
                               {REST_PRESETS.map(s => <button key={s} type="button" onClick={() => setRest(s)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === s ? 'bg-success text-[#0D0D1A]' : 'bg-card border border-border-strong text-muted'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
@@ -1944,14 +2262,31 @@ function App() {
                         <button type="button" onClick={addSet} className="w-full py-2 mt-2 border border-dashed border-border-strong rounded-lg text-muted-mid text-sm font-semibold hover:border-accent hover:text-accent">+ Add set</button>
                       </div>
                     )
+                    }
+                    if (group.type === 'superset') {
+                      return (
+                        <SupersetWrapper
+                          key={group.groupId}
+                          groupId={group.groupId}
+                          exerciseA={group.a}
+                          exerciseB={group.b}
+                          onBreak={() => routineBreakSuperset(group.groupId)}
+                          renderCard={(exercise, role) => renderRoutineRow(exercise, role, false, false, undefined, () => routineStartLinkMode(exercise.id), () => routineBreakSuperset(exercise.supersetGroupId))}
+                        />
+                      )
+                    }
+                    const ex = group.exercise
+                    const isSource = routineLinkMode.sourceId === ex.id
+                    const isTarget = routineLinkMode.active && !isSource && !ex.supersetGroupId
+                    return renderRoutineRow(ex, null, isSource, isTarget, isTarget ? () => routineConfirmSuperset(ex.id, (groupId) => { setTimeout(() => document.getElementById('superset-' + groupId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150) }) : undefined, () => routineStartLinkMode(ex.id), () => routineBreakSuperset(ex.supersetGroupId))
                   })}
                   <button type="button" onClick={() => setShowExercisePickerForRoutine(true)} className="w-full py-3 border border-dashed border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/8 hover:border-success mb-2">+ Add exercise</button>
                 </div>
                 <div className="shrink-0 pt-3 space-y-2">
-                  {!isEdit && !editRoutineName.trim() && <p className="text-accent text-sm font-medium">Indtast et navn på rutinen for at kunne gemme.</p>}
+                  {!isEdit && !editRoutineName.trim() && <p className="text-accent text-sm font-medium">Enter a routine name to save.</p>}
                   <button type="button" onClick={() => {
                     if (isEdit) { saveRoutineEdits(editingRoutineId, editRoutineName, editRoutineExercises); closeRoutineEditor() }
-                    else if (programmeId) { addRoutineToProgramme(programmeId, { name: editRoutineName, exercises: editRoutineExercises }); setShowCreateRoutine(false); setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineProgrammeId(null); setEditingProgrammeId(programmeId); setEditProgrammeName(programmes.find(p => p.id === programmeId)?.name || ''); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
+                    else if (programmeId) { addRoutineToProgramme(programmeId, { name: editRoutineName, exercises: editRoutineExercises }); setProgrammes(prev => prev.map(p => p.id === programmeId ? { ...p, name: (editProgrammeName.trim() || p.name) } : p)); setShowCreateRoutine(false); setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineProgrammeId(null); setEditingProgrammeId(programmeId); setEditProgrammeName(programmes.find(p => p.id === programmeId)?.name || ''); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
                     else { setCreateProgrammeRoutines(prev => [...prev, { name: editRoutineName, exercises: editRoutineExercises }]); setShowCreateRoutine(false); setShowCreateProgramme(true); setEditRoutineName(''); setEditRoutineExercises([]); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
                   }} disabled={!isEdit && !editRoutineName.trim()} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold disabled:opacity-50 disabled:pointer-events-none">Save</button>
                   <button type="button" onClick={closeRoutineEditor} className="w-full py-3 text-muted-strong text-xs font-semibold">Cancel</button>
@@ -1968,7 +2303,7 @@ function App() {
               allExercises={allLibraryExercises}
               mode="modal"
               onAdd={(exList) => {
-                const newExs = exList.map(e => ({ exerciseId: e.name, setConfigs: [{ targetReps: '', targetKg: '' }], restOverride: null, note: '' }))
+                const newExs = exList.map(e => ({ id: crypto.randomUUID(), exerciseId: e.name, setConfigs: [{ targetReps: '', targetKg: '' }], restOverride: null, note: '', supersetGroupId: null, supersetRole: null }))
                 const startIndex = editRoutineExercises.length
                 setEditRoutineExercises(prev => [...(prev || []), ...newExs])
                 setFocusNewExerciseAt(startIndex)
@@ -2360,7 +2695,7 @@ function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutin
         </div>
         {!canSave && (
           <p className="text-accent text-sm font-medium mb-3">
-            {mode === 'existing' ? 'Udfyld rutinenavn for at kunne gemme.' : 'Udfyld programnavn og rutinenavn for at kunne gemme.'}
+            {mode === 'existing' ? 'Enter a routine name to save.' : 'Enter programme name and routine name to save.'}
           </p>
         )}
         <button onClick={handleSave} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${canSave ? 'bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25' : 'bg-card-alt text-muted-strong'}`} disabled={!canSave}>Save routine</button>
