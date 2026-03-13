@@ -6,6 +6,9 @@ import MuscleIcon from './MuscleIcon'
 import { useSuperset } from './useSuperset'
 import SupersetWrapper from './SupersetWrapper'
 import LinkModeBanner from './LinkModeBanner'
+import RirSheet from './RirSheet'
+import MuscleMapCard from './MuscleMapCard'
+import { getDayMuscles } from './utils'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
 
 const REST_PRESETS = [0, 30, 60, 90, 120, 180]
@@ -13,33 +16,6 @@ const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 
 function PlayIcon({ className = 'w-3.5 h-3.5' }) {
   return <svg viewBox="0 0 24 24" className={`${className} fill-current`}><polygon points="5 3 19 12 5 21 5 3"/></svg>
-}
-
-function SplashScreen({ onFinished }) {
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (onFinished) onFinished()
-    }, 3000)
-    return () => clearTimeout(timer)
-  }, [onFinished])
-  return (
-    <div className="splash-screen">
-      <div className="splash-content">
-        <div className="splash-grid">
-          <div className="splash-block" />
-          <div className="splash-block" />
-          <div className="splash-block" />
-          <div className="splash-block" />
-          <div className="splash-block" />
-          <div className="splash-block" />
-        </div>
-        <div style={{ textAlign: 'center' }}>
-          <div className="splash-name">REPLIQE</div>
-          <div className="splash-tagline">Simple tracking. Real progress.</div>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 function RepliqeLogo({ size = 28 }) {
@@ -98,7 +74,6 @@ function parseTimeToSeconds(t) {
 }
 
 function App() {
-  const [showSplash, setShowSplash] = useState(true)
   const [page, setPage] = useState('workout')
   const [workoutActive, setWorkoutActive] = useState(false)
   const [workoutName, setWorkoutName] = useState('')
@@ -181,6 +156,8 @@ function App() {
   const [routineEditorSupersetMenuForId, setRoutineEditorSupersetMenuForId] = useState(null)
   const [focusNewExerciseAt, setFocusNewExerciseAt] = useState(null)
   const [focusWorkoutFirstFieldAt, setFocusWorkoutFirstFieldAt] = useState(null) // exIndex to focus first set first field after adding
+  const [rirEnabled, setRirEnabled] = useState(() => localStorage.getItem('rirEnabled') === 'true')
+  const [pendingRir, setPendingRir] = useState(null)
   const [theme, setTheme] = useState(() => {
     const t = localStorage.getItem('theme') || 'dark'
     return t === 'light-bone' ? 'bone' : t
@@ -196,6 +173,7 @@ function App() {
   const restAudioCtxRef = useRef(null)
   const routineEditorFirstInputRef = useRef(null)
   const currentRoutineIdRef = useRef(null)
+  const startedFromEmptyRef = useRef(false)
 
   const { linkMode, startLinkMode, confirmSuperset, cancelLinkMode, breakSuperset, getGrouped } = useSuperset(exercises, setExercises)
   const {
@@ -228,6 +206,7 @@ function App() {
   useEffect(() => { localStorage.setItem('unitWeight', unitWeight) }, [unitWeight])
   useEffect(() => { localStorage.setItem('unitDistance', unitDistance) }, [unitDistance])
   useEffect(() => { localStorage.setItem('customExercises', JSON.stringify(customExercises)) }, [customExercises])
+  useEffect(() => { localStorage.setItem('rirEnabled', rirEnabled ? 'true' : 'false') }, [rirEnabled])
 
   useEffect(() => {
     if (editingProgrammeId) {
@@ -390,6 +369,7 @@ function App() {
   function executeStart(type, data) {
     const now = Date.now()
     currentRoutineIdRef.current = null
+    startedFromEmptyRef.current = type === 'empty'
     if (type === 'template') {
       setWorkoutName(data.name)
       setExercises(data.exercises.map(ex => ({
@@ -439,7 +419,7 @@ function App() {
       setExercises([])
     }
     setWorkoutActive(true); setWorkoutStartTime(now); setWorkoutElapsed(0)
-    setActiveRest(null); setRestTime(0); setPendingStart(null)
+    setActiveRest(null); setRestTime(0); setPendingStart(null); setPendingRir(null)
     setShowActiveWorkoutSheet(true)
   }
 
@@ -533,6 +513,7 @@ function App() {
         type,
         sets,
         restOverride: ex.restOverride !== undefined ? ex.restOverride : null,
+        rirOverride: ex.rirOverride ?? null,
         note: ex.note ?? '',
         muscle: lib?.muscle,
         equipment: lib?.equipment,
@@ -621,6 +602,7 @@ function App() {
       exerciseId: ex.exerciseId,
       setConfigs: getSetConfigs(ex).map(s => ({ targetReps: String(s.targetReps ?? '') || '8-10', targetKg: String(s.targetKg ?? '') ?? '' })),
       restOverride: ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null,
+      rirOverride: ex.rirOverride ?? null,
       note: ex.note ?? '',
       supersetGroupId: ex.supersetGroupId ?? null,
       supersetRole: ex.supersetRole ?? null
@@ -908,34 +890,13 @@ function App() {
     }))
   }
 
-  function doneSet(exIndex, setIndex) {
-    const ex = exercises[exIndex]
-    const set = ex.sets[setIndex]
-    if (!set || !isSetComplete(set, ex.type || 'weight_reps')) return
-    if (navigator.vibrate) navigator.vibrate(30)
-    const prevRest = activeRest
-    if (prevRest) {
-      restStartRef.current = restStartRef.current || Date.now()
-      const elapsed = Math.max(1, Math.floor((Date.now() - restStartRef.current) / 1000))
-      setActiveRest(null)
-      setRestTime(0)
-      restStartRef.current = null
-      setExercises(prev => prev.map((e, ei) => {
-        let next = e
-        if (ei === prevRest.exIndex) {
-          next = { ...e, sets: e.sets.map((s, si) => si !== prevRest.setIndex ? s : { ...s, restTime: elapsed }) }
-        }
-        if (ei === exIndex) {
-          next = { ...next, sets: next.sets.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
-        }
-        return next
-      }))
-    } else {
-      setExercises(prev => prev.map((e, ei) => {
-        if (ei !== exIndex) return e
-        return { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
-      }))
-    }
+  function isRirActive(exercise, globalRirEnabled) {
+    if (exercise.rirOverride === true) return true
+    if (exercise.rirOverride === false) return false
+    return globalRirEnabled
+  }
+
+  function startRestAfterSet(exIndex, setIndex, ex) {
     const dur = ex.restOverride !== null && ex.restOverride !== undefined ? ex.restOverride : defaultRest
     if (dur === 0) return
     if (ex.supersetRole === 'A') return
@@ -945,12 +906,79 @@ function App() {
     setRestDuration(dur)
   }
 
+  function doneSet(exIndex, setIndex) {
+    const ex = exercises[exIndex]
+    const set = ex.sets[setIndex]
+    if (!set || !isSetComplete(set, ex.type || 'weight_reps')) return
+    if (navigator.vibrate) navigator.vibrate(30)
+    const prevRest = activeRest
+    let updatedExercises
+    if (prevRest) {
+      restStartRef.current = restStartRef.current || Date.now()
+      const elapsed = Math.max(1, Math.floor((Date.now() - restStartRef.current) / 1000))
+      setActiveRest(null)
+      setRestTime(0)
+      restStartRef.current = null
+      updatedExercises = exercises.map((e, ei) => {
+        let next = e
+        if (ei === prevRest.exIndex) {
+          next = { ...e, sets: e.sets.map((s, si) => si !== prevRest.setIndex ? s : { ...s, restTime: elapsed }) }
+        }
+        if (ei === exIndex) {
+          next = { ...next, sets: next.sets.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
+        }
+        return next
+      })
+    } else {
+      updatedExercises = exercises.map((e, ei) => {
+        if (ei !== exIndex) return e
+        return { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
+      })
+    }
+    setExercises(updatedExercises)
+    const updatedEx = updatedExercises[exIndex]
+    const updatedSet = updatedEx.sets[setIndex]
+    const exType = updatedEx.type || 'weight_reps'
+    const rirSupported = exType !== 'time_only' && exType !== 'distance_time'
+    if (rirSupported && isRirActive(updatedEx, rirEnabled)) {
+      setPendingRir({
+        exIndex,
+        setIndex,
+        kg: updatedSet.kg,
+        reps: updatedSet.reps,
+        setNumber: setIndex + 1,
+        exerciseName: updatedEx.name,
+        restOverride: updatedEx.restOverride,
+        supersetRole: updatedEx.supersetRole
+      })
+      return
+    }
+    startRestAfterSet(exIndex, setIndex, updatedEx)
+  }
+
+  function handleRirSelect(rir) {
+    const { exIndex, setIndex } = pendingRir
+    setExercises(prev => prev.map((e, ei) =>
+      ei === exIndex ? { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, rir } : s) } : e
+    ))
+    const ex = exercises[exIndex]
+    setPendingRir(null)
+    startRestAfterSet(exIndex, setIndex, { ...ex, restOverride: pendingRir.restOverride, supersetRole: pendingRir.supersetRole })
+  }
+
+  function handleRirSkip() {
+    const { exIndex, setIndex } = pendingRir
+    const ex = exercises[exIndex]
+    setPendingRir(null)
+    startRestAfterSet(exIndex, setIndex, { ...ex, restOverride: pendingRir.restOverride, supersetRole: pendingRir.supersetRole })
+  }
+
   function undoneSet(exIndex, setIndex) {
     const n = exercises.map((e, ei) => {
       if (ei !== exIndex) return e
       return { ...e, sets: e.sets.map((s, si) => {
         if (si !== setIndex) return s
-        const { restTime: _, ...rest } = s
+        const { restTime: _, rir: __, ...rest } = s
         return { ...rest, done: false }
       }) }
     })
@@ -1050,7 +1078,10 @@ function App() {
   }
 
   function finishWorkout() {
-    if (exercises.length === 0) return
+    if (exercises.length === 0) {
+      setShowFinishModal(true)
+      return
+    }
     const totalSets = exercises.reduce((sum, ex) => sum + ex.sets.length, 0)
     const doneSets = exercises.reduce((sum, ex) => sum + ex.sets.filter(s => s.done).length, 0)
     if (doneSets === 0) {
@@ -1098,6 +1129,7 @@ function App() {
         exerciseId: ex.name,
         setConfigs: (ex.sets || []).map(s => ({ targetReps: String(s.reps ?? '') || '8-10', targetKg: String(s.kg ?? '') ?? '' })),
         restOverride: ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null,
+        rirOverride: ex.rirOverride ?? null,
         note: ex.note ?? '',
         supersetGroupId: ex.supersetGroupId ?? null,
         supersetRole: ex.supersetRole ?? null
@@ -1158,9 +1190,10 @@ function App() {
     setShowFinishModal(false)
     setShowCompleteScreen(true)
 
-    setExercises([]); setActiveRest(null); setRestTime(0)
+    setExercises([]); setActiveRest(null); setRestTime(0); setPendingRir(null)
     setWorkoutActive(false); setWorkoutName(''); setWorkoutStartTime(null); setWorkoutElapsed(0)
     currentRoutineIdRef.current = null
+    startedFromEmptyRef.current = false
     localStorage.removeItem('workoutStartTime')
   }
 
@@ -1172,6 +1205,7 @@ function App() {
         exerciseId: ex.name,
         setConfigs: sets.map(s => ({ targetReps: String(s.reps ?? '') || '8-10', targetKg: String(s.kg ?? '') ?? '' })),
         restOverride: ex.restOverride !== undefined ? ex.restOverride : null,
+        rirOverride: ex.rirOverride ?? null,
         note: ex.note ?? '',
         supersetGroupId: ex.supersetGroupId ?? null,
         supersetRole: ex.supersetRole ?? null
@@ -1225,9 +1259,10 @@ function App() {
   function dismissCompleteScreen() { setShowCompleteScreen(false); setCompletedWorkoutData(null) }
 
   function cancelWorkout() {
-    setExercises([]); setActiveRest(null); setRestTime(0)
+    setExercises([]); setActiveRest(null); setRestTime(0); setPendingRir(null)
     setWorkoutActive(false); setWorkoutName(''); setWorkoutStartTime(null); setWorkoutElapsed(0)
     currentRoutineIdRef.current = null
+    startedFromEmptyRef.current = false
     localStorage.removeItem('workoutStartTime')
   }
 
@@ -1344,8 +1379,6 @@ function App() {
 
   return (
     <>
-      {showSplash && <SplashScreen onFinished={() => setShowSplash(false)} />}
-
       <div className="min-h-screen bg-page text-text pb-24">
         <div className="px-4 py-6 max-w-md mx-auto">
 
@@ -1455,9 +1488,10 @@ function App() {
 
                 return (
                   <>
-                    <div className="text-[13px] font-bold text-muted uppercase tracking-wider mb-0.5">Active Programme</div>
-                    <div className="text-text text-[17px] font-bold mb-0.5">{activeProgramme.name}</div>
-                    <div className="text-[11px] text-muted-strong mb-3">Day {nextIdx >= 0 ? nextIdx + 1 : 1} of {routineIds.length}</div>
+                    <div className="flex flex-wrap items-baseline gap-2 mb-3">
+                      <span className="text-[13px] font-bold text-muted uppercase tracking-wider">Active Programme</span>
+                      <span className="text-text text-[17px] font-bold">{activeProgramme.name}</span>
+                    </div>
                     <div className="flex gap-1.5 mb-1">
                       {routineIds.map((rtnId) => {
                         const rtn = routines.find(r => r.id === rtnId)
@@ -1493,12 +1527,15 @@ function App() {
                     {displayRtn && (
                     <div className="border-[1.5px] border-success/20 rounded-[14px] p-4 bg-success/5 mb-5">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-text text-[15px] font-bold">{displayRtn.name}</span>
                         {displayRtnId === nextRtnId && (
                           <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-success/10 text-success animate-up-next-pulse">Up Next</span>
                         )}
                       </div>
                       <div className="text-[11px] text-muted-strong mb-2">{exCount} exercises · {setCountR} sets · ~{estMin} min</div>
+                      {(() => {
+                        const { primary, secondary } = getDayMuscles(displayRtn.exercises || [], allLibraryExercises)
+                        return <MuscleMapCard primary={primary} secondary={secondary} />
+                      })()}
                       <div className="flex flex-wrap gap-1 mb-3">
                         {(displayRtn.exercises || []).map((ex, i) => (
                           <span key={i} className="text-[10px] font-semibold text-muted-strong bg-white/5 px-2 py-0.5 rounded">{ex.exerciseId}</span>
@@ -1736,6 +1773,9 @@ function App() {
                               unitWeight={unitWeight}
                               unitDistance={unitDistance}
                               libraryEntry={getExerciseFromLibrary(exercise.name)}
+                              rirEnabled={isRirActive(exercise, rirEnabled)}
+                              globalRirEnabled={rirEnabled}
+                              onRirOverride={(exIdx, value) => setExercises(prev => prev.map((e, i) => i === exIdx ? { ...e, rirOverride: value } : e))}
                             />
                           ); }}
                         />
@@ -1783,6 +1823,9 @@ function App() {
                         unitWeight={unitWeight}
                         unitDistance={unitDistance}
                         libraryEntry={getExerciseFromLibrary(ex.name)}
+                        rirEnabled={isRirActive(ex, rirEnabled)}
+                        globalRirEnabled={rirEnabled}
+                        onRirOverride={(exIdx, value) => setExercises(prev => prev.map((e, i) => i === exIdx ? { ...e, rirOverride: value } : e))}
                       />
                     )
                   });
@@ -1806,6 +1849,19 @@ function App() {
               <div className="flex items-center gap-3 mb-6"><RepliqeLogo size={28} /><h1 className="text-3xl font-bold tracking-tight">Profile</h1></div>
               <div className="bg-card border border-border rounded-2xl p-5 mb-4">
                 <h3 className="text-sm font-semibold text-accent uppercase tracking-wide mb-4">Settings</h3>
+                <div className="flex items-center justify-between px-4 py-3 bg-card-alt rounded-xl border border-border mb-5">
+                  <div>
+                    <div className="text-sm font-bold text-text">RIR Tracking</div>
+                    <div className="text-xs text-muted-strong mt-0.5">Log reps in reserve per set</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRirEnabled(prev => !prev)}
+                    className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${rirEnabled ? 'bg-accent' : 'bg-border-strong'}`}
+                  >
+                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${rirEnabled ? 'left-5' : 'left-0.5'}`} />
+                  </button>
+                </div>
                 <div className="theme-selector mb-5">
                   <div className="settings-label">Appearance</div>
                   <div className="theme-options">
@@ -2303,7 +2359,7 @@ function App() {
               allExercises={allLibraryExercises}
               mode="modal"
               onAdd={(exList) => {
-                const newExs = exList.map(e => ({ id: crypto.randomUUID(), exerciseId: e.name, setConfigs: [{ targetReps: '', targetKg: '' }], restOverride: null, note: '', supersetGroupId: null, supersetRole: null }))
+                const newExs = exList.map(e => ({ id: crypto.randomUUID(), exerciseId: e.name, setConfigs: [{ targetReps: '', targetKg: '' }], restOverride: null, rirOverride: null, note: '', supersetGroupId: null, supersetRole: null }))
                 const startIndex = editRoutineExercises.length
                 setEditRoutineExercises(prev => [...(prev || []), ...newExs])
                 setFocusNewExerciseAt(startIndex)
@@ -2347,11 +2403,24 @@ function App() {
           </div>
         )}
 
+        {pendingRir && (
+          <RirSheet
+            setInfo={pendingRir}
+            onSelect={handleRirSelect}
+            onSkip={handleRirSkip}
+          />
+        )}
         {showFinishModal && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
             <div className="w-full max-w-md bg-card rounded-t-3xl p-6 pb-10">
               <h2 className="text-lg font-bold text-center mb-2">Finish workout</h2>
-              {isRoutineBased() ? (<>
+              {(exercises.length === 0 || startedFromEmptyRef.current) ? (
+                <>
+                  <p className="text-sm text-muted-mid text-center mb-6">Save this workout as a routine in a programme?</p>
+                  <button onClick={() => { setShowFinishModal(false); setShowSaveAsRoutineModal(true) }} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end text-on-accent rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-accent/25">Save as routine</button>
+                  <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-border-strong rounded-2xl text-sm font-semibold text-muted mb-3">Save without adding to programme</button>
+                </>
+              ) : isRoutineBased() ? (<>
                 <p className="text-sm text-muted-mid text-center mb-6">Update this routine in your programme with today's sets and reps?</p>
                 <button onClick={() => confirmFinish(true)} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end text-on-accent rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-accent/25">Save & update routine</button>
                 <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-border-strong rounded-2xl text-sm font-semibold text-muted mb-3">Save without updating routine</button>
@@ -2360,9 +2429,8 @@ function App() {
                 <button onClick={() => confirmFinish(true)} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end text-on-accent rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-accent/25">Save & update all templates</button>
                 <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-border-strong rounded-2xl text-sm font-semibold text-muted mb-3">Save without updating templates</button>
               </>) : (<>
-                <p className="text-sm text-muted-mid text-center mb-6">Save this workout as a routine in a programme?</p>
-                <button onClick={() => { setShowFinishModal(false); setShowSaveAsRoutineModal(true) }} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end text-on-accent rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-accent/25">Save as routine</button>
-                <button onClick={() => confirmFinish(false)} className="w-full py-3 border border-border-strong rounded-2xl text-sm font-semibold text-muted mb-3">Save without adding to programme</button>
+                <p className="text-sm text-muted-mid text-center mb-6">Save workout without adding to a programme?</p>
+                <button onClick={() => confirmFinish(false)} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end text-on-accent rounded-2xl font-bold text-sm mb-3 shadow-lg shadow-accent/25">Save and finish</button>
               </>)}
               <button onClick={() => setShowFinishModal(false)} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
             </div>
@@ -2632,7 +2700,7 @@ function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutin
   const [mode, setMode] = useState(programmes.length > 0 ? 'existing' : 'new') // 'existing' | 'new'
   const [selectedProgId, setSelectedProgId] = useState(programmes[0]?.id || null)
   const [newProgrammeName, setNewProgrammeName] = useState('')
-  const [routineName, setRoutineName] = useState('')
+  const [routineName, setRoutineName] = useState(defaultRoutineName || '')
   const newProgrammeInputRef = useRef(null)
   const canSave = routineName.trim() && (mode === 'existing' ? selectedProgId : newProgrammeName.trim())
 

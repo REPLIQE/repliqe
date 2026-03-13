@@ -4,10 +4,25 @@ import { MUSCLE_GROUPS } from './exerciseLibrary'
 
 const REST_PRESETS = [0, 30, 60, 90, 120, 180]
 
+const RIR_BADGE_STYLE = { color: '#2DD4BF', background: 'rgba(45,212,191,.14)', border: '1px solid rgba(45,212,191,.3)' }
+
+function RirBadge({ rir }) {
+  if (rir === null || rir === undefined) return null
+  return (
+    <span
+      className="inline-flex items-center justify-center min-w-[2.5rem] w-[2.5rem] px-1 py-0.5 rounded text-xs font-extrabold box-border"
+      style={RIR_BADGE_STYLE}
+    >
+      {rir === 3 ? '3+' : rir}
+    </span>
+  )
+}
+
 function ExerciseCard({
   exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onAddSet, onUpdateSet, onDoneSet, onUndoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote,
   bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, bodyweight, unitWeight, unitDistance, libraryEntry,
-  supersetRole = null, supersetIsNext = false, supersetNextSetIndex = null, isLinkModeActive = false, isLinkSource = false, isLinkTarget = false, onTapAsTarget, onStartLinkMode, onBreakSuperset
+  supersetRole = null, supersetIsNext = false, supersetNextSetIndex = null, isLinkModeActive = false, isLinkSource = false, isLinkTarget = false, onTapAsTarget, onStartLinkMode, onBreakSuperset,
+  rirEnabled = false, globalRirEnabled = false, onRirOverride = () => {}
 }) {
   const [showRestPicker, setShowRestPicker] = useState(false)
   const [showNoteInput, setShowNoteInput] = useState(false)
@@ -89,16 +104,18 @@ function ExerciseCard({
 
   const currentRest = exercise.restOverride !== null && exercise.restOverride !== undefined ? exercise.restOverride : defaultRest
   const hasPrevious = previousSets && previousSets.length > 0
+  const showRirColumn = rirEnabled && type !== 'time_only' && type !== 'distance_time'
 
   function getGridCols() {
-    const prev = hasPrevious ? 'minmax(55px, 1fr) ' : ''
+    const prev = hasPrevious ? (showRirColumn ? 'minmax(72px, 1.15fr) ' : 'minmax(44px, 0.6fr) ') : ''
+    const rir = showRirColumn ? ' minmax(52px,0.55fr)' : ''
     switch (type) {
-      case 'weight_reps': return `28px ${prev}minmax(0,0.75fr) minmax(0,0.75fr) 30px`
-      case 'bw_reps': return `28px ${prev}minmax(0,0.9fr) minmax(0,0.75fr) 30px`
-      case 'reps_only': return `28px ${prev}minmax(0,0.75fr) 30px`
+      case 'weight_reps': return `28px ${prev}minmax(0,0.75fr) minmax(0,0.75fr)${rir} 30px`
+      case 'bw_reps': return `28px ${prev}minmax(0,0.9fr) minmax(0,0.75fr)${rir} 30px`
+      case 'reps_only': return `28px ${prev}minmax(0,0.75fr)${rir} 30px`
       case 'time_only': return `28px ${prev}minmax(0,0.75fr) 30px`
       case 'distance_time': return `28px ${prev}minmax(0,0.75fr) minmax(0,0.75fr) 30px`
-      default: return `28px ${prev}minmax(0,0.75fr) minmax(0,0.75fr) 30px`
+      default: return `28px ${prev}minmax(0,0.75fr) minmax(0,0.75fr)${rir} 30px`
     }
   }
 
@@ -227,6 +244,32 @@ function ExerciseCard({
             Rest timer {exercise.restOverride !== null && exercise.restOverride !== undefined ? `· ${currentRest === 0 ? 'None' : formatTime(currentRest)}` : `· Default (${formatTime(defaultRest)})`}
           </button>
           )}
+          {type !== 'time_only' && type !== 'distance_time' && (
+          <button
+            type="button"
+            onClick={() => {
+              setShowExerciseMenu(false)
+              const next = exercise.rirOverride === null ? true : exercise.rirOverride === true ? false : null
+              onRirOverride(exIndex, next)
+            }}
+            className="flex items-center justify-between w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong"
+          >
+            <div className="flex items-center gap-2.5">
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-4 h-4 ${rirEnabled ? 'stroke-accent' : 'stroke-current'}`}>
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+              <div>
+                <div className={rirEnabled ? 'text-accent' : ''}>RIR tracking</div>
+                <div className="text-xs text-muted-strong mt-0.5">
+                  {exercise.rirOverride === null ? `Following global (${globalRirEnabled ? 'on' : 'off'})` : exercise.rirOverride ? 'Enabled for this exercise' : 'Disabled for this exercise'}
+                </div>
+              </div>
+            </div>
+            <div className={`w-10 h-6 rounded-full relative transition-colors shrink-0 ${rirEnabled ? 'bg-accent' : 'bg-border-strong'}`}>
+              <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${rirEnabled ? 'left-4' : 'left-0.5'}`} />
+            </div>
+          </button>
+          )}
           <button onClick={() => { setShowExerciseMenu(false); setShowNoteInput(true) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
             {exercise.note ? 'Edit note' : 'Add note'}
@@ -271,6 +314,7 @@ function ExerciseCard({
         <span className="text-xs font-bold text-muted-strong uppercase text-center">Set</span>
         {hasPrevious && <span className="text-xs font-bold text-muted-strong uppercase text-center">Prev</span>}
         {headers.map(h => <span key={h} className="text-xs font-bold text-muted-strong uppercase text-center">{h}</span>)}
+        {showRirColumn && <span className="text-xs font-bold text-muted-strong uppercase text-center">RIR</span>}
         <span></span>
       </div>
 
@@ -292,9 +336,17 @@ function ExerciseCard({
                 onTouchStart={(e) => { tapOutside(j); handleTouchStart(e, j) }} onTouchMove={(e) => handleTouchMove(e, j)} onTouchEnd={(e) => handleTouchEnd(e, j)}>
                 <span className="text-sm font-bold text-muted text-center">{j + 1}</span>
                 {hasPrevious && (
-                  <span className={`text-sm text-center font-medium italic ${prevChanged ? 'text-accent font-bold not-italic' : 'text-muted'}`}>{formatPrev(prevSet)}</span>
+                  <div className="flex flex-row items-center justify-center gap-1.5 flex-wrap-nowrap">
+                    <span className={`text-sm text-center font-medium italic shrink-0 ${prevChanged ? 'text-accent font-bold not-italic' : 'text-muted'}`}>{formatPrev(prevSet)}</span>
+                    {prevSet?.rir !== null && prevSet?.rir !== undefined && <RirBadge rir={prevSet.rir} />}
+                  </div>
                 )}
                 {renderInputs(set, j)}
+                {showRirColumn && (
+                  <div className="flex items-center justify-center min-h-[34px] shrink-0 whitespace-nowrap">
+                    {set.done && set.rir !== null && set.rir !== undefined ? <RirBadge rir={set.rir} /> : <span className="text-muted text-sm">—</span>}
+                  </div>
+                )}
                 {set.done ? (
                   <button onClick={() => onUndoneSet(exIndex, j)} className="w-7 h-7 bg-success rounded-md flex items-center justify-center mx-auto hover:bg-success/80 transition-colors active:scale-90"><svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-3.5 h-3.5 stroke-page"><polyline points="20 6 9 17 4 12" /></svg></button>
                 ) : (
@@ -305,18 +357,68 @@ function ExerciseCard({
               </div>
             </div>
 
-            {supersetRole !== 'A' && isActiveRest && (
-              <div data-rest-active="1" className="flex items-center justify-center gap-2 py-1 my-0.5 rounded-lg relative overflow-hidden min-h-0 pointer-events-none" style={{ height: '1.65rem' }}>
-                <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-success/10 to-success/5 rounded-lg transition-all duration-500" style={{ width: `${Math.max(0, (restTime / restDuration) * 100)}%` }} />
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3 h-3 stroke-success relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <span className="text-success font-bold text-sm tabular-nums relative z-10 min-w-[36px] text-center">{formatTime(restTime)}</span>
-              </div>
-            )}
+            {supersetRole !== 'A' && isActiveRest && (() => {
+              const progress = restDuration > 0 ? Math.max(0, Math.min(1, restTime / restDuration)) : 0
+              const barWidthPct = progress * 100
+              const sidePct = (1 - progress) * 50 // each side grows from 0% to 50% as bar shrinks
+              return (
+                <div data-rest-active="1" className="flex items-center justify-center gap-1.5 py-0.5 my-0.5 rounded-lg relative min-h-0 pointer-events-none overflow-hidden" style={{ height: '1.2rem' }}>
+                  {/* Dots from center out to left edge (visible during rest, then stay muted in completed row below) */}
+                  <div
+                    className="absolute top-0 bottom-0 right-1/2 transition-all duration-300 ease-out"
+                    style={{
+                      width: `${sidePct}%`,
+                      backgroundImage: 'radial-gradient(circle, var(--color-success) 0.75px, transparent 0.75px)',
+                      backgroundSize: '4px 1.2rem',
+                      backgroundPosition: '0 center',
+                      opacity: 0.5
+                    }}
+                  />
+                  {/* Center bar – shrinks from both sides */}
+                  <div
+                    className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 rounded-sm transition-all duration-300 ease-out bg-gradient-to-r from-success/15 via-success/10 to-success/15"
+                    style={{ width: `${barWidthPct}%`, minWidth: 0 }}
+                  />
+                  {/* Dots from center out to right edge */}
+                  <div
+                    className="absolute top-0 bottom-0 left-1/2 transition-all duration-300 ease-out"
+                    style={{
+                      width: `${sidePct}%`,
+                      backgroundImage: 'radial-gradient(circle, var(--color-success) 0.75px, transparent 0.75px)',
+                      backgroundSize: '4px 1.2rem',
+                      backgroundPosition: '0 center',
+                      opacity: 0.5
+                    }}
+                  />
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-success relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span className="text-success font-bold text-xs tabular-nums relative z-10 min-w-[28px] text-center">{formatTime(restTime)}</span>
+                </div>
+              )
+            })()}
 
             {supersetRole !== 'A' && hasCompletedRest && (
-              <div className="flex items-center justify-center gap-1.5 py-1 my-0.5">
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3 h-3 stroke-muted-strong"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <span className="text-muted-mid text-sm font-semibold">{formatTime(set.restTime)}</span>
+              <div className="flex items-center justify-center gap-1 py-0.5 my-0.5 relative min-h-[1.2rem] overflow-hidden">
+                {/* Dots from center to both edges – nedtonet, bliver ligesom tiden */}
+                <div
+                  className="absolute top-0 bottom-0 right-1/2 w-1/2"
+                  style={{
+                    backgroundImage: 'radial-gradient(circle, var(--color-muted-mid) 0.75px, transparent 0.75px)',
+                    backgroundSize: '4px 1.2rem',
+                    backgroundPosition: '0 center',
+                    opacity: 0.6
+                  }}
+                />
+                <div
+                  className="absolute top-0 bottom-0 left-1/2 w-1/2"
+                  style={{
+                    backgroundImage: 'radial-gradient(circle, var(--color-muted-mid) 0.75px, transparent 0.75px)',
+                    backgroundSize: '4px 1.2rem',
+                    backgroundPosition: '0 center',
+                    opacity: 0.6
+                  }}
+                />
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-muted-strong relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span className="text-muted-mid text-xs font-semibold relative z-10">{formatTime(set.restTime)}</span>
               </div>
             )}
           </div>
