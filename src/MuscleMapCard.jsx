@@ -1,13 +1,6 @@
 import { useMemo } from 'react'
 import { MUSCLE_GROUPS } from './exerciseLibrary'
-
-// Web version: anatomisk-inspireret muscle map. Bruger jeres MUSCLE_GROUPS (chest, back, legs, shoulders, arms, core, cardio, mobility).
-const COLOR_PRIMARY = '#5BF5A0'   // success – primary
-const COLOR_SECONDARY = '#7B7BFF' // accent – secondary
-
-const MUSCLE_LABELS = Object.fromEntries(
-  Object.entries(MUSCLE_GROUPS).map(([id, g]) => [id, g.label])
-)
+import { formatMuscleLabel } from './utils'
 
 export default function MuscleMapCard({ primary = [], secondary = [] }) {
   const list = useMemo(() => {
@@ -22,32 +15,23 @@ export default function MuscleMapCard({ primary = [], secondary = [] }) {
   return (
     <div className="px-1 pt-3 pb-2">
       <div className="text-[9px] font-bold uppercase tracking-wider text-muted-strong mb-2">Muscles today</div>
-        <div className="flex flex-col gap-0.5">
-          {list.map(({ id, role }) => (
+      <div className="flex flex-col gap-0.5">
+        {list.map(({ id, role }) => {
+          const mg = MUSCLE_GROUPS[id]
+          const color = mg?.color ?? 'rgba(255,255,255,0.5)'
+          const bg = mg?.bg ?? 'rgba(255,255,255,0.05)'
+          const borderColor = mg ? `${color}4D` : 'rgba(255,255,255,0.1)'
+          return (
             <div key={id} className="flex items-center gap-2 py-1 border-b border-white/5 last:border-0">
-              <span
-                className="w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: role === 'primary' ? COLOR_PRIMARY : COLOR_SECONDARY }}
-              />
-              <span
-                className="text-[11px] font-semibold flex-1"
-                style={{ color: role === 'primary' ? COLOR_PRIMARY : COLOR_SECONDARY }}
-              >
-                {MUSCLE_LABELS[id] ?? id}
-              </span>
-              <span
-                className="text-[9px] font-bold px-2 py-0.5 rounded-md border"
-                style={{
-                  color: role === 'primary' ? COLOR_PRIMARY : COLOR_SECONDARY,
-                  borderColor: role === 'primary' ? 'rgba(91,245,160,0.3)' : 'rgba(123,123,255,0.3)',
-                  backgroundColor: role === 'primary' ? 'rgba(91,245,160,0.12)' : 'rgba(123,123,255,0.14)'
-                }}
-              >
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+              <span className="text-[11px] font-semibold flex-1" style={{ color }}>{mg?.label ?? formatMuscleLabel(id)}</span>
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-md border" style={{ color, borderColor, backgroundColor: bg }}>
                 {role === 'primary' ? 'Primary' : 'Secondary'}
               </span>
             </div>
-          ))}
-        </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

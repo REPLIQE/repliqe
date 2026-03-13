@@ -8,8 +8,9 @@ import SupersetWrapper from './SupersetWrapper'
 import LinkModeBanner from './LinkModeBanner'
 import RirSheet from './RirSheet'
 import MuscleMapCard from './MuscleMapCard'
-import { getDayMuscles } from './utils'
+import { getDayMuscles, getDayMusclesSlugs } from './utils'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
+import RecoverySection from './RecoverySection'
 
 const REST_PRESETS = [0, 30, 60, 90, 120, 180]
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -20,6 +21,17 @@ function PlayIcon({ className = 'w-3.5 h-3.5' }) {
 
 function RepliqeLogo({ size = 28 }) {
   return <svg width={size} height={size} viewBox="0 0 100 100" className="shrink-0"><rect x="8" y="5" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.9"/><rect x="54" y="5" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.9"/><rect x="8" y="37" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.7"/><rect x="54" y="37" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.7"/><rect x="8" y="69" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.5"/><rect x="54" y="69" width="38" height="26" rx="8" fill="#5BF5A0" opacity="0.9"/></svg>
+}
+
+function HomeMuscleTag({ muscleId }) {
+  const mg = MUSCLE_GROUPS[muscleId]
+  const label = mg?.label ?? muscleId
+  const style = mg ? { background: mg.bg, borderColor: `${mg.color}4D`, color: mg.color } : { background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }
+  return (
+    <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border" style={style}>
+      {label}
+    </span>
+  )
 }
 
 function MusclePills({ exercises, getExerciseFromLibrary }) {
@@ -126,6 +138,12 @@ function App() {
     const s = localStorage.getItem('repliqe_programmes')
     if (s) return JSON.parse(s)
     return []
+  })
+  const [muscleLastWorked, setMuscleLastWorked] = useState(() => {
+    try {
+      const s = localStorage.getItem('repliqe_muscleLastWorked')
+      return s ? JSON.parse(s) : {}
+    } catch { return {} }
   })
   const [routines, setRoutines] = useState(() => {
     const s = localStorage.getItem('repliqe_routines')
@@ -296,6 +314,7 @@ function App() {
 
   useEffect(() => { localStorage.setItem('repliqe_programmes', JSON.stringify(programmes)) }, [programmes])
   useEffect(() => { localStorage.setItem('repliqe_routines', JSON.stringify(routines)) }, [routines])
+  useEffect(() => { localStorage.setItem('repliqe_muscleLastWorked', JSON.stringify(muscleLastWorked)) }, [muscleLastWorked])
 
   useEffect(() => {
     if (!workoutActive || !workoutStartTime) return
@@ -1180,6 +1199,23 @@ function App() {
       suggestedNext: nextSuggested
     })
 
+    // Update muscleLastWorked: primary always overwrites; secondary only if not set (so primary stimulus wins)
+    const now = new Date().toISOString()
+    const nextMuscleLastWorked = { ...muscleLastWorked }
+    for (const ex of exercises) {
+      const lib = allLibraryExercises.find((e) => e.name === ex.name)
+      const m = lib?.muscles
+      if (m) {
+        ;(m.primary || []).forEach((slug) => { nextMuscleLastWorked[slug] = now })
+        ;(m.secondary || []).forEach((slug) => {
+          if (nextMuscleLastWorked[slug] == null) nextMuscleLastWorked[slug] = now
+        })
+      } else if (lib?.muscle) {
+        nextMuscleLastWorked[lib.muscle] = now
+      }
+    }
+    setMuscleLastWorked(nextMuscleLastWorked)
+
     // NOW save to history
     setHistory([workout, ...history])
     if (navigator.vibrate) navigator.vibrate([40, 40, 80])
@@ -1486,12 +1522,11 @@ function App() {
                 const estMin = setCountR ? Math.round(setCountR * 2.5) : 0
                 const selectedIdx = displayRtnId ? routineIds.indexOf(displayRtnId) : -1
 
+                const dayMuscles = displayRtn ? getDayMusclesSlugs(displayRtn.exercises || [], allLibraryExercises) : { primary: [], secondary: [] }
+
                 return (
                   <>
-                    <div className="flex flex-wrap items-baseline gap-2 mb-3">
-                      <span className="text-[13px] font-bold text-muted uppercase tracking-wider">Active Programme</span>
-                      <span className="text-text text-[17px] font-bold">{activeProgramme.name}</span>
-                    </div>
+                    <h2 className="text-[17px] font-bold text-text mb-3">{activeProgramme.name}</h2>
                     <div className="flex gap-1.5 mb-1">
                       {routineIds.map((rtnId) => {
                         const rtn = routines.find(r => r.id === rtnId)
@@ -1506,10 +1541,10 @@ function App() {
                             key={rtnId}
                             type="button"
                             onClick={() => rtn && setSelectedStartRoutineId(rtnId)}
-                            className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border-[1.5px] transition-colors ${isSelected ? 'border-success bg-success/5' : 'border-transparent bg-card hover:bg-card-alt hover:border-border-strong active:opacity-90'}`}
+                            className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border-[1.5px] transition-colors ${isSelected ? 'border-[rgba(0,229,160,0.4)] bg-[rgba(0,229,160,0.08)]' : 'border-transparent bg-card hover:bg-card-alt hover:border-border-strong active:opacity-90'}`}
                             style={isDone && !isSelected ? { opacity: 0.8 } : {}}
                           >
-                            <div className={`text-[11px] font-semibold truncate ${isSelected ? 'text-success' : isDone ? 'text-[#7a7a9a]' : 'text-muted'}`}>{rtn?.name || '—'}</div>
+                            <div className={`text-[11px] font-semibold truncate ${isSelected ? 'text-[#00e5a0]' : isDone ? 'text-[#7a7a9a]' : 'text-muted'}`}>{rtn?.name || '—'}</div>
                             {daysSinceText ? <div className="text-[9px] text-muted-deep mt-0.5">{daysSinceText}</div> : null}
                           </button>
                         )
@@ -1525,32 +1560,47 @@ function App() {
                       ))}
                     </div>
                     {displayRtn && (
-                    <div className="border-[1.5px] border-success/20 rounded-[14px] p-4 bg-success/5 mb-5">
-                      <div className="flex items-center gap-2 mb-1">
-                        {displayRtnId === nextRtnId && (
-                          <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-success/10 text-success animate-up-next-pulse">Up Next</span>
-                        )}
+                    <div className="border-[1.5px] border-[rgba(0,229,160,0.25)] rounded-[14px] p-4 bg-[rgba(0,229,160,0.05)] mb-5">
+                      {displayRtnId === nextRtnId && (
+                        <div className="inline-flex items-center rounded-full px-3 py-1 mb-3 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
+                          <span className="text-[11px] font-extrabold tracking-[0.8px] text-[#00e5a0]">UP NEXT</span>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-3 gap-2 mb-2">
+                        <div className="min-h-[72px] rounded-2xl border border-white/[0.06] bg-white/[0.03] flex flex-col items-center justify-center gap-0.5 p-3">
+                          <span className="text-[20px] font-extrabold text-text leading-none">{exCount}</span>
+                          <span className="text-[9px] font-bold tracking-wider uppercase text-white/40">Exercises</span>
+                        </div>
+                        <div className="min-h-[72px] rounded-2xl border border-white/[0.06] bg-white/[0.03] flex flex-col items-center justify-center gap-0.5 p-3">
+                          <span className="text-[20px] font-extrabold text-text leading-none">{setCountR}</span>
+                          <span className="text-[9px] font-bold tracking-wider uppercase text-white/40">Sets</span>
+                        </div>
+                        <div className="min-h-[72px] rounded-2xl border border-white/[0.06] bg-white/[0.03] flex flex-col items-center justify-center gap-0.5 p-3">
+                          <span className="text-[20px] font-extrabold text-text leading-none">{estMin}</span>
+                          <span className="text-[9px] font-bold tracking-wider uppercase text-white/40">EST. MINUTES</span>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-muted-strong mb-2">{exCount} exercises · {setCountR} sets · ~{estMin} min</div>
-                      {(() => {
-                        const { primary, secondary } = getDayMuscles(displayRtn.exercises || [], allLibraryExercises)
-                        return <MuscleMapCard primary={primary} secondary={secondary} />
-                      })()}
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {(displayRtn.exercises || []).map((ex, i) => (
-                          <span key={i} className="text-[10px] font-semibold text-muted-strong bg-white/5 px-2 py-0.5 rounded">{ex.exerciseId}</span>
-                        ))}
-                      </div>
-                      <button type="button" onClick={() => tryStart('routine', displayRtn)} className="w-full py-3.5 mt-3 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold flex items-center justify-center gap-1.5">
-                        <PlayIcon className="w-3.5 h-3.5" /> Start {displayRtn.name}
+                      <RecoverySection
+                        muscles={dayMuscles}
+                        muscleLastWorked={muscleLastWorked}
+                        dayName={displayRtn.name}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => tryStart('routine', displayRtn)}
+                        className="w-full py-4 rounded-2xl font-bold text-[15px] text-white flex items-center justify-center gap-2.5"
+                        style={{ background: 'linear-gradient(135deg, #7b7fff, #6060dd)', boxShadow: '0 8px 24px rgba(123,127,255,0.28)' }}
+                      >
+                        <span className="w-0 h-0 border-y-[5.5px] border-y-transparent border-l-[9px] border-l-white" style={{ marginLeft: 2 }} />
+                        Start {displayRtn.name}
                       </button>
                     </div>
                     )}
-                    <button type="button" onClick={startEmpty} className="w-full py-4 px-4 mt-0 border-2 border-accent/40 rounded-[14px] bg-accent/5 flex items-center gap-3">
-                      <span className="w-[38px] h-[38px] rounded-[10px] bg-accent/10 flex items-center justify-center text-accent text-lg font-bold">+</span>
+                    <button type="button" onClick={startEmpty} className="w-full mt-3 border border-[rgba(123,127,255,0.35)] rounded-2xl bg-[rgba(123,127,255,0.07)] p-4 flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-xl bg-[rgba(123,127,255,0.18)] flex items-center justify-center text-[22px] text-[#7b7fff] font-light shrink-0">+</div>
                       <div className="text-left">
-                        <div className="text-text text-sm font-bold">Empty Workout</div>
-                        <div className="text-[11px] text-muted-strong">Start fresh and add exercises as you go</div>
+                        <div className="text-sm font-bold text-text">Empty Workout</div>
+                        <div className="text-xs text-white/35 mt-0.5">Start fresh and add exercises as you go</div>
                       </div>
                     </button>
                   </>
