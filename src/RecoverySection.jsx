@@ -44,7 +44,10 @@ export default function RecoverySection({ muscles, muscleLastWorked, dayName }) 
         onClick={() => setModal(true)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setModal(true) } }}
       >
-        <div className="min-w-0 grid grid-cols-2 gap-1.5 items-center" style={{ gridRow: '1 / 2' }}>
+        <div
+          className="min-w-0 grid grid-cols-2 gap-y-1.5 gap-x-1.5 content-center"
+          style={{ gridRow: '1 / 2', minHeight: '7.5rem' }}
+        >
           {primary.map((slug) => {
             const colour = MUSCLE_COLOURS_HEX[slug] ?? '#888'
             const hex = colour.replace('#', '')

@@ -15,23 +15,35 @@ import RecoverySection from './RecoverySection'
 const REST_PRESETS = [0, 30, 60, 90, 120, 180]
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
-// Default programme for testing: 2 Split Push/Pull (Day 1 Push 8×4, Day 2 Pull 8×4)
+// Default programme for testing: 2 Split Push/Pull (Day 1 Push 8×4, Day 2 Pull 8×4). Each exercise has fixed kg/reps (same for all sets).
 function getDefault2SplitProgramme() {
   const progId = 'prog_default_2split'
   const rtnPushId = 'rtn_default_push'
   const rtnPullId = 'rtn_default_pull'
-  const fourSets = Array.from({ length: 4 }, () => ({ targetReps: '8-10', targetKg: '' }))
-  const pushExercises = [
-    'Barbell Bench Press', 'Incline Dumbbell Press', 'Dumbbell Flyes', 'Machine Chest Press',
-    'Barbell Overhead Press', 'Dumbbell Shoulder Press', 'Lateral Raise', 'Tricep Pushdown'
+  const setConfig = (kg, reps) => Array.from({ length: 4 }, () => ({ targetKg: String(kg), targetReps: String(reps) }))
+  const pushData = [
+    ['Barbell Bench Press', '60', '10'],
+    ['Incline Dumbbell Press', '22', '10'],
+    ['Dumbbell Flyes', '12', '12'],
+    ['Machine Chest Press', '40', '10'],
+    ['Barbell Overhead Press', '40', '8'],
+    ['Dumbbell Shoulder Press', '14', '10'],
+    ['Lateral Raise', '8', '15'],
+    ['Tricep Pushdown', '25', '10']
   ]
-  const pullExercises = [
-    'Barbell Row', 'Lat Pulldown', 'Seated Cable Row', 'Face Pull',
-    'Dumbbell Row', 'Pull-ups', 'Inverted Row', 'Barbell Curl'
+  const pullData = [
+    ['Barbell Row', '70', '8'],
+    ['Lat Pulldown', '45', '10'],
+    ['Seated Cable Row', '35', '10'],
+    ['Face Pull', '20', '15'],
+    ['Dumbbell Row', '28', '10'],
+    ['Pull-ups', '0', '10'],
+    ['Inverted Row', '0', '10'],
+    ['Barbell Curl', '20', '10']
   ]
   const routines = [
-    { id: rtnPushId, name: 'Day 1 Push', programmeId: progId, exercises: pushExercises.map(exerciseId => ({ exerciseId, setConfigs: fourSets, restOverride: null, rirOverride: null, note: '', supersetGroupId: null, supersetRole: null })) },
-    { id: rtnPullId, name: 'Day 2 Pull', programmeId: progId, exercises: pullExercises.map(exerciseId => ({ exerciseId, setConfigs: fourSets, restOverride: null, rirOverride: null, note: '', supersetGroupId: null, supersetRole: null })) }
+    { id: rtnPushId, name: 'Day 1 Push', programmeId: progId, exercises: pushData.map(([exerciseId, kg, reps]) => ({ exerciseId, setConfigs: setConfig(kg, reps), restOverride: null, rirOverride: null, note: '', supersetGroupId: null, supersetRole: null })) },
+    { id: rtnPullId, name: 'Day 2 Pull', programmeId: progId, exercises: pullData.map(([exerciseId, kg, reps]) => ({ exerciseId, setConfigs: setConfig(kg, reps), restOverride: null, rirOverride: null, note: '', supersetGroupId: null, supersetRole: null })) }
   ]
   const programme = { id: progId, name: '2 Split Push/Pull', type: 'rotation', routineIds: [rtnPushId, rtnPullId], isActive: true, currentIndex: 0 }
   return { programme, routines }
@@ -1168,7 +1180,7 @@ function App() {
     const routineUseCount = routineId ? history.filter(w => w.routineId === routineId).length + 1 : 0
     const templateUseCount = templateName ? countTemplateUses(templateName) : routineUseCount
 
-    const workout = { date: new Date().toLocaleDateString('en-GB'), name: workoutName, templateName: templateName || undefined, duration, exercises, routineId }
+    const workout = { date: new Date().toLocaleDateString('en-GB'), name: workoutName, templateName: templateName || undefined, duration, exercises: JSON.parse(JSON.stringify(exercises)), routineId }
 
     if (routineId && updateRoutineOrTemplate) {
       const newExercises = exercises.map(ex => ({
@@ -1415,8 +1427,27 @@ function App() {
   function formatTime(sec) { return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}` }
   function formatDuration(sec) { const m = Math.floor(sec/60); if (m < 60) return `${m} min`; const h = Math.floor(m/60); return `${h}h ${m%60}m` }
 
+  // WO estimate: 40 sec per set + rest between sets. Used in workout remaining and on home card.
+  const SET_SECONDS_DEFAULT = 40
+
+  function getEstimatedSecondsForRoutine(routine, defaultRestSec) {
+    if (!routine?.exercises?.length) return 0
+    let total = 0
+    let setIndex = 0
+    const totalSets = routine.exercises.reduce((s, e) => s + getSetConfigs(e).length, 0)
+    for (const ex of routine.exercises) {
+      const numSets = getSetConfigs(ex).length
+      const rest = ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : defaultRestSec
+      for (let i = 0; i < numSets; i++) {
+        total += SET_SECONDS_DEFAULT
+        setIndex++
+        if (setIndex < totalSets) total += rest
+      }
+    }
+    return total
+  }
+
   function getEstimatedSecondsRemaining() {
-    const SET_SECONDS_DEFAULT = 40
     const remaining = []
     exercises.forEach((ex) => {
       const type = ex.type || 'weight_reps'
@@ -1455,7 +1486,7 @@ function App() {
               <div className="bg-card border border-border rounded-2xl p-5 mb-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div><div className="text-3xl font-bold">{history.length}</div><div className="text-sm text-muted-mid">Workouts</div></div>
-                  <div><div className="text-3xl font-bold">{history.reduce((sum, w) => sum + w.exercises.reduce((s, ex) => s + ex.sets.length, 0), 0)}</div><div className="text-sm text-muted-mid">Sets logged</div></div>
+                  <div><div className="text-3xl font-bold">{history.reduce((sum, w) => sum + w.exercises.reduce((s, ex) => s + (ex.sets || []).filter(set => set.done === true).length, 0), 0)}</div><div className="text-sm text-muted-mid">Sets logged</div></div>
                 </div>
               </div>
               {history.length > 0 ? (
@@ -1464,8 +1495,8 @@ function App() {
                   {history.slice(0, 10).map((w, i) => (
                     <div key={i} className="bg-card border border-border rounded-xl p-4 mb-3">
                       <div className="flex justify-between items-center mb-2"><span className="text-base font-bold">{w.name || w.date}</span><span className="text-sm text-muted-mid">{relativeTime(w.date)}</span></div>
-                      <div className="flex items-center gap-3 mb-2 text-sm text-muted-mid">{w.duration && <span>{formatDuration(w.duration)}</span>}<span>{w.exercises.reduce((s, ex) => s + ex.sets.length, 0)} sets</span></div>
-                      {w.exercises.map((ex, j) => <div key={j} className="text-sm text-muted-strong ml-1">{ex.name} — {ex.sets.length} sets</div>)}
+                      <div className="flex items-center gap-3 mb-2 text-sm text-muted-mid">{w.duration && <span>{formatDuration(w.duration)}</span>}<span>{w.exercises.reduce((s, ex) => s + (ex.sets || []).filter(set => set.done === true).length, 0)} sets</span></div>
+                      {w.exercises.map((ex, j) => <div key={j} className="text-sm text-muted-strong ml-1">{ex.name} — {(ex.sets || []).filter(set => set.done === true).length} sets</div>)}
                     </div>
                   ))}
                 </div>
@@ -1549,7 +1580,7 @@ function App() {
                 const displayRtn = displayRtnId ? routines.find(r => r.id === displayRtnId) : null
                 const exCount = displayRtn?.exercises?.length ?? 0
                 const setCountR = displayRtn?.exercises?.reduce((s, e) => s + getSetConfigs(e).length, 0) ?? 0
-                const estMin = setCountR ? Math.round(setCountR * 2.5) : 0
+                const estMin = displayRtn ? Math.round(getEstimatedSecondsForRoutine(displayRtn, defaultRest) / 60) : 0
                 const selectedIdx = displayRtnId ? routineIds.indexOf(displayRtnId) : -1
 
                 const dayMuscles = displayRtn ? getDayMusclesSlugs(displayRtn.exercises || [], allLibraryExercises) : { primary: [], secondary: [] }
