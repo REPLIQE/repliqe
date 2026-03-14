@@ -56,16 +56,24 @@ function normalizeImage(input) {
   })
 }
 
-/** Load a stored photo as a data URL. Uses Capacitor Filesystem when available; on web falls back to localStorage. */
+/** Load a stored photo as a data URL. Tries Capacitor Data, then Cache, then localStorage. */
 export async function loadPhotoSrc(filename) {
   if (!filename) return null
   try {
     const { Filesystem, Directory } = await import('@capacitor/filesystem')
-    const result = await Filesystem.readFile({
-      path: filename,
-      directory: Directory.Data,
-    })
-    return `data:image/jpeg;base64,${result.data}`
+    try {
+      const result = await Filesystem.readFile({
+        path: filename,
+        directory: Directory.Data,
+      })
+      return `data:image/jpeg;base64,${result.data}`
+    } catch {
+      const result = await Filesystem.readFile({
+        path: filename,
+        directory: Directory.Cache,
+      })
+      return `data:image/jpeg;base64,${result.data}`
+    }
   } catch {
     try {
       const raw = localStorage.getItem(WEB_PHOTO_STORAGE_KEY)
@@ -81,6 +89,39 @@ export async function loadPhotoSrc(filename) {
 
 async function savePhoto(base64Data, filename) {
   const clean = base64Data.replace(/^data:image\/\w+;base64,/, '')
+  const isNative = isNativePlatform()
+  if (isNative) {
+    try {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem')
+      await Filesystem.writeFile({
+        path: filename,
+        data: clean,
+        directory: Directory.Data,
+      })
+      return filename
+    } catch (dataErr) {
+      try {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem')
+        await Filesystem.writeFile({
+          path: filename,
+          data: clean,
+          directory: Directory.Cache,
+        })
+        return filename
+      } catch (cacheErr) {
+        try {
+          const raw = localStorage.getItem(WEB_PHOTO_STORAGE_KEY) || '{}'
+          const data = JSON.parse(raw)
+          data[filename] = clean
+          localStorage.setItem(WEB_PHOTO_STORAGE_KEY, JSON.stringify(data))
+          return filename
+        } catch {
+          console.error('Save photo (native) Data/Cache/localStorage failed:', dataErr, cacheErr)
+          throw new Error('Could not save photo')
+        }
+      }
+    }
+  }
   try {
     const { Filesystem, Directory } = await import('@capacitor/filesystem')
     await Filesystem.writeFile({
@@ -158,15 +199,24 @@ export default function PhotosModal({
   async function saveAndAdvanceWithBase64(base64) {
     if (!base64) return
     const angle = ANGLES[captureStep]
-    let normalized = base64
-    try {
-      normalized = await normalizeImage(base64)
-    } catch {
-      normalized = base64.replace(/^data:image\/\w+;base64,/, '') || base64
+    let normalized = base64.replace(/^data:image\/\w+;base64,/, '') || base64
+    // On native (iOS/Android) skip canvas normalization to avoid WebView issues; Camera already returns JPEG
+    if (!isNative) {
+      try {
+        normalized = await normalizeImage(base64)
+      } catch {
+        normalized = base64.replace(/^data:image\/\w+;base64,/, '') || base64
+      }
     }
     const sessionId = capturedImages._sessionId ?? `ps_${Date.now()}`
     const filename = `${sessionId}_${angle.key}.jpg`
-    await savePhoto(normalized, filename)
+    try {
+      await savePhoto(normalized, filename)
+    } catch (err) {
+      console.error('Save photo failed:', err)
+      if (typeof alert !== 'undefined') alert('Could not save photo. Try again.')
+      return
+    }
     const updated = { ...capturedImages, _sessionId: sessionId, [angle.key]: filename }
     setCapturedImages(updated)
     setCaptureStep((prev) => prev + 1)
@@ -292,33 +342,59 @@ export default function PhotosModal({
           )}
         </div>
         <div className="px-6 pb-12 flex flex-col gap-3">
+          {/* Web: use label+input so click opens file picker reliably (no programmatic click) */}
           <input
+            id="photos-camera-input"
             ref={inputCameraRef}
             type="file"
             accept="image/*"
             capture="environment"
-            className="hidden"
+            className="sr-only"
+            aria-hidden
             onChange={handleFileSelected}
           />
           <input
+            id="photos-library-input"
             ref={inputLibraryRef}
             type="file"
             accept="image/*"
-            className="hidden"
+            className="sr-only"
+            aria-hidden
             onChange={handleFileSelected}
           />
-          <button
-            onClick={() => handleCaptureAngle('camera')}
-            className="w-full py-4 rounded-2xl font-bold text-sm bg-white text-black"
-          >
-            Take {currentAngle.label} photo
-          </button>
-          <button
-            onClick={() => handleCaptureAngle('library')}
-            className="w-full py-4 rounded-2xl font-bold text-sm bg-white/90 text-black border border-white/50"
-          >
-            Choose from library
-          </button>
+          {isNative ? (
+            <>
+              <button
+                type="button"
+                onClick={() => handleCaptureAngle('camera')}
+                className="w-full py-4 rounded-2xl font-bold text-sm bg-white text-black"
+              >
+                Take {currentAngle.label} photo
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCaptureAngle('library')}
+                className="w-full py-4 rounded-2xl font-bold text-sm bg-white/90 text-black border border-white/50"
+              >
+                Choose from library
+              </button>
+            </>
+          ) : (
+            <>
+              <label
+                htmlFor="photos-camera-input"
+                className="w-full py-4 rounded-2xl font-bold text-sm bg-white text-black text-center cursor-pointer block"
+              >
+                Take {currentAngle.label} photo
+              </label>
+              <label
+                htmlFor="photos-library-input"
+                className="w-full py-4 rounded-2xl font-bold text-sm bg-white/90 text-black border border-white/50 text-center cursor-pointer block"
+              >
+                Choose from library
+              </label>
+            </>
+          )}
           <button onClick={skipAngle} className="w-full py-3 text-sm font-semibold text-white/50">
             Skip {currentAngle.label}
           </button>
