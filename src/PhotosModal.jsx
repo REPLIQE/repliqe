@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { groupPhotoSessionsByMonth, getOldestMiddleNewestSessions } from './progressUtils'
 
 const TOTAL_FREE_PHOTOS = 24
 const WEB_PHOTO_STORAGE_KEY = 'repliqe_photoData'
@@ -10,6 +11,37 @@ const ANGLES = [
 
 const MAX_PHOTO_PX = 800
 const PHOTO_QUALITY = 0.88
+
+function getTodayEnGB() {
+  return new Date().toLocaleDateString('en-GB')
+}
+
+/** "dd/mm/yyyy" → "yyyy-mm-dd" for <input type="date"> */
+function enGBToDateInput(enGB) {
+  const parts = (enGB || '').split('/')
+  if (parts.length !== 3) return ''
+  const [d, m, y] = parts
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+}
+
+/** "yyyy-mm-dd" → "dd/mm/yyyy" */
+function dateInputToEnGB(value) {
+  if (!value) return getTodayEnGB()
+  const parts = value.split('-')
+  if (parts.length !== 3) return getTodayEnGB()
+  const [y, m, d] = parts
+  return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`
+}
+
+/** Sort sessions by session date (newest first). Uses date string dd/mm/yyyy. */
+function sortSessionsByDate(sessions) {
+  if (!Array.isArray(sessions) || sessions.length === 0) return []
+  return [...sessions].sort((a, b) => {
+    const da = enGBToDateInput(a?.date || '')
+    const db = enGBToDateInput(b?.date || '')
+    return db.localeCompare(da)
+  })
+}
 
 function isNativePlatform() {
   if (typeof window === 'undefined') return false
@@ -149,23 +181,47 @@ export default function PhotosModal({
   totalPhotos = 0,
   atLimit = false,
   onClose,
+  weightLog = [],
+  muscleMassLog = [],
+  unitWeight = 'kg',
+  openToAdd = false,
 }) {
   const [view, setView] = useState('timeline')
   const [capturing, setCapturing] = useState(false)
   const [captureStep, setCaptureStep] = useState(0)
   const [capturedImages, setCapturedImages] = useState({})
-  const [poseGuideEnabled, setPoseGuideEnabled] = useState(true)
+  const [captureSessionDate, setCaptureSessionDate] = useState(() => getTodayEnGB())
   const [compareA, setCompareA] = useState(photoSessions[0]?.id ?? null)
   const [compareB, setCompareB] = useState(
     photoSessions.length > 1 ? photoSessions[photoSessions.length - 1].id : null
   )
   const [compareAngle, setCompareAngle] = useState('front')
+  const [showAllSessions, setShowAllSessions] = useState(false)
   const [thumbs, setThumbs] = useState({})
   const inputCameraRef = useRef(null)
   const inputLibraryRef = useRef(null)
+  const dateInputRef = useRef(null)
+  const initialPhotoSessionsRef = useRef(null)
 
   const canAddPhotos = typeof setPhotoSessions === 'function'
   const isNative = isNativePlatform()
+
+  useEffect(() => {
+    initialPhotoSessionsRef.current = JSON.stringify(photoSessions)
+  }, [])
+
+  useEffect(() => {
+    if (openToAdd && canAddPhotos && !atLimit) {
+      setCapturing(true)
+      setCaptureStep(0)
+      setCapturedImages({})
+      setCaptureSessionDate(getTodayEnGB())
+    }
+  }, [openToAdd, canAddPhotos, atLimit])
+
+  const hasChanges =
+    initialPhotoSessionsRef.current !== null &&
+    JSON.stringify(photoSessions) !== initialPhotoSessionsRef.current
 
   useEffect(() => {
     photoSessions.forEach((session) => {
@@ -277,10 +333,9 @@ export default function PhotosModal({
 
   function finishCapture() {
     const { _sessionId, ...angles } = capturedImages
-    const today = new Date().toLocaleDateString('en-GB')
     const newSession = {
       id: _sessionId ?? `ps_${Date.now()}`,
-      date: today,
+      date: captureSessionDate,
       front: angles.front ?? null,
       back: angles.back ?? null,
       side: angles.side ?? null,
@@ -307,64 +362,124 @@ export default function PhotosModal({
 
     if (isDone) {
       return (
-        <div className="fixed inset-0 bg-page z-50 flex flex-col items-center justify-center px-6">
+        <div className="fixed inset-0 z-50 flex justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[4px]" aria-hidden />
+          <div className="relative w-full max-w-md h-full flex flex-col items-center justify-center px-6 bg-page">
           <div className="w-16 h-16 rounded-full bg-success/12 flex items-center justify-center mb-6">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-8 h-8 stroke-success">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
           <h2 className="text-xl font-bold text-text mb-2">Photos saved</h2>
-          <p className="text-sm text-muted text-center mb-8">
+          <p className="text-sm text-muted text-center mb-4">
             {Object.values(capturedImages).filter((v) => v && v !== capturedImages._sessionId).length} photos taken
           </p>
+          <div className="w-full max-w-sm mb-6">
+            <input
+              ref={dateInputRef}
+              type="date"
+              value={enGBToDateInput(captureSessionDate)}
+              onChange={(e) => {
+                const newDate = dateInputToEnGB(e.target.value)
+                setCaptureSessionDate(newDate)
+                const sid = capturedImages._sessionId
+                if (sid && typeof setPhotoSessions === 'function') {
+                  setPhotoSessions((prev) =>
+                    (prev || []).map((s) => (s.id === sid ? { ...s, date: newDate } : s))
+                  )
+                }
+              }}
+              className="absolute opacity-0 w-0 h-0 pointer-events-none"
+              aria-hidden
+            />
+            <button
+              type="button"
+              onClick={() => dateInputRef.current?.showPicker?.() ?? dateInputRef.current?.click()}
+              className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-border-strong bg-card-alt hover:border-accent/50 hover:bg-card transition-colors text-left"
+            >
+              <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-accent">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-0.5">Session date</div>
+                <div className="text-base font-bold text-text">{captureSessionDate}</div>
+                <div className="text-[11px] text-accent font-semibold mt-0.5">Tap to change date</div>
+              </div>
+            </button>
+          </div>
           <button
             onClick={finishCapture}
             className="w-full max-w-sm py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
           >
             Done
           </button>
+          </div>
         </div>
       )
     }
 
     return (
-      <div className="fixed inset-0 bg-black z-50 flex flex-col">
-        <div className="flex gap-2 px-6 pt-12 pb-4">
+      <div className="fixed inset-0 z-50 flex justify-center">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-[4px]" aria-hidden />
+        <div className="relative w-full max-w-md h-full flex flex-col bg-page">
+        <div className="flex gap-2 px-6 pt-12 pb-2">
           {ANGLES.map((a, i) => (
             <div
               key={a.key}
               className={`flex-1 h-1 rounded-full ${
-                i < captureStep ? 'bg-success' : i === captureStep ? 'bg-white' : 'bg-white/20'
+                i < captureStep ? 'bg-success' : i === captureStep ? 'bg-accent' : 'bg-card-alt'
               }`}
             />
           ))}
         </div>
+        <div className="px-6 pb-3">
+          <input
+            ref={dateInputRef}
+            type="date"
+            value={enGBToDateInput(captureSessionDate)}
+            onChange={(e) => {
+              const newDate = dateInputToEnGB(e.target.value)
+              setCaptureSessionDate(newDate)
+              const sid = capturedImages._sessionId
+              if (sid && typeof setPhotoSessions === 'function') {
+                setPhotoSessions((prev) =>
+                  (prev || []).map((s) => (s.id === sid ? { ...s, date: newDate } : s))
+                )
+              }
+            }}
+            className="absolute opacity-0 w-0 h-0 pointer-events-none"
+            aria-hidden
+          />
+          <button
+            type="button"
+            onClick={() => dateInputRef.current?.showPicker?.() ?? dateInputRef.current?.click()}
+            className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-dashed border-border-strong bg-card-alt hover:border-accent/50 hover:bg-card transition-colors text-left"
+          >
+            <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-accent">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-0.5">Session date</div>
+              <div className="text-sm font-bold text-text">{captureSessionDate}</div>
+              <div className="text-[11px] text-accent font-semibold mt-0.5">Tap to change date</div>
+            </div>
+          </button>
+        </div>
         <div className="flex-1 flex flex-col items-center justify-center px-6">
-          <div className="text-white text-2xl font-extrabold mb-1">{currentAngle.label}</div>
-          <div className="text-white/50 text-sm mb-8">
+          <div className="text-text text-2xl font-extrabold mb-1">{currentAngle.label}</div>
+          <div className="text-muted text-sm mb-8">
             Step {captureStep + 1} of {ANGLES.length}
           </div>
-          {poseGuideEnabled && (
-            <div className="relative w-48 h-80 mb-8">
-              <div className="absolute inset-0 border-2 border-white/20 rounded-3xl" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <svg width="80" height="160" viewBox="0 0 50 90" fill="none">
-                  <ellipse cx="25" cy="14" rx="10" ry="11" fill="rgba(255,255,255,0.15)" />
-                  <path
-                    d={
-                      currentAngle.key === 'side'
-                        ? 'M20 35 Q18 24 28 24 Q40 24 40 35 L43 70 Q43 74 39 74 L35 74 L33 90 L20 90 L18 74 L14 74 Q12 74 13 70 Z'
-                        : 'M10 35 Q10 24 25 24 Q40 24 40 35 L43 70 Q43 74 39 74 L34 74 L32 90 L18 90 L16 74 L11 74 Q7 74 7 70 Z'
-                    }
-                    fill="rgba(255,255,255,0.15)"
-                  />
-                </svg>
-              </div>
-              <div className="absolute bottom-3 left-0 right-0 text-center text-xs text-white/40 font-semibold">
-                Align yourself with the guide
-              </div>
-            </div>
-          )}
         </div>
         <div className="px-6 pb-12 flex flex-col gap-3">
           {isNative ? (
@@ -372,21 +487,20 @@ export default function PhotosModal({
               <button
                 type="button"
                 onClick={() => handleCaptureAngle('camera')}
-                className="w-full py-4 rounded-2xl font-bold text-sm bg-white text-black"
+                className="w-full py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
               >
                 Take {currentAngle.label} photo
               </button>
               <button
                 type="button"
                 onClick={() => handleCaptureAngle('library')}
-                className="w-full py-4 rounded-2xl font-bold text-sm bg-white/90 text-black border border-white/50"
+                className="w-full py-4 rounded-2xl font-bold text-sm bg-card border border-border-strong text-text"
               >
                 Choose from library
               </button>
             </>
           ) : (
             <>
-              {/* Web: label wraps input so click reliably opens file picker (Safari/Mac) */}
               <label className="relative w-full block cursor-pointer">
                 <input
                   ref={inputCameraRef}
@@ -397,7 +511,7 @@ export default function PhotosModal({
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   style={{ fontSize: 0 }}
                 />
-                <span className="block w-full py-4 rounded-2xl font-bold text-sm bg-white text-black text-center pointer-events-none">
+                <span className="block w-full py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent text-center pointer-events-none">
                   Take {currentAngle.label} photo
                 </span>
               </label>
@@ -410,13 +524,13 @@ export default function PhotosModal({
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   style={{ fontSize: 0 }}
                 />
-                <span className="block w-full py-4 rounded-2xl font-bold text-sm bg-white/90 text-black border border-white/50 text-center pointer-events-none">
+                <span className="block w-full py-4 rounded-2xl font-bold text-sm bg-card border border-border-strong text-text text-center pointer-events-none">
                   Choose from library
                 </span>
               </label>
             </>
           )}
-          <button onClick={skipAngle} className="w-full py-3 text-sm font-semibold text-white/50">
+          <button onClick={skipAngle} className="w-full py-3 text-sm font-semibold text-muted">
             Skip {currentAngle.label}
           </button>
           <button
@@ -425,10 +539,11 @@ export default function PhotosModal({
               setCaptureStep(0)
               setCapturedImages({})
             }}
-            className="w-full py-3 text-sm font-semibold text-white/30"
+            className="w-full py-3 text-sm font-semibold text-muted border border-border rounded-lg"
           >
             Cancel
           </button>
+        </div>
         </div>
       </div>
     )
@@ -437,26 +552,8 @@ export default function PhotosModal({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-50 flex items-end justify-center">
       <div className="w-full max-w-md bg-page rounded-t-[20px] max-h-[92vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
+        <div className="px-5 pt-4 pb-3 border-b border-border shrink-0">
           <h2 className="text-[18px] font-extrabold text-text">Photos</h2>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setPoseGuideEnabled((prev) => !prev)}
-              className={`text-[10px] font-bold uppercase tracking-[0.5px] px-2 py-1 rounded-md ${
-                poseGuideEnabled
-                  ? 'bg-accent/10 text-accent border border-accent/25'
-                  : 'bg-card-alt text-muted border border-border'
-              }`}
-            >
-              Guide {poseGuideEnabled ? 'on' : 'off'}
-            </button>
-            <button
-              onClick={onClose}
-              className="w-7 h-7 rounded-full bg-card-alt flex items-center justify-center text-muted text-sm"
-            >
-              ✕
-            </button>
-          </div>
         </div>
 
         <div className="flex px-5 pt-3 pb-2 gap-2 shrink-0">
@@ -473,39 +570,76 @@ export default function PhotosModal({
           ))}
         </div>
 
+        {/* Top section: Exit/Save to progress first, then Add photos, then counter */}
+        {view === 'timeline' && canAddPhotos && (
+          <div className="shrink-0 px-5 pb-3 space-y-2">
+            <button
+              onClick={onClose}
+              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
+            >
+              {hasChanges ? 'Save to progress' : 'Exit'}
+            </button>
+            <button
+              onClick={() => {
+                if (atLimit) {
+                  alert(`You've reached the ${TOTAL_FREE_PHOTOS} photo limit. Delete a session to add more, or unlock unlimited storage.`)
+                  return
+                }
+                setCapturing(true)
+                setCaptureStep(0)
+                setCapturedImages({})
+                setCaptureSessionDate(getTodayEnGB())
+              }}
+              className="w-full py-3 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-text"
+            >
+              + Add photos
+            </button>
+            <div className="flex items-center gap-3 bg-card border border-border rounded-[12px] p-[11px_14px]">
+              <span className="text-[10px] text-muted font-semibold whitespace-nowrap">
+                {(totalPhotos || photoSessions.reduce((s, sess) => s + [sess.front, sess.back, sess.side].filter(Boolean).length, 0))} / {TOTAL_FREE_PHOTOS}
+              </span>
+              <div className="flex-1 h-[3px] bg-card-alt rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-accent rounded-full"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      ((totalPhotos || photoSessions.reduce((s, sess) => s + [sess.front, sess.back, sess.side].filter(Boolean).length, 0)) /
+                        TOTAL_FREE_PHOTOS) *
+                        100
+                    )}%`,
+                  }}
+                />
+              </div>
+              {atLimit && (
+                <button
+                  disabled
+                  className="text-[10px] font-bold text-accent border border-accent/25 rounded-[6px] px-2 py-1 cursor-not-allowed"
+                >
+                  Unlock ∞
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {(view === 'compare' || (view === 'timeline' && !canAddPhotos)) && (
+          <div className="shrink-0 px-5 pb-3">
+            <button
+              onClick={onClose}
+              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
+            >
+              {hasChanges ? 'Save to progress' : 'Exit'}
+            </button>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto px-5 pb-6 min-h-0">
           {view === 'timeline' && (
             <>
-              {canAddPhotos && (
-                <div className="flex items-center gap-3 mb-4 bg-card border border-border rounded-[12px] p-[11px_14px]">
-                  <span className="text-[10px] text-muted font-semibold whitespace-nowrap">
-                    {(totalPhotos || photoSessions.reduce((s, sess) => s + [sess.front, sess.back, sess.side].filter(Boolean).length, 0))} / {TOTAL_FREE_PHOTOS}
-                  </span>
-                  <div className="flex-1 h-[3px] bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-accent rounded-full"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          ((totalPhotos || photoSessions.reduce((s, sess) => s + [sess.front, sess.back, sess.side].filter(Boolean).length, 0)) /
-                            TOTAL_FREE_PHOTOS) *
-                            100
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                  {atLimit && (
-                    <button
-                      disabled
-                      className="text-[10px] font-bold text-accent border border-accent/25 rounded-[6px] px-2 py-1 cursor-not-allowed"
-                    >
-                      Unlock ∞
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {[...photoSessions].reverse().map((session) => (
+              {(photoSessions.length <= 3 || showAllSessions
+                ? sortSessionsByDate(photoSessions)
+                : [...getOldestMiddleNewestSessions(photoSessions)].reverse()
+              ).map((session) => (
                 <div key={session.id} className="mb-5">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-bold text-muted uppercase tracking-[0.8px]">
@@ -514,7 +648,7 @@ export default function PhotosModal({
                     {canAddPhotos && (
                       <button
                         onClick={() => deleteSession(session.id)}
-                        className="text-[10px] text-[#ff6b6b] font-semibold"
+                        className="text-[10px] text-red-400 font-semibold"
                       >
                         Delete session
                       </button>
@@ -537,7 +671,7 @@ export default function PhotosModal({
                         ) : (
                           <span className="text-[9px] text-muted font-semibold">—</span>
                         )}
-                        <span className="absolute bottom-1.5 left-0 right-0 text-center text-[8px] font-bold text-white/25 uppercase">
+                        <span className="absolute bottom-1.5 left-0 right-0 text-center text-[8px] font-bold text-muted uppercase">
                           {label}
                         </span>
                       </div>
@@ -545,21 +679,13 @@ export default function PhotosModal({
                   </div>
                 </div>
               ))}
-
-              {canAddPhotos && (
+              {view === 'timeline' && photoSessions.length > 3 && (
                 <button
-                  onClick={() => {
-                    if (atLimit) {
-                      alert(`You've reached the ${TOTAL_FREE_PHOTOS} photo limit. Delete a session to add more, or unlock unlimited storage.`)
-                      return
-                    }
-                    setCapturing(true)
-                    setCaptureStep(0)
-                    setCapturedImages({})
-                  }}
-                  className="w-full py-3 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-text"
+                  type="button"
+                  onClick={() => setShowAllSessions((v) => !v)}
+                  className="w-full py-3 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-accent"
                 >
-                  + Add photos
+                  {showAllSessions ? 'Show only 3 (newest, middle, oldest)' : `See all ${photoSessions.length} sessions`}
                 </button>
               )}
             </>
@@ -573,87 +699,111 @@ export default function PhotosModal({
                 </div>
               ) : (
                 <>
-                  {['A', 'B'].map((label, idx) => {
-                    const currentId = idx === 0 ? compareA : compareB
-                    const setCurrent = idx === 0 ? setCompareA : setCompareB
-                    return (
-                      <div key={label} className="mb-3">
-                        <div className="text-[10px] font-bold text-muted uppercase tracking-[0.8px] mb-2">
-                          {label === 'A' ? 'Before' : 'After'}
-                        </div>
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                          {photoSessions.map((session) => (
-                            <button
-                              key={session.id}
-                              onClick={() => setCurrent(session.id)}
-                              className={`shrink-0 flex flex-col items-center gap-1 p-2 rounded-[10px] border transition-all ${
-                                currentId === session.id ? 'border-accent bg-accent/8' : 'border-border bg-card'
-                              }`}
-                            >
-                              <div className="w-14 h-20 rounded-[6px] overflow-hidden bg-card-deep flex items-center justify-center">
-                                {thumbs[session.front] ? (
-                                  <img
-                                    src={thumbs[session.front]}
-                                    alt=""
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <span className="text-[9px] text-muted">—</span>
-                                )}
-                              </div>
-                              <span
-                                className={`text-[9px] font-bold ${
-                                  currentId === session.id ? 'text-accent' : 'text-muted'
-                                }`}
-                              >
-                                {session.date}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  <div className="flex gap-2 mb-4">
-                    {ANGLES.map(({ key, label }) => (
-                      <button
-                        key={key}
-                        onClick={() => setCompareAngle(key)}
-                        className={`flex-1 py-2 rounded-[8px] text-[11px] font-bold ${
-                          compareAngle === key ? 'bg-card-alt border border-border-strong text-text' : 'text-muted'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                  <div className="text-[10px] font-bold text-muted uppercase tracking-[0.8px] mb-2">
+                    Choose before and after date
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {[sessionA, sessionB].map((session, i) => (
-                      <div key={i} className="flex flex-col gap-1">
-                        <div className="aspect-[0.72] bg-card rounded-[12px] overflow-hidden flex items-center justify-center">
-                          {session?.[compareAngle] && thumbs[session[compareAngle]] ? (
-                            <img
-                              src={thumbs[session[compareAngle]]}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <svg width="40" height="72" viewBox="0 0 50 90" fill="none">
-                              <ellipse cx="25" cy="14" rx="10" ry="11" fill="rgba(255,255,255,0.07)" />
-                              <path
-                                d="M10 35 Q10 24 25 24 Q40 24 40 35 L43 70 Q43 74 39 74 L34 74 L32 90 L18 90 L16 74 L11 74 Q7 74 7 70 Z"
-                                fill="rgba(255,255,255,0.07)"
-                              />
-                            </svg>
+                  <div className="flex gap-2 mb-3">
+                    {['A', 'B'].map((label, idx) => {
+                      const currentId = idx === 0 ? compareA : compareB
+                      const setCurrent = idx === 0 ? setCompareA : setCompareB
+                      const currentSession = idx === 0 ? sessionA : sessionB
+                      return (
+                        <div key={label} className="flex-1 min-w-0">
+                          <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1.5">
+                            {label === 'A' ? 'Before' : 'After'}
+                          </div>
+                          <div className="space-y-2.5 max-h-[160px] overflow-y-auto">
+                            {groupPhotoSessionsByMonth(photoSessions).map(({ monthLabel, sessions }) => (
+                              <div key={monthLabel} className="rounded-lg border border-border bg-card-alt/50 py-1.5 px-2">
+                                <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1.5 sticky top-0 bg-card-alt/80 py-0.5 -mx-0.5 px-0.5">
+                                  {monthLabel}
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {sessions.map((session) => (
+                                    <button
+                                      key={session.id}
+                                      type="button"
+                                      onClick={() => setCurrent(session.id)}
+                                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border ${
+                                        currentId === session.id ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card-alt text-muted'
+                                      }`}
+                                    >
+                                      {session.date}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {currentSession && (
+                            <div className="mt-1.5 text-[10px] font-semibold text-text truncate">
+                              {currentSession.date}
+                            </div>
                           )}
                         </div>
-                        <span className="text-[9px] font-bold text-muted text-center">
-                          {session?.date ?? '—'}
-                        </span>
-                      </div>
-                    ))}
+                      )
+                    })}
+                  </div>
+
+                  <div className="border-t border-border pt-3 mt-3">
+                    <div className="text-[10px] font-bold text-muted uppercase tracking-[0.8px] mb-2">
+                      View angle (when dates chosen)
+                    </div>
+                    <div className="flex gap-2 mb-3">
+                      {ANGLES.map(({ key, label }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setCompareAngle(key)}
+                          className={`flex-1 py-2 rounded-[8px] text-[11px] font-bold ${
+                            compareAngle === key ? 'bg-card-alt border border-border-strong text-text' : 'text-muted'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {[sessionA, sessionB].map((session, i) => {
+                        const weightEntry = Array.isArray(weightLog) && session?.date
+                          ? weightLog.find((e) => e.date === session.date)
+                          : null
+                        const muscleEntry = Array.isArray(muscleMassLog) && session?.date
+                          ? muscleMassLog.find((e) => e.date === session.date)
+                          : null
+                        const statsLine = [weightEntry?.value != null && `Weight ${weightEntry.value} ${unitWeight}`, muscleEntry?.value != null && `Muscle ${muscleEntry.value}%`].filter(Boolean).join(' · ')
+                        return (
+                          <div key={i} className="flex flex-col gap-1">
+                            <div className="aspect-[0.72] bg-card rounded-[12px] overflow-hidden flex items-center justify-center">
+                              {session?.[compareAngle] && thumbs[session[compareAngle]] ? (
+                                <img
+                                  src={thumbs[session[compareAngle]]}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <svg width="40" height="72" viewBox="0 0 50 90" fill="none" className="text-muted">
+                                  <ellipse cx="25" cy="14" rx="10" ry="11" fill="currentColor" />
+                                  <path
+                                    d="M10 35 Q10 24 25 24 Q40 24 40 35 L43 70 Q43 74 39 74 L34 74 L32 90 L18 90 L16 74 L11 74 Q7 74 7 70 Z"
+                                    fill="currentColor"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            <span className="text-[9px] font-bold text-muted text-center">
+                              {session?.date ?? '—'}
+                            </span>
+                            {statsLine ? (
+                              <span className="text-[9px] text-muted text-center">
+                                {statsLine}
+                              </span>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 </>
               )}

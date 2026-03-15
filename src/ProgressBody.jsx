@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import PhotosModal from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
+import { sortPhotoSessionsByDate } from './progressUtils'
+import { TransformCard } from './TransformCard'
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 const MEASUREMENTS = [
@@ -35,6 +37,10 @@ export default function ProgressBody({
   const [showAddMuscleMass, setShowAddMuscleMass] = useState(false)
   const [showAddMeasurements, setShowAddMeasurements] = useState(false)
   const [showPhotos, setShowPhotos] = useState(false)
+  const [openPhotosToAdd, setOpenPhotosToAdd] = useState(false)
+  const [compareAId, setCompareAId] = useState(null)
+  const [compareBId, setCompareBId] = useState(null)
+  const [showComparePicker, setShowComparePicker] = useState(null)
   const [newWeight, setNewWeight] = useState('')
   const [newBF, setNewBF] = useState('')
   const [newMuscleMass, setNewMuscleMass] = useState('')
@@ -58,6 +64,22 @@ export default function ProgressBody({
     0
   )
   const atLimit = totalPhotos >= TOTAL_FREE_PHOTOS
+
+  const sortedPhotoSessions = sortPhotoSessionsByDate(safePhotoSessions)
+  const oldestSession = sortedPhotoSessions.length > 0 ? sortedPhotoSessions[sortedPhotoSessions.length - 1] : null
+  const newestSession = sortedPhotoSessions.length > 0 ? sortedPhotoSessions[0] : null
+  const sessionA = compareAId ? sortedPhotoSessions.find((s) => s.id === compareAId) : oldestSession
+  const sessionB = compareBId ? sortedPhotoSessions.find((s) => s.id === compareBId) : newestSession
+
+  const photoSessionIdsKey = safePhotoSessions.map((s) => s.id).join(',')
+  useEffect(() => {
+    if (sortedPhotoSessions.length > 0) {
+      const oldest = sortedPhotoSessions[sortedPhotoSessions.length - 1]
+      const newest = sortedPhotoSessions[0]
+      setCompareAId((prev) => (prev == null || !sortedPhotoSessions.some((s) => s.id === prev) ? oldest?.id : prev))
+      setCompareBId((prev) => (prev == null || !sortedPhotoSessions.some((s) => s.id === prev) ? newest?.id : prev))
+    }
+  }, [photoSessionIdsKey])
 
   function filterLog(log) {
     if (period === 'All') return log
@@ -219,8 +241,8 @@ export default function ProgressBody({
         </div>
         <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
           <div className="text-[20px] font-extrabold text-text">
-            {latestMuscleMass ? latestMuscleMass.value : '—'}
-            <span className="text-[10px] text-muted ml-0.5">{unitWeight}</span>
+            {latestMuscleMass != null ? latestMuscleMass.value : '—'}
+            <span className="text-[10px] text-muted ml-0.5">%</span>
           </div>
           <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">Muscle mass</div>
           <button onClick={() => setShowAddMuscleMass(true)} className="mt-2 text-[10px] text-accent font-semibold">
@@ -299,23 +321,23 @@ export default function ProgressBody({
         )}
       </div>
 
-      {[...safePhotoSessions].reverse().map((session) => (
-        <div key={session.id} className="mb-3">
-          <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-1.5">
-            {session.date}
-          </div>
-          <div className="grid grid-cols-3 gap-1">
-            {['front', 'back', 'side'].map((angle) => (
-              <PhotoSessionThumb
-                key={angle}
-                filename={session[angle]}
-                label={angle}
-                onClick={() => setShowPhotos(true)}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
+      <div className="sec">Transformation</div>
+      <TransformCard
+        sessionA={sessionA}
+        sessionB={sessionB}
+        sortedSessions={sortedPhotoSessions}
+        compareAId={compareAId}
+        compareBId={compareBId}
+        onSelectA={setCompareAId}
+        onSelectB={setCompareBId}
+        showComparePicker={showComparePicker}
+        onShowComparePicker={setShowComparePicker}
+        onOpen={() => {
+          setOpenPhotosToAdd(false)
+          setShowPhotos(true)
+        }}
+        photoSessions={safePhotoSessions}
+      />
 
       <button
         onClick={() => {
@@ -325,6 +347,7 @@ export default function ProgressBody({
             )
             return
           }
+          setOpenPhotosToAdd(true)
           setShowPhotos(true)
         }}
         className="w-full py-3 mb-8 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-text flex items-center justify-center gap-1.5"
@@ -356,8 +379,8 @@ export default function ProgressBody({
       )}
       {showAddMuscleMass && (
         <QuickInputModal
-          title="Log muscle mass"
-          placeholder={`e.g. 68.5 ${unitWeight}`}
+          title="Log muscle mass %"
+          placeholder="e.g. 42"
           value={newMuscleMass}
           onChange={setNewMuscleMass}
           onConfirm={addMuscleMass}
@@ -382,7 +405,14 @@ export default function ProgressBody({
           setPhotoSessions={setPhotoSessions}
           totalPhotos={totalPhotos}
           atLimit={atLimit}
-          onClose={() => setShowPhotos(false)}
+          onClose={() => {
+            setShowPhotos(false)
+            setOpenPhotosToAdd(false)
+          }}
+          weightLog={safeWeightLog}
+          muscleMassLog={safeMuscleMassLog}
+          unitWeight={unitWeight ?? 'kg'}
+          openToAdd={openPhotosToAdd}
         />
       )}
     </div>

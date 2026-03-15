@@ -136,8 +136,55 @@ export function parseGBDate(str) {
 }
 
 /**
+ * Sort photo sessions by session date. Returns newest first.
+ * Sessions have { id, date, front, back, side } with date as "dd/mm/yyyy".
+ */
+export function sortPhotoSessionsByDate(sessions) {
+  if (!Array.isArray(sessions) || sessions.length === 0) return []
+  return [...sessions].sort((a, b) => {
+    const da = parseGBDate(a?.date)?.getTime() ?? 0
+    const db = parseGBDate(b?.date)?.getTime() ?? 0
+    return db - da
+  })
+}
+
+/**
+ * From sorted-by-date sessions (newest first), return [oldest, middle, newest] for display.
+ * If fewer than 3 sessions, returns all in chronological order (oldest first).
+ */
+export function getOldestMiddleNewestSessions(sessions) {
+  if (!Array.isArray(sessions) || sessions.length === 0) return []
+  const sorted = sortPhotoSessionsByDate(sessions)
+  const asc = [...sorted].reverse()
+  const n = asc.length
+  if (n <= 3) return asc
+  const mid = Math.floor((n - 1) / 2)
+  return [asc[0], asc[mid], asc[n - 1]]
+}
+
+/**
  * Format a Date to "Mar 2026" label
  */
 export function formatMonthLabel(date) {
   return date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+}
+
+/**
+ * Group photo sessions by month (newest month first).
+ * Returns [{ monthLabel: 'Mar 2026', sessions: [...] }, ...]
+ */
+export function groupPhotoSessionsByMonth(sessions) {
+  if (!Array.isArray(sessions) || sessions.length === 0) return []
+  const sorted = sortPhotoSessionsByDate(sessions)
+  const byMonth = new Map()
+  for (const s of sorted) {
+    const d = parseGBDate(s?.date)
+    const key = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : 'unknown'
+    const label = d ? formatMonthLabel(d) : 'Unknown'
+    if (!byMonth.has(key)) byMonth.set(key, { monthLabel: label, sessions: [] })
+    byMonth.get(key).sessions.push(s)
+  }
+  return Array.from(byMonth.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([, g]) => g)
 }

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { getTopMovers } from './progressUtils'
+import { getTopMovers, sortPhotoSessionsByDate } from './progressUtils'
 import { MUSCLE_COLOURS_HEX, getMuscleRecoveryPct, formatMuscleLabel } from './utils'
 import PhotosModal from './PhotosModal'
-import { loadPhotoSrc } from './PhotosModal'
+import { TransformCard } from './TransformCard'
 
 const TOTAL_FREE_PHOTOS = 24
 
@@ -20,6 +20,9 @@ export default function ProgressOverview({
   const [showPhotos, setShowPhotos] = useState(false)
   const [selectedWorkout, setSelectedWorkout] = useState(null)
   const [showAllHistory, setShowAllHistory] = useState(false)
+  const [compareAId, setCompareAId] = useState(null)
+  const [compareBId, setCompareBId] = useState(null)
+  const [showComparePicker, setShowComparePicker] = useState(null)
 
   const safeHistory = Array.isArray(history) ? history : []
   const safeWeekStreak = Array.isArray(weekStreak) ? weekStreak : []
@@ -27,6 +30,7 @@ export default function ProgressOverview({
   const safeBodyFatLog = Array.isArray(bodyFatLog) ? bodyFatLog : []
   const safeMuscleMassLog = Array.isArray(muscleMassLog) ? muscleMassLog : []
   const safePhotoSessions = Array.isArray(photoSessions) ? photoSessions : []
+  const sortedPhotoSessions = sortPhotoSessionsByDate(safePhotoSessions)
   const safeMuscleLastWorked = muscleLastWorked && typeof muscleLastWorked === 'object' ? muscleLastWorked : {}
 
   const thisWeekSessions = safeWeekStreak.filter((d) => d.worked || d.isToday).length
@@ -78,8 +82,20 @@ export default function ProgressOverview({
   const OVERVIEW_MUSCLES = ['chest', 'back', 'quads', 'side-delts', 'biceps', 'triceps', 'glutes', 'abs']
   const CIRC = 2 * Math.PI * 14
 
-  const oldestSession = safePhotoSessions.length > 0 ? safePhotoSessions[0] : null
-  const newestSession = safePhotoSessions.length > 1 ? safePhotoSessions[safePhotoSessions.length - 1] : null
+  const oldestSession = sortedPhotoSessions.length > 0 ? sortedPhotoSessions[sortedPhotoSessions.length - 1] : null
+  const newestSession = sortedPhotoSessions.length > 0 ? sortedPhotoSessions[0] : null
+  const sessionA = compareAId ? sortedPhotoSessions.find((s) => s.id === compareAId) : oldestSession
+  const sessionB = compareBId ? sortedPhotoSessions.find((s) => s.id === compareBId) : newestSession
+
+  const photoSessionIdsKey = safePhotoSessions.map((s) => s.id).join(',')
+  useEffect(() => {
+    if (sortedPhotoSessions.length > 0) {
+      const oldest = sortedPhotoSessions[sortedPhotoSessions.length - 1]
+      const newest = sortedPhotoSessions[0]
+      setCompareAId((prev) => (prev == null || !sortedPhotoSessions.some((s) => s.id === prev) ? oldest?.id : prev))
+      setCompareBId((prev) => (prev == null || !sortedPhotoSessions.some((s) => s.id === prev) ? newest?.id : prev))
+    }
+  }, [photoSessionIdsKey])
 
   return (
     <div className="flex flex-col gap-0">
@@ -135,7 +151,7 @@ export default function ProgressOverview({
             {latestMuscleMass && (
               <StatTile
                 val={latestMuscleMass.value}
-                unit={unitWeight}
+                unit="%"
                 label="Muscle mass"
                 delta={firstMuscleMass ? latestMuscleMass.value - firstMuscleMass.value : null}
                 deltaLabel="since start"
@@ -147,8 +163,15 @@ export default function ProgressOverview({
 
       <div className="sec">Transformation</div>
       <TransformCard
-        oldestSession={oldestSession}
-        newestSession={newestSession}
+        sessionA={sessionA}
+        sessionB={sessionB}
+        sortedSessions={sortedPhotoSessions}
+        compareAId={compareAId}
+        compareBId={compareBId}
+        onSelectA={setCompareAId}
+        onSelectB={setCompareBId}
+        showComparePicker={showComparePicker}
+        onShowComparePicker={setShowComparePicker}
         onOpen={() => setShowPhotos(true)}
         photoSessions={safePhotoSessions}
       />
@@ -243,6 +266,9 @@ export default function ProgressOverview({
           totalPhotos={safePhotoSessions.reduce((sum, s) => sum + [s.front, s.back, s.side].filter(Boolean).length, 0)}
           atLimit={safePhotoSessions.reduce((sum, s) => sum + [s.front, s.back, s.side].filter(Boolean).length, 0) >= TOTAL_FREE_PHOTOS}
           onClose={() => setShowPhotos(false)}
+          weightLog={safeWeightLog}
+          muscleMassLog={safeMuscleMassLog}
+          unitWeight={unitWeight ?? 'kg'}
         />
       )}
     </div>
@@ -263,102 +289,6 @@ function StatTile({ val, unit, label, delta, deltaLabel, invertDelta }) {
         <div className={`text-[10px] font-bold mt-1 ${isGood ? 'text-success' : 'text-[#ff6b6b]'}`}>
           {delta > 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(1)} {unit} {deltaLabel}
         </div>
-      )}
-    </div>
-  )
-}
-
-function TransformCard({ oldestSession, newestSession, onOpen, photoSessions }) {
-  if (photoSessions.length === 0) {
-    return (
-      <div
-        onClick={onOpen}
-        className="bg-card border border-border rounded-[14px] overflow-hidden cursor-pointer mb-2 relative"
-      >
-        <div className="grid grid-cols-2 gap-[2px]">
-          {['Before', 'After'].map((label) => (
-            <div key={label} className="aspect-[0.85] bg-card-deep flex items-center justify-center relative">
-              <svg width="48" height="86" viewBox="0 0 50 90" fill="none">
-                <ellipse cx="25" cy="14" rx="10" ry="11" fill="rgba(255,255,255,0.05)" />
-                <path
-                  d="M10 35 Q10 24 25 24 Q40 24 40 35 L43 70 Q43 74 39 74 L34 74 L32 90 L18 90 L16 74 L11 74 Q7 74 7 70 Z"
-                  fill="rgba(255,255,255,0.05)"
-                />
-              </svg>
-              <span className="absolute bottom-2 text-[8px] font-bold text-muted uppercase tracking-[0.5px]">
-                {label}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-page border border-border rounded-[20px] px-2 py-1 text-[9px] font-extrabold text-muted z-10">
-          VS
-        </div>
-        <div className="flex items-center justify-between p-[12px_14px] border-t border-border">
-          <div>
-            <div className="text-[13px] font-bold text-text">Start tracking</div>
-            <div className="text-[10px] text-muted mt-0.5">Add your first photos</div>
-          </div>
-          <div className="w-[26px] h-[26px] bg-[rgba(123,123,255,0.08)] border border-[rgba(123,123,255,0.2)] rounded-full flex items-center justify-center text-accent text-[12px]">
-            →
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      onClick={onOpen}
-      className="bg-card border border-border rounded-[14px] overflow-hidden cursor-pointer mb-2 relative"
-    >
-      <div className="grid grid-cols-2 gap-[2px]">
-        <PhotoThumb session={oldestSession} label={oldestSession?.date} />
-        <PhotoThumb session={newestSession ?? oldestSession} label={newestSession?.date ?? oldestSession?.date} />
-      </div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-page border border-border rounded-[20px] px-2 py-1 text-[9px] font-extrabold text-muted z-10">
-        VS
-      </div>
-      <div className="flex items-center justify-between p-[12px_14px] border-t border-border">
-        <div>
-          <div className="text-[13px] font-bold text-text">Your transformation</div>
-          <div className="text-[10px] text-muted mt-0.5">
-            {oldestSession?.date} → {newestSession?.date ?? oldestSession?.date} · {photoSessions.length * 3} photos
-          </div>
-        </div>
-        <div className="w-[26px] h-[26px] bg-[rgba(123,123,255,0.08)] border border-[rgba(123,123,255,0.2)] rounded-full flex items-center justify-center text-accent text-[12px]">
-          →
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PhotoThumb({ session, label }) {
-  const [src, setSrc] = useState(null)
-
-  useEffect(() => {
-    if (!session?.front) return
-    loadPhotoSrc(session.front).then(setSrc).catch(() => {})
-  }, [session?.front])
-
-  return (
-    <div className="aspect-[0.85] bg-card-deep flex items-center justify-center relative overflow-hidden">
-      {src ? (
-        <img src={src} alt="" className="w-full h-full object-cover" />
-      ) : (
-        <svg width="44" height="80" viewBox="0 0 50 90" fill="none">
-          <ellipse cx="25" cy="14" rx="10" ry="11" fill="rgba(255,255,255,0.07)" />
-          <path
-            d="M10 35 Q10 24 25 24 Q40 24 40 35 L43 70 Q43 74 39 74 L34 74 L32 90 L18 90 L16 74 L11 74 Q7 74 7 70 Z"
-            fill="rgba(255,255,255,0.07)"
-          />
-        </svg>
-      )}
-      {label && (
-        <span className="absolute bottom-2 text-[8px] font-bold text-white/30 uppercase tracking-[0.5px]">
-          {label}
-        </span>
       )}
     </div>
   )
