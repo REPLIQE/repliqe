@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { groupPhotoSessionsByMonth, getOldestMiddleNewestSessions } from './progressUtils'
 
-const TOTAL_FREE_PHOTOS = 24
+const TOTAL_FREE_PHOTOS = 12
 const WEB_PHOTO_STORAGE_KEY = 'repliqe_photoData'
 const ANGLES = [
   { key: 'front', label: 'Front' },
@@ -186,18 +186,10 @@ export default function PhotosModal({
   unitWeight = 'kg',
   openToAdd = false,
 }) {
-  const [view, setView] = useState('timeline')
   const [capturing, setCapturing] = useState(false)
   const [captureStep, setCaptureStep] = useState(0)
   const [capturedImages, setCapturedImages] = useState({})
   const [captureSessionDate, setCaptureSessionDate] = useState(() => getTodayEnGB())
-  const [compareA, setCompareA] = useState(photoSessions[0]?.id ?? null)
-  const [compareB, setCompareB] = useState(
-    photoSessions.length > 1 ? photoSessions[photoSessions.length - 1].id : null
-  )
-  const [compareAngle, setCompareAngle] = useState('front')
-  const [showAllSessions, setShowAllSessions] = useState(false)
-  const [thumbs, setThumbs] = useState({})
   const inputCameraRef = useRef(null)
   const inputLibraryRef = useRef(null)
   const dateInputRef = useRef(null)
@@ -223,17 +215,6 @@ export default function PhotosModal({
     initialPhotoSessionsRef.current !== null &&
     JSON.stringify(photoSessions) !== initialPhotoSessionsRef.current
 
-  useEffect(() => {
-    photoSessions.forEach((session) => {
-      ANGLES.forEach(({ key }) => {
-        const filename = session[key]
-        if (!filename || thumbs[filename]) return
-        loadPhotoSrc(filename)
-          .then((src) => src && setThumbs((prev) => ({ ...prev, [filename]: src })))
-          .catch(() => {})
-      })
-    })
-  }, [photoSessions])
 
   /** On native: opens camera or gallery. On web returns null (use file input instead). */
   async function takePhoto(source) {
@@ -348,13 +329,6 @@ export default function PhotosModal({
     setCaptureStep(0)
     setCapturedImages({})
   }
-
-  function deleteSession(sessionId) {
-    if (setPhotoSessions) setPhotoSessions((prev) => prev.filter((s) => s.id !== sessionId))
-  }
-
-  const sessionA = photoSessions.find((s) => s.id === compareA)
-  const sessionB = photoSessions.find((s) => s.id === compareB)
 
   if (capturing) {
     const currentAngle = ANGLES[captureStep]
@@ -555,99 +529,187 @@ export default function PhotosModal({
         <div className="px-5 pt-4 pb-3 border-b border-border shrink-0">
           <h2 className="text-[18px] font-extrabold text-text">Photos</h2>
         </div>
+        <PhotosViewContent
+          photoSessions={photoSessions}
+          setPhotoSessions={setPhotoSessions}
+          totalPhotos={totalPhotos}
+          atLimit={atLimit}
+          weightLog={weightLog}
+          muscleMassLog={muscleMassLog}
+          unitWeight={unitWeight}
+          showExitCTA={true}
+          onClose={onClose}
+          hasChanges={hasChanges}
+          onOpenAddPhotos={() => {
+            setCapturing(true)
+            setCaptureStep(0)
+            setCapturedImages({})
+            setCaptureSessionDate(getTodayEnGB())
+          }}
+        />
+      </div>
+    </div>
+  )
+}
 
-        <div className="flex px-5 pt-3 pb-2 gap-2 shrink-0">
-          {['timeline', 'compare'].map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`flex-1 py-2 rounded-[8px] text-[11px] font-bold capitalize ${
-                view === v ? 'bg-card-alt border border-border-strong text-text' : 'text-muted'
-              }`}
-            >
-              {v}
-            </button>
-          ))}
+/** Delbar fotovisning: tabs (Timeline/Compare) + indhold. Bruges i modal (med Exit) og inline på Body (uden Exit). */
+export function PhotosViewContent({
+  photoSessions,
+  setPhotoSessions,
+  totalPhotos: totalPhotosProp = 0,
+  atLimit = false,
+  weightLog = [],
+  muscleMassLog = [],
+  unitWeight = 'kg',
+  showExitCTA = false,
+  onClose,
+  hasChanges = false,
+  onOpenAddPhotos,
+}) {
+  const [view, setView] = useState('timeline')
+  const [compareA, setCompareA] = useState(photoSessions[0]?.id ?? null)
+  const [compareB, setCompareB] = useState(
+    photoSessions.length > 1 ? photoSessions[photoSessions.length - 1].id : null
+  )
+  const [compareAngle, setCompareAngle] = useState('front')
+  const [showAllSessions, setShowAllSessions] = useState(false)
+  const [editingDateSessionId, setEditingDateSessionId] = useState(null)
+  const [sessionToDelete, setSessionToDelete] = useState(null)
+  const [thumbs, setThumbs] = useState({})
+  const dateEditInputRef = useRef(null)
+
+  const canAddPhotos = typeof setPhotoSessions === 'function'
+  const totalPhotos =
+    totalPhotosProp ||
+    (Array.isArray(photoSessions) ? photoSessions.reduce((s, sess) => s + [sess?.front, sess?.back, sess?.side].filter(Boolean).length, 0) : 0)
+
+  useEffect(() => {
+    if (!Array.isArray(photoSessions)) return
+    photoSessions.forEach((session) => {
+      ANGLES.forEach(({ key }) => {
+        const filename = session?.[key]
+        if (!filename || thumbs[filename]) return
+        loadPhotoSrc(filename)
+          .then((src) => src && setThumbs((prev) => ({ ...prev, [filename]: src })))
+          .catch(() => {})
+      })
+    })
+  }, [photoSessions])
+
+  useEffect(() => {
+    if (editingDateSessionId && dateEditInputRef.current) dateEditInputRef.current.focus()
+  }, [editingDateSessionId])
+
+  function deleteSession(sessionId) {
+    if (setPhotoSessions) setPhotoSessions((prev) => (prev || []).filter((s) => s.id !== sessionId))
+  }
+
+  function updateSessionDate(sessionId, newDate) {
+    if (!setPhotoSessions || !newDate) return
+    setPhotoSessions((prev) =>
+      (prev || []).map((s) => (s.id === sessionId ? { ...s, date: newDate } : s))
+    )
+    setEditingDateSessionId(null)
+  }
+
+  const sessionA = (photoSessions || []).find((s) => s.id === compareA)
+  const sessionB = (photoSessions || []).find((s) => s.id === compareB)
+
+  return (
+    <>
+      <div className="flex px-5 pt-3 pb-2 gap-2 shrink-0">
+        {['timeline', 'compare'].map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`flex-1 py-2 rounded-[8px] text-[11px] font-bold capitalize ${
+              view === v ? 'bg-card-alt border border-border-strong text-text' : 'text-muted'
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+
+      {showExitCTA && (
+        <div className="shrink-0 px-5 pb-3">
+          <button
+            onClick={onClose}
+            className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
+          >
+            {hasChanges ? 'Save to progress' : 'Exit'}
+          </button>
         </div>
+      )}
 
-        {/* Top section: Exit/Save to progress first, then Add photos, then counter */}
-        {view === 'timeline' && canAddPhotos && (
-          <div className="shrink-0 px-5 pb-3 space-y-2">
-            <button
-              onClick={onClose}
-              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
-            >
-              {hasChanges ? 'Save to progress' : 'Exit'}
-            </button>
-            <button
-              onClick={() => {
-                if (atLimit) {
-                  alert(`You've reached the ${TOTAL_FREE_PHOTOS} photo limit. Delete a session to add more, or unlock unlimited storage.`)
-                  return
-                }
-                setCapturing(true)
-                setCaptureStep(0)
-                setCapturedImages({})
-                setCaptureSessionDate(getTodayEnGB())
-              }}
-              className="w-full py-3 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-text"
-            >
-              + Add photos
-            </button>
-            <div className="flex items-center gap-3 bg-card border border-border rounded-[12px] p-[11px_14px]">
-              <span className="text-[10px] text-muted font-semibold whitespace-nowrap">
-                {(totalPhotos || photoSessions.reduce((s, sess) => s + [sess.front, sess.back, sess.side].filter(Boolean).length, 0))} / {TOTAL_FREE_PHOTOS}
-              </span>
-              <div className="flex-1 h-[3px] bg-card-alt rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-accent rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      ((totalPhotos || photoSessions.reduce((s, sess) => s + [sess.front, sess.back, sess.side].filter(Boolean).length, 0)) /
-                        TOTAL_FREE_PHOTOS) *
-                        100
-                    )}%`,
-                  }}
-                />
-              </div>
-              {atLimit && (
-                <button
-                  disabled
-                  className="text-[10px] font-bold text-accent border border-accent/25 rounded-[6px] px-2 py-1 cursor-not-allowed"
-                >
-                  Unlock ∞
-                </button>
-              )}
+      {view === 'timeline' && canAddPhotos && (
+        <div className="shrink-0 px-5 pb-3 space-y-2">
+          <button
+            onClick={() => {
+              if (atLimit) {
+                if (typeof alert !== 'undefined') alert(`You've reached the ${TOTAL_FREE_PHOTOS} photo limit. Delete a session to add more, or unlock unlimited storage.`)
+                return
+              }
+              onOpenAddPhotos?.()
+            }}
+            className="w-full py-3 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-text"
+          >
+            + Add photos
+          </button>
+          <div className="flex items-center gap-3 bg-card border border-border rounded-[12px] p-[11px_14px]">
+            <span className="text-[10px] text-muted font-semibold whitespace-nowrap">
+              {totalPhotos} / {TOTAL_FREE_PHOTOS}
+            </span>
+            <div className="flex-1 h-[3px] bg-card-alt rounded-full overflow-hidden">
+              <div
+                className="h-full bg-accent rounded-full"
+                style={{
+                  width: `${Math.min(100, (totalPhotos / TOTAL_FREE_PHOTOS) * 100)}%`,
+                }}
+              />
             </div>
+            {atLimit && (
+              <button
+                disabled
+                className="text-[10px] font-bold text-accent border border-accent/25 rounded-[6px] px-2 py-1 cursor-not-allowed"
+              >
+                Unlock ∞
+              </button>
+            )}
           </div>
-        )}
-        {(view === 'compare' || (view === 'timeline' && !canAddPhotos)) && (
-          <div className="shrink-0 px-5 pb-3">
-            <button
-              onClick={onClose}
-              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
-            >
-              {hasChanges ? 'Save to progress' : 'Exit'}
-            </button>
-          </div>
-        )}
+        </div>
+      )}
 
-        <div className="flex-1 overflow-y-auto px-5 pb-6 min-h-0">
+      <div className="flex-1 overflow-y-auto px-5 pb-6 min-h-0">
           {view === 'timeline' && (
             <>
-              {(photoSessions.length <= 3 || showAllSessions
-                ? sortSessionsByDate(photoSessions)
-                : [...getOldestMiddleNewestSessions(photoSessions)].reverse()
+              {((Array.isArray(photoSessions) ? photoSessions : []).length <= 3 || showAllSessions
+                ? sortSessionsByDate(photoSessions || [])
+                : [...getOldestMiddleNewestSessions(photoSessions || [])].reverse()
               ).map((session) => (
                 <div key={session.id} className="mb-5">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold text-muted uppercase tracking-[0.8px]">
-                      {session.date}
-                    </span>
+                    {canAddPhotos && editingDateSessionId === session.id ? (
+                      <input
+                        ref={dateEditInputRef}
+                        type="date"
+                        value={enGBToDateInput(session.date)}
+                        onChange={(e) => updateSessionDate(session.id, dateInputToEnGB(e.target.value))}
+                        onBlur={() => setEditingDateSessionId(null)}
+                        className="text-[10px] font-bold text-text uppercase tracking-[0.8px] bg-card-alt border border-border-strong rounded-lg px-2 py-1 outline-none focus:border-accent"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => canAddPhotos && setEditingDateSessionId(session.id)}
+                        className={`text-[10px] font-bold uppercase tracking-[0.8px] text-left ${canAddPhotos ? 'text-muted hover:text-accent active:opacity-80' : 'text-muted'}`}
+                      >
+                        {session.date}
+                      </button>
+                    )}
                     {canAddPhotos && (
                       <button
-                        onClick={() => deleteSession(session.id)}
+                        onClick={() => setSessionToDelete(session.id)}
                         className="text-[10px] text-red-400 font-semibold"
                       >
                         Delete session
@@ -679,13 +741,13 @@ export default function PhotosModal({
                   </div>
                 </div>
               ))}
-              {view === 'timeline' && photoSessions.length > 3 && (
+              {view === 'timeline' && (photoSessions || []).length > 3 && (
                 <button
                   type="button"
                   onClick={() => setShowAllSessions((v) => !v)}
                   className="w-full py-3 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-accent"
                 >
-                  {showAllSessions ? 'Show only 3 (newest, middle, oldest)' : `See all ${photoSessions.length} sessions`}
+                  {showAllSessions ? 'Show only 3 (newest, middle, oldest)' : `See all ${(photoSessions || []).length} sessions`}
                 </button>
               )}
             </>
@@ -693,7 +755,7 @@ export default function PhotosModal({
 
           {view === 'compare' && (
             <>
-              {photoSessions.length < 2 ? (
+              {(photoSessions || []).length < 2 ? (
                 <div className="text-center py-12">
                   <div className="text-sm text-muted">Add at least 2 sessions to compare</div>
                 </div>
@@ -713,7 +775,7 @@ export default function PhotosModal({
                             {label === 'A' ? 'Before' : 'After'}
                           </div>
                           <div className="space-y-2.5 max-h-[160px] overflow-y-auto">
-                            {groupPhotoSessionsByMonth(photoSessions).map(({ monthLabel, sessions }) => (
+                            {groupPhotoSessionsByMonth(photoSessions || []).map(({ monthLabel, sessions }) => (
                               <div key={monthLabel} className="rounded-lg border border-border bg-card-alt/50 py-1.5 px-2">
                                 <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1.5 sticky top-0 bg-card-alt/80 py-0.5 -mx-0.5 px-0.5">
                                   {monthLabel}
@@ -810,7 +872,36 @@ export default function PhotosModal({
             </>
           )}
         </div>
-      </div>
-    </div>
+
+      {sessionToDelete && (
+        <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/50 z-10">
+          <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-xl">
+            <div className="text-[15px] font-bold text-text mb-1">Delete session?</div>
+            <div className="text-[13px] text-muted mb-5">
+              All photos from this date will be removed. This cannot be undone.
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setSessionToDelete(null)}
+                className="flex-1 py-3 rounded-xl text-[13px] font-bold border border-border-strong bg-card-alt text-text"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteSession(sessionToDelete)
+                  setSessionToDelete(null)
+                }}
+                className="flex-1 py-3 rounded-xl text-[13px] font-bold bg-red-500/90 text-white hover:bg-red-500"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

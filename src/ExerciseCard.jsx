@@ -376,7 +376,7 @@ function ExerciseCard({
                   />
                   {/* Center bar – shrinks from both sides */}
                   <div
-                    className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 rounded-sm transition-all duration-300 ease-out bg-gradient-to-r from-success/15 via-success/10 to-success/15"
+                    className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 rounded-sm transition-all duration-300 ease-out bg-gradient-to-r from-accent/25 via-accent/18 to-accent/25"
                     style={{ width: `${barWidthPct}%`, minWidth: 0 }}
                   />
                   {/* Dots from center out to right edge */}

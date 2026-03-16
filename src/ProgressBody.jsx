@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import PhotosModal from './PhotosModal'
+import { useState, useEffect, useRef } from 'react'
+import PhotosModal, { PhotosViewContent } from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
 import { sortPhotoSessionsByDate } from './progressUtils'
 import { TransformCard } from './TransformCard'
@@ -13,7 +13,7 @@ const MEASUREMENTS = [
   { key: 'thigh', label: 'Thigh' },
   { key: 'calf', label: 'Calf' },
 ]
-const TOTAL_FREE_PHOTOS = 24
+const TOTAL_FREE_PHOTOS = 12
 
 const CM_PER_INCH = 2.54
 
@@ -38,6 +38,7 @@ export default function ProgressBody({
   const [showAddMeasurements, setShowAddMeasurements] = useState(false)
   const [showPhotos, setShowPhotos] = useState(false)
   const [openPhotosToAdd, setOpenPhotosToAdd] = useState(false)
+  const photosSectionRef = useRef(null)
   const [compareAId, setCompareAId] = useState(null)
   const [compareBId, setCompareBId] = useState(null)
   const [showComparePicker, setShowComparePicker] = useState(null)
@@ -332,28 +333,32 @@ export default function ProgressBody({
         onSelectB={setCompareBId}
         showComparePicker={showComparePicker}
         onShowComparePicker={setShowComparePicker}
-        onOpen={() => {
-          setOpenPhotosToAdd(false)
-          setShowPhotos(true)
-        }}
+        onOpen={() => photosSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
         photoSessions={safePhotoSessions}
       />
 
-      <button
-        onClick={() => {
-          if (atLimit) {
-            alert(
-              `You've reached the ${TOTAL_FREE_PHOTOS} photo limit. Delete older sessions to add more, or unlock unlimited storage.`
-            )
-            return
-          }
-          setOpenPhotosToAdd(true)
-          setShowPhotos(true)
-        }}
-        className="w-full py-3 mb-8 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-text flex items-center justify-center gap-1.5"
-      >
-        + Add photos
-      </button>
+      <div ref={photosSectionRef} className="relative flex flex-col min-h-[280px]">
+        <PhotosViewContent
+          photoSessions={safePhotoSessions}
+          setPhotoSessions={setPhotoSessions}
+          totalPhotos={totalPhotos}
+          atLimit={atLimit}
+          weightLog={safeWeightLog}
+          muscleMassLog={safeMuscleMassLog}
+          unitWeight={unitWeight ?? 'kg'}
+          showExitCTA={false}
+          onOpenAddPhotos={() => {
+            if (atLimit) {
+              alert(
+                `You've reached the ${TOTAL_FREE_PHOTOS} photo limit. Delete older sessions to add more, or unlock unlimited storage.`
+              )
+              return
+            }
+            setOpenPhotosToAdd(true)
+            setShowPhotos(true)
+          }}
+        />
+      </div>
 
       {showAddWeight && (
         <QuickInputModal

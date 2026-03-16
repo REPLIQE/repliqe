@@ -33,7 +33,7 @@ export default function ProgressScreen(props) {
         ))}
       </div>
 
-      {tab === 'Overview' && <ProgressOverview {...props} />}
+      {tab === 'Overview' && <ProgressOverview {...props} onGoToBody={() => setTab('Body')} />}
       {tab === 'Strength' && <ProgressStrength {...props} />}
       {tab === 'Body' && <ProgressBody {...props} />}
       {tab === 'Recovery' && <ProgressRecovery {...props} />}

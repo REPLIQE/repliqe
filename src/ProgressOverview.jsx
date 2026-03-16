@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { getTopMovers, sortPhotoSessionsByDate } from './progressUtils'
 import { MUSCLE_COLOURS_HEX, getMuscleRecoveryPct, formatMuscleLabel } from './utils'
 import PhotosModal from './PhotosModal'
 import { TransformCard } from './TransformCard'
 
-const TOTAL_FREE_PHOTOS = 24
+const TOTAL_FREE_PHOTOS = 12
 
 export default function ProgressOverview({
   history,
@@ -16,13 +16,11 @@ export default function ProgressOverview({
   photoSessions,
   setPhotoSessions,
   unitWeight,
+  onGoToBody,
 }) {
   const [showPhotos, setShowPhotos] = useState(false)
   const [selectedWorkout, setSelectedWorkout] = useState(null)
   const [showAllHistory, setShowAllHistory] = useState(false)
-  const [compareAId, setCompareAId] = useState(null)
-  const [compareBId, setCompareBId] = useState(null)
-  const [showComparePicker, setShowComparePicker] = useState(null)
 
   const safeHistory = Array.isArray(history) ? history : []
   const safeWeekStreak = Array.isArray(weekStreak) ? weekStreak : []
@@ -84,18 +82,8 @@ export default function ProgressOverview({
 
   const oldestSession = sortedPhotoSessions.length > 0 ? sortedPhotoSessions[sortedPhotoSessions.length - 1] : null
   const newestSession = sortedPhotoSessions.length > 0 ? sortedPhotoSessions[0] : null
-  const sessionA = compareAId ? sortedPhotoSessions.find((s) => s.id === compareAId) : oldestSession
-  const sessionB = compareBId ? sortedPhotoSessions.find((s) => s.id === compareBId) : newestSession
-
-  const photoSessionIdsKey = safePhotoSessions.map((s) => s.id).join(',')
-  useEffect(() => {
-    if (sortedPhotoSessions.length > 0) {
-      const oldest = sortedPhotoSessions[sortedPhotoSessions.length - 1]
-      const newest = sortedPhotoSessions[0]
-      setCompareAId((prev) => (prev == null || !sortedPhotoSessions.some((s) => s.id === prev) ? oldest?.id : prev))
-      setCompareBId((prev) => (prev == null || !sortedPhotoSessions.some((s) => s.id === prev) ? newest?.id : prev))
-    }
-  }, [photoSessionIdsKey])
+  const sessionA = oldestSession
+  const sessionB = newestSession
 
   return (
     <div className="flex flex-col gap-0">
@@ -166,14 +154,16 @@ export default function ProgressOverview({
         sessionA={sessionA}
         sessionB={sessionB}
         sortedSessions={sortedPhotoSessions}
-        compareAId={compareAId}
-        compareBId={compareBId}
-        onSelectA={setCompareAId}
-        onSelectB={setCompareBId}
-        showComparePicker={showComparePicker}
-        onShowComparePicker={setShowComparePicker}
+        compareAId={oldestSession?.id}
+        compareBId={newestSession?.id}
+        onSelectA={() => {}}
+        onSelectB={() => {}}
+        showComparePicker={null}
+        onShowComparePicker={() => {}}
         onOpen={() => setShowPhotos(true)}
+        onGoToBody={onGoToBody}
         photoSessions={safePhotoSessions}
+        fixedCompare={true}
       />
 
       <div className="sec">Recovery · now</div>
