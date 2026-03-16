@@ -3,6 +3,9 @@
 /* ========== Repliqe — Bone Theme Design (data-theme) ========== */
 /* Default: Dark theme */
 :root {
+  /* Progress photos: single aspect ratio everywhere (3:4 portrait) */
+  --progress-photo-ratio: 3 / 4;
+
   /* Backgrounds */
   --bg-app: #0D0D1A;
   --bg-card: #13132A;
@@ -341,6 +344,113 @@ input:focus:invalid {
   letter-spacing: 0.05em;
   color: var(--text-secondary);
   margin-bottom: 8px;
+}
+
+.progress-section-label {
+  color: #888;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 16px 0 8px;
+}
+
+.activity-card {
+  background: #13132A;
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid #1e1e35;
+}
+
+.activity-body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.activity-grid-side {
+  flex: 1;
+}
+
+.activity-grid-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  margin-bottom: 3px;
+}
+
+.activity-grid-day-label {
+  text-align: center;
+  color: #444;
+  font-size: 7px;
+  font-weight: 600;
+}
+
+.activity-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.activity-cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: #1a1a30;
+}
+
+.activity-cell.active {
+  background: radial-gradient(
+    circle at center,
+    #7B7BFF 0%,
+    rgba(123, 123, 255, 0.3) 50%,
+    #1a1a30 100%
+  );
+}
+
+.activity-cell.today {
+  border: 1.5px solid #5BF5A0;
+}
+
+.activity-stats-side {
+  width: 80px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: space-between;
+  align-self: stretch;
+}
+
+.activity-stat-box {
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 9px;
+  padding: 8px 6px;
+  text-align: center;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.activity-stat-v {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.activity-stat-l {
+  color: #555;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 3px;
+  line-height: 1;
+}
+
+.activity-stat-box.green .activity-stat-v {
+  color: #5BF5A0;
 }
 
 /* Start tab: solid 2px green connector from day selector to card */

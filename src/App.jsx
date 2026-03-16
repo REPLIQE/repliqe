@@ -160,7 +160,75 @@ function App() {
     const list = JSON.parse(s)
     return list.map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null }))
   })
-  const [history, setHistory] = useState(() => { const s = localStorage.getItem('history'); return s ? JSON.parse(s) : [] })
+  const [history, setHistory] = useState(() => {
+    const s = localStorage.getItem('history')
+    return s ? JSON.parse(s) : []
+  })
+
+  /** Generer træningsdata for sidste 30 dage: 4 træninger/uge baseret på aktive program. */
+  function getSeedHistory(programmes, routines) {
+    const active = (programmes || []).find((p) => p.isActive)
+    if (!active || !(active.routineIds && active.routineIds.length)) return []
+    const routineIds = active.routineIds
+    const seed = []
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    let routineIndex = 0
+    const dayOfWeekForWorkout = [1, 2, 4, 5]
+    for (let d = 29; d >= 0; d--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - d)
+      const dow = date.getDay()
+      if (!dayOfWeekForWorkout.includes(dow)) continue
+      const routineId = routineIds[routineIndex % routineIds.length]
+      routineIndex += 1
+      const routine = (routines || []).find((r) => r.id === routineId)
+      if (!routine) continue
+      const dateStr = date.toLocaleDateString('en-GB')
+      const exercises = (routine.exercises || []).map((ex) => ({
+        name: ex.exerciseId,
+        sets: (ex.setConfigs || []).map((c) => ({
+          kg: c.targetKg ?? '',
+          reps: c.targetReps ?? '10',
+          done: true,
+        })),
+      }))
+      const duration = 45 * 60 + Math.floor(Math.random() * 15 * 60)
+      seed.push({
+        date: dateStr,
+        name: routine.name,
+        duration,
+        exercises,
+        routineId: routine.id,
+      })
+    }
+    return seed.reverse()
+  }
+
+  /** Generer ca. 17 fotosessions for sidste 30 dage (samme dage som træning: man, tir, tor, fre). */
+  function getSeedPhotoSessions() {
+    const seed = []
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const dayOfWeekForWorkout = [1, 2, 4, 5]
+    let i = 0
+    for (let d = 29; d >= 0; d--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - d)
+      if (!dayOfWeekForWorkout.includes(date.getDay())) continue
+      const dateStr = date.toLocaleDateString('en-GB')
+      seed.push({
+        id: `ps_seed_${Date.now()}_${i}`,
+        date: dateStr,
+        front: null,
+        back: null,
+        side: null,
+      })
+      i += 1
+    }
+    return seed.reverse()
+  }
+
   const [folders, setFolders] = useState(() => {
     const s = localStorage.getItem('folders')
     if (s) return JSON.parse(s)
@@ -307,6 +375,19 @@ function App() {
   }, [programmes.length])
   useEffect(() => { localStorage.setItem('exercises', JSON.stringify(exercises)) }, [exercises])
   useEffect(() => { localStorage.setItem('history', JSON.stringify(history)) }, [history])
+
+  // Når historik er helt tom: fyld med træningsdata for de sidste 30 dage (4 træninger/uge fra aktive program).
+  useEffect(() => {
+    if (history.length !== 0) return
+    const seed = getSeedHistory(programmes, routines)
+    if (seed.length > 0) setHistory(seed)
+  }, [history.length, programmes, routines])
+
+  useEffect(() => {
+    if (photoSessions.length !== 0) return
+    const seed = getSeedPhotoSessions()
+    if (seed.length > 0) setPhotoSessions(seed)
+  }, [photoSessions.length])
   useEffect(() => { localStorage.setItem('folders', JSON.stringify(folders)) }, [folders])
   useEffect(() => { localStorage.setItem('defaultRest', String(defaultRest)) }, [defaultRest])
   useEffect(() => { localStorage.setItem('bodyweight', String(bodyweight)) }, [bodyweight])

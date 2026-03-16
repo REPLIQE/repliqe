@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import PhotosModal, { PhotosViewContent } from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
-import { sortPhotoSessionsByDate } from './progressUtils'
-import { TransformCard } from './TransformCard'
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 const MEASUREMENTS = [
@@ -30,6 +28,8 @@ export default function ProgressBody({
   setPhotoSessions,
   unitWeight,
   unitLength = 'cm',
+  scrollToPhotosSection = false,
+  onScrolledToPhotos,
 }) {
   const [period, setPeriod] = useState('3M')
   const [showAddWeight, setShowAddWeight] = useState(false)
@@ -39,9 +39,13 @@ export default function ProgressBody({
   const [showPhotos, setShowPhotos] = useState(false)
   const [openPhotosToAdd, setOpenPhotosToAdd] = useState(false)
   const photosSectionRef = useRef(null)
-  const [compareAId, setCompareAId] = useState(null)
-  const [compareBId, setCompareBId] = useState(null)
-  const [showComparePicker, setShowComparePicker] = useState(null)
+
+  useEffect(() => {
+    if (scrollToPhotosSection && photosSectionRef.current) {
+      photosSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      onScrolledToPhotos?.()
+    }
+  }, [scrollToPhotosSection, onScrolledToPhotos])
   const [newWeight, setNewWeight] = useState('')
   const [newBF, setNewBF] = useState('')
   const [newMuscleMass, setNewMuscleMass] = useState('')
@@ -65,22 +69,6 @@ export default function ProgressBody({
     0
   )
   const atLimit = totalPhotos >= TOTAL_FREE_PHOTOS
-
-  const sortedPhotoSessions = sortPhotoSessionsByDate(safePhotoSessions)
-  const oldestSession = sortedPhotoSessions.length > 0 ? sortedPhotoSessions[sortedPhotoSessions.length - 1] : null
-  const newestSession = sortedPhotoSessions.length > 0 ? sortedPhotoSessions[0] : null
-  const sessionA = compareAId ? sortedPhotoSessions.find((s) => s.id === compareAId) : oldestSession
-  const sessionB = compareBId ? sortedPhotoSessions.find((s) => s.id === compareBId) : newestSession
-
-  const photoSessionIdsKey = safePhotoSessions.map((s) => s.id).join(',')
-  useEffect(() => {
-    if (sortedPhotoSessions.length > 0) {
-      const oldest = sortedPhotoSessions[sortedPhotoSessions.length - 1]
-      const newest = sortedPhotoSessions[0]
-      setCompareAId((prev) => (prev == null || !sortedPhotoSessions.some((s) => s.id === prev) ? oldest?.id : prev))
-      setCompareBId((prev) => (prev == null || !sortedPhotoSessions.some((s) => s.id === prev) ? newest?.id : prev))
-    }
-  }, [photoSessionIdsKey])
 
   function filterLog(log) {
     if (period === 'All') return log
@@ -300,44 +288,9 @@ export default function ProgressBody({
         + Log measurements
       </button>
 
-      <div className="sec">Photos</div>
-
-      <div className="bg-card border border-border rounded-[12px] p-[11px_14px] mb-3 flex items-center gap-3">
-        <span className="text-[10px] text-muted font-semibold whitespace-nowrap">
-          {totalPhotos} / {TOTAL_FREE_PHOTOS} photos
-        </span>
-        <div className="flex-1 h-[3px] bg-[rgba(255,255,255,0.06)] rounded-[2px] overflow-hidden">
-          <div
-            className="h-full bg-accent rounded-[2px]"
-            style={{ width: `${Math.min(100, (totalPhotos / TOTAL_FREE_PHOTOS) * 100)}%` }}
-          />
-        </div>
-        {atLimit && (
-          <button
-            disabled
-            className="bg-[rgba(123,123,255,0.1)] border border-[rgba(123,123,255,0.25)] rounded-[6px] px-[10px] py-[5px] text-[10px] font-bold text-accent whitespace-nowrap cursor-not-allowed"
-          >
-            Unlock ∞
-          </button>
-        )}
-      </div>
-
-      <div className="sec">Transformation</div>
-      <TransformCard
-        sessionA={sessionA}
-        sessionB={sessionB}
-        sortedSessions={sortedPhotoSessions}
-        compareAId={compareAId}
-        compareBId={compareBId}
-        onSelectA={setCompareAId}
-        onSelectB={setCompareBId}
-        showComparePicker={showComparePicker}
-        onShowComparePicker={setShowComparePicker}
-        onOpen={() => photosSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
-        photoSessions={safePhotoSessions}
-      />
-
-      <div ref={photosSectionRef} className="relative flex flex-col min-h-[280px]">
+      <div ref={photosSectionRef} className="scroll-mt-4">
+        <div className="sec">Photos</div>
+        <div className="relative flex flex-col min-h-[280px]">
         <PhotosViewContent
           photoSessions={safePhotoSessions}
           setPhotoSessions={setPhotoSessions}
@@ -347,6 +300,7 @@ export default function ProgressBody({
           muscleMassLog={safeMuscleMassLog}
           unitWeight={unitWeight ?? 'kg'}
           showExitCTA={false}
+          inline={true}
           onOpenAddPhotos={() => {
             if (atLimit) {
               alert(
@@ -358,6 +312,7 @@ export default function ProgressBody({
             setShowPhotos(true)
           }}
         />
+        </div>
       </div>
 
       {showAddWeight && (

@@ -20,7 +20,7 @@ const ALL_SLUGS = [
   'obliques',
 ]
 
-const CIRC = 2 * Math.PI * 14
+const CIRC = 2 * Math.PI * 18
 
 function getMuscleFrequency(history, allLibraryExercises) {
   const now = Date.now()
@@ -72,20 +72,20 @@ export default function ProgressRecovery({ muscleLastWorked, history, allLibrary
               key={slug}
               className="bg-card border border-border rounded-[12px] py-[10px] px-[5px] flex flex-col items-center gap-[5px]"
             >
-              <div className="relative w-[36px] h-[36px]">
-                <svg width="36" height="36" viewBox="0 0 36 36">
-                  <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.06)" strokeWidth="4" />
+              <div className="relative w-[40px] h-[40px]">
+                <svg width="40" height="40" viewBox="0 0 40 40">
+                  <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(255,255,255,.06)" strokeWidth="4" />
                   <circle
-                    cx="18"
-                    cy="18"
-                    r="14"
+                    cx="20"
+                    cy="20"
+                    r="18"
                     fill="none"
                     stroke={colour}
                     strokeWidth="4"
                     strokeLinecap="round"
                     strokeDasharray={CIRC}
                     strokeDashoffset={offset}
-                    transform="rotate(-90 18 18)"
+                    transform="rotate(-90 20 20)"
                   />
                 </svg>
                 <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] font-extrabold text-white">

@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { getTopMovers, getTrainedExercises, getE1RMHistory, getBestE1RM } from './progressUtils'
+import { useState, useMemo, useEffect } from 'react'
+import { getTopMovers, getTrainedExercises, getRecentlyTrainedExercises, getE1RMHistory, getBestE1RM } from './progressUtils'
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 
@@ -7,10 +7,18 @@ export default function ProgressStrength({ history, unitWeight }) {
   const [period, setPeriod] = useState('6M')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
+  const [showAllExercises, setShowAllExercises] = useState(false)
 
   const safeHistory = Array.isArray(history) ? history : []
   const movers = useMemo(() => getTopMovers(safeHistory, 3), [safeHistory])
   const trained = useMemo(() => getTrainedExercises(safeHistory), [safeHistory])
+  const recentExercises = useMemo(() => getRecentlyTrainedExercises(safeHistory, 12), [safeHistory])
+
+  useEffect(() => {
+    if (recentExercises.length > 0 && selected === null) {
+      setSelected(recentExercises[0])
+    }
+  }, [recentExercises, selected])
 
   const filtered = search ? trained.filter((n) => n.toLowerCase().includes(search.toLowerCase())) : []
 
@@ -69,7 +77,7 @@ export default function ProgressStrength({ history, unitWeight }) {
       ))}
 
       <div className="sec">Exercise deep-dive</div>
-      <div className="bg-card border border-border rounded-[12px] p-[11px_14px] flex items-center gap-[9px] mb-2">
+      <div className="bg-card border border-border rounded-[12px] p-[11px_14px] flex items-center gap-[9px] mb-3">
         <svg
           width="14"
           height="14"
@@ -100,11 +108,69 @@ export default function ProgressStrength({ history, unitWeight }) {
         )}
       </div>
 
+      {recentExercises.length > 0 && (
+        <div className="mb-3">
+          <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-2">Recent</div>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1" style={{ scrollbarWidth: 'none' }}>
+            {recentExercises.map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => {
+                  setSelected(name)
+                  setSearch('')
+                  setShowAllExercises(false)
+                }}
+                className={`shrink-0 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all ${
+                  selected === name
+                    ? 'bg-accent text-on-accent shadow-lg shadow-accent/20'
+                    : 'bg-card border border-border text-text hover:border-accent/50'
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => setShowAllExercises((v) => !v)}
+          className="flex-1 py-2.5 rounded-xl border border-dashed border-border-strong text-[12px] font-semibold text-muted-strong hover:border-accent/50 hover:text-accent transition-colors"
+        >
+          {showAllExercises ? 'Hide all exercises' : `All exercises (${trained.length})`}
+        </button>
+      </div>
+
+      {showAllExercises && (
+        <div className="bg-card border border-border rounded-[12px] mb-3 overflow-hidden max-h-[220px] overflow-y-auto">
+          {trained.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => {
+                setSelected(name)
+                setSearch('')
+                setShowAllExercises(false)
+              }}
+              className={`w-full px-4 py-3 text-left text-[13px] font-semibold border-b border-border last:border-0 transition-colors ${
+                selected === name ? 'bg-accent/10 text-accent border-accent/20' : 'text-text hover:bg-card-alt'
+              }`}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {search && filtered.length > 0 && (
         <div className="bg-card border border-border rounded-[12px] mb-3 overflow-hidden">
           {filtered.slice(0, 6).map((name) => (
             <button
               key={name}
+              type="button"
               onClick={() => {
                 setSelected(name)
                 setSearch('')
@@ -120,13 +186,32 @@ export default function ProgressStrength({ history, unitWeight }) {
       {selected && (
         <>
           <div className="bg-card border border-border rounded-[14px] p-4 mb-2">
-            <div className="flex justify-between items-baseline mb-3">
-              <div className="text-[13px] font-bold text-text">{selected} · est. max</div>
-              {allTimePR && (
-                <div className="text-[11px] font-bold text-success">
-                  PR {allTimePR} {unitWeight}
+            <div className="flex justify-between items-start gap-3 mb-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-extrabold text-text truncate">{selected}</div>
+                <div className="text-[11px] text-muted mt-0.5">Est. 1RM over time</div>
+                <div className="text-[9px] text-muted/80 mt-0.5">
+                  Estimated one-rep max from each session (from your best set that day)
                 </div>
-              )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {allTimePR && (
+                  <span className="text-[11px] font-bold text-success">
+                    PR {allTimePR} {unitWeight}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="p-1.5 rounded-lg text-muted hover:bg-card-alt hover:text-text transition-colors"
+                  aria-label="Change exercise"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
             </div>
             {e1rmHistory.length > 1 ? (
               <>
@@ -185,6 +270,7 @@ export default function ProgressStrength({ history, unitWeight }) {
               <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">
                 Est. max now
               </div>
+              <div className="text-[8px] text-muted/80 mt-0.5">From your latest session</div>
             </div>
             <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
               <div className="text-[20px] font-extrabold text-text">
@@ -194,6 +280,7 @@ export default function ProgressStrength({ history, unitWeight }) {
               <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">
                 All-time PR
               </div>
+              <div className="text-[8px] text-muted/80 mt-0.5">Best estimated 1RM ever</div>
             </div>
           </div>
 

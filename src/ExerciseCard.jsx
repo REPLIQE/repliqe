@@ -363,35 +363,34 @@ function ExerciseCard({
               const sidePct = (1 - progress) * 50 // each side grows from 0% to 50% as bar shrinks
               return (
                 <div data-rest-active="1" className="flex items-center justify-center gap-1.5 py-0.5 my-0.5 rounded-lg relative min-h-0 pointer-events-none overflow-hidden" style={{ height: '1.2rem' }}>
-                  {/* Dots from center out to left edge (visible during rest, then stay muted in completed row below) */}
+                  {/* Dots – hvid mens rest kører */}
                   <div
                     className="absolute top-0 bottom-0 right-1/2 transition-all duration-300 ease-out"
                     style={{
                       width: `${sidePct}%`,
-                      backgroundImage: 'radial-gradient(circle, var(--color-success) 0.75px, transparent 0.75px)',
+                      backgroundImage: 'radial-gradient(circle, #fff 0.75px, transparent 0.75px)',
                       backgroundSize: '4px 1.2rem',
                       backgroundPosition: '0 center',
-                      opacity: 0.5
+                      opacity: 0.7
                     }}
                   />
                   {/* Center bar – shrinks from both sides */}
                   <div
-                    className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 rounded-sm transition-all duration-300 ease-out bg-gradient-to-r from-accent/25 via-accent/18 to-accent/25"
+                    className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 rounded-sm transition-all duration-300 ease-out bg-gradient-to-r from-accent to-accent-end"
                     style={{ width: `${barWidthPct}%`, minWidth: 0 }}
                   />
-                  {/* Dots from center out to right edge */}
                   <div
                     className="absolute top-0 bottom-0 left-1/2 transition-all duration-300 ease-out"
                     style={{
                       width: `${sidePct}%`,
-                      backgroundImage: 'radial-gradient(circle, var(--color-success) 0.75px, transparent 0.75px)',
+                      backgroundImage: 'radial-gradient(circle, #fff 0.75px, transparent 0.75px)',
                       backgroundSize: '4px 1.2rem',
                       backgroundPosition: '0 center',
-                      opacity: 0.5
+                      opacity: 0.7
                     }}
                   />
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-success relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                  <span className="text-success font-bold text-xs tabular-nums relative z-10 min-w-[28px] text-center">{formatTime(restTime)}</span>
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-white relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span className="text-white font-bold text-xs tabular-nums relative z-10 min-w-[28px] text-center">{formatTime(restTime)}</span>
                 </div>
               )
             })()}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { loadPhotoSrc } from './PhotosModal'
 import { groupPhotoSessionsByMonth } from './progressUtils'
+import ProgressPhoto from './ProgressPhoto'
 
 const ANGLES = [
   { key: 'front', label: 'Front' },
@@ -8,9 +9,28 @@ const ANGLES = [
   { key: 'side', label: 'Side' },
 ]
 
-export function PhotoThumb({ session, label, angle = 'front' }) {
+const PLACEHOLDER_SVG = (
+  <svg width="44" height="80" viewBox="0 0 50 90" fill="none">
+    <ellipse cx="25" cy="14" rx="10" ry="11" fill="rgba(255,255,255,0.07)" />
+    <path
+      d="M14 26 L36 26 L34 54 L34 90 L26 90 L26 54 L24 54 L24 90 L16 90 L16 54 Z"
+      fill="rgba(255,255,255,0.07)"
+    />
+  </svg>
+)
+
+export function PhotoThumb({ session, label, angle = 'front', weightLog, muscleMassLog, unitWeight }) {
   const [src, setSrc] = useState(null)
   const filename = session?.[angle]
+  const crop = session?.crops?.[angle]
+
+  const weightEntry = Array.isArray(weightLog) && session?.date
+    ? weightLog.find((e) => e.date === session.date)
+    : null
+  const muscleEntry = Array.isArray(muscleMassLog) && session?.date
+    ? muscleMassLog.find((e) => e.date === session.date)
+    : null
+  const statsLine = [weightEntry?.value != null && `${weightEntry.value} ${unitWeight || 'kg'}`, muscleEntry?.value != null && `${muscleEntry.value}%`].filter(Boolean).join(' · ')
 
   useEffect(() => {
     if (!filename) return
@@ -18,23 +38,24 @@ export function PhotoThumb({ session, label, angle = 'front' }) {
   }, [filename])
 
   return (
-    <div className="aspect-[0.85] bg-card-deep flex items-center justify-center relative overflow-hidden">
-      {src ? (
-        <img src={src} alt="" className="w-full h-full object-cover" />
-      ) : (
-        <svg width="44" height="80" viewBox="0 0 50 90" fill="none">
-          <ellipse cx="25" cy="14" rx="10" ry="11" fill="rgba(255,255,255,0.07)" />
-          <path
-            d="M10 35 Q10 24 25 24 Q40 24 40 35 L43 70 Q43 74 39 74 L34 74 L32 90 L18 90 L16 74 L11 74 Q7 74 7 70 Z"
-            fill="rgba(255,255,255,0.07)"
-          />
-        </svg>
-      )}
-      {label && (
-        <span className="absolute bottom-2 text-[8px] font-bold text-white/30 uppercase tracking-[0.5px]">
-          {label}
+    <div className="relative flex items-center justify-center">
+      <ProgressPhoto
+        src={src}
+        crop={crop}
+        className="w-full rounded-none"
+      >
+        {PLACEHOLDER_SVG}
+      </ProgressPhoto>
+      <div className="absolute bottom-0 left-0 right-0 bg-black/50 pt-2 pb-2 px-2 text-center pointer-events-none min-h-[44px] flex flex-col justify-end">
+        {label && (
+          <span className="block text-[8px] font-bold text-white uppercase tracking-[0.5px]">
+            {label}
+          </span>
+        )}
+        <span className="block text-[9px] font-semibold text-white/95 mt-0.5 min-h-[14px]">
+          {statsLine || '\u00A0'}
         </span>
-      )}
+      </div>
     </div>
   )
 }
@@ -53,6 +74,9 @@ export function TransformCard({
   onGoToBody,
   photoSessions,
   fixedCompare = false,
+  weightLog,
+  muscleMassLog,
+  unitWeight = 'kg',
 }) {
   const [angle, setAngle] = useState('front')
   const handleArrowClick = (e) => {
@@ -68,14 +92,10 @@ export function TransformCard({
       >
         <div className="grid grid-cols-2 gap-[2px]">
           {['Before', 'After'].map((label) => (
-            <div key={label} className="aspect-[0.85] bg-card-deep flex items-center justify-center relative">
-              <svg width="48" height="86" viewBox="0 0 50 90" fill="none">
-                <ellipse cx="25" cy="14" rx="10" ry="11" fill="rgba(255,255,255,0.05)" />
-                <path
-                  d="M10 35 Q10 24 25 24 Q40 24 40 35 L43 70 Q43 74 39 74 L34 74 L32 90 L18 90 L16 74 L11 74 Q7 74 7 70 Z"
-                  fill="rgba(255,255,255,0.05)"
-                />
-              </svg>
+            <div key={label} className="flex items-center justify-center relative" style={{ aspectRatio: 'var(--progress-photo-ratio)' }}>
+              <div className="w-full h-full bg-card-deep flex items-center justify-center overflow-hidden">
+                {PLACEHOLDER_SVG}
+              </div>
               <span className="absolute bottom-2 text-[8px] font-bold text-muted uppercase tracking-[0.5px]">
                 {label}
               </span>
@@ -104,8 +124,8 @@ export function TransformCard({
         onClick={fixedCompare ? undefined : onOpen}
         className={`grid grid-cols-2 gap-[2px] ${!fixedCompare ? 'cursor-pointer' : ''}`}
       >
-        <PhotoThumb session={sessionA} label={sessionA?.date} angle={angle} />
-        <PhotoThumb session={sessionB ?? sessionA} label={sessionB?.date ?? sessionA?.date} angle={angle} />
+        <PhotoThumb session={sessionA} label={sessionA?.date} angle={angle} weightLog={weightLog} muscleMassLog={muscleMassLog} unitWeight={unitWeight} />
+        <PhotoThumb session={sessionB ?? sessionA} label={sessionB?.date ?? sessionA?.date} angle={angle} weightLog={weightLog} muscleMassLog={muscleMassLog} unitWeight={unitWeight} />
       </div>
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-page border border-border rounded-[20px] px-2 py-1 text-[9px] font-extrabold text-muted z-10">
         VS
@@ -115,7 +135,7 @@ export function TransformCard({
           <div>
             <div className="text-[13px] font-bold text-text">Your transformation</div>
             <div className="text-[10px] text-muted mt-0.5">
-              {sessionA?.date ?? '—'} → {sessionB?.date ?? sessionA?.date ?? '—'} · {photoSessions.length * 3} photos
+              {sessionA?.date ?? '—'} → {sessionB?.date ?? sessionA?.date ?? '—'}
             </div>
           </div>
           <button

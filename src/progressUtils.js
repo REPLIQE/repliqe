@@ -119,6 +119,35 @@ export function getTrainedExercises(history) {
 }
 
 /**
+ * Returns exercise names ordered by most recent workout (last time trained first).
+ * Only weight_reps and bw_reps. Up to n names.
+ */
+export function getRecentlyTrainedExercises(history, n = 12) {
+  const seen = new Set()
+  const order = []
+  const list = Array.isArray(history) ? [...history] : []
+  list.sort((a, b) => {
+    const pa = (a.date || '').split('/')
+    const pb = (b.date || '').split('/')
+    if (pa.length !== 3 || pb.length !== 3) return 0
+    const da = new Date(pa[2], pa[1] - 1, pa[0]).getTime()
+    const db = new Date(pb[2], pb[1] - 1, pb[0]).getTime()
+    return db - da
+  })
+  for (const w of list) {
+    for (const ex of w.exercises || []) {
+      if (ex.type !== 'weight_reps' && ex.type !== 'bw_reps') continue
+      const name = ex.name && String(ex.name).trim()
+      if (!name || seen.has(name)) continue
+      seen.add(name)
+      order.push(name)
+      if (order.length >= n) return order
+    }
+  }
+  return order
+}
+
+/**
  * Returns last logged entry: { value, date } or null.
  */
 export function getLatestMeasurement(entries) {

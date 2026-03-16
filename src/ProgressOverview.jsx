@@ -1,10 +1,92 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { getTopMovers, sortPhotoSessionsByDate } from './progressUtils'
 import { MUSCLE_COLOURS_HEX, getMuscleRecoveryPct, formatMuscleLabel } from './utils'
 import PhotosModal from './PhotosModal'
 import { TransformCard } from './TransformCard'
 
 const TOTAL_FREE_PHOTOS = 12
+
+/** Parse dd/mm/yyyy to Date or null */
+function parseHistoryDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null
+  const parts = dateStr.trim().split('/')
+  if (parts.length !== 3) return null
+  const [d, m, y] = parts
+  const date = new Date(Number(y), Number(m) - 1, Number(d))
+  return isNaN(date.getTime()) ? null : date
+}
+
+/** Build 35 cells (5×7) for last ~5 weeks from Monday; history items have { date: 'dd/mm/yyyy' } */
+function getLast30DaysGrid(workoutHistory) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const cells = []
+  const start = new Date(today)
+  start.setDate(start.getDate() - 34)
+  while (start.getDay() !== 1) start.setDate(start.getDate() - 1)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 34)
+  end.setHours(23, 59, 59, 999)
+
+  const trainedDates = new Set(
+    (workoutHistory || [])
+      .map((w) => parseHistoryDate(w.date))
+      .filter(Boolean)
+      .map((d) => d.toDateString())
+  )
+
+  const current = new Date(start)
+  while (current <= end) {
+    const d = new Date(current)
+    d.setHours(0, 0, 0, 0)
+    cells.push({
+      trained: trainedDates.has(d.toDateString()),
+      istoday: d.toDateString() === today.toDateString(),
+      isFuture: d > today,
+    })
+    current.setDate(current.getDate() + 1)
+  }
+  return cells
+}
+
+/** Total time in last 30 days; history has duration in seconds */
+function getTotalTime(workoutHistory) {
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+  const recent = (workoutHistory || []).filter((w) => {
+    const d = parseHistoryDate(w.date)
+    return d && d.getTime() >= thirtyDaysAgo
+  })
+  const totalSeconds = recent.reduce((sum, w) => sum + (Number(w.duration) || 0), 0)
+  const totalMinutes = Math.floor(totalSeconds / 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const mins = totalMinutes % 60
+  return hours > 0 ? `${hours}h` : `${mins}m`
+}
+
+/** Volume (kg × reps) for done sets in last 30 days */
+function getTotalVolume(workoutHistory) {
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+  const recent = (workoutHistory || []).filter((w) => {
+    const d = parseHistoryDate(w.date)
+    return d && d.getTime() >= thirtyDaysAgo
+  })
+  const total = recent.reduce((sum, w) => {
+    return (
+      sum +
+      (w.exercises || []).reduce((eSum, ex) => {
+        return (
+          eSum +
+          (ex.sets || [])
+            .filter((s) => s.done)
+            .reduce((sSum, s) => sSum + Number(s.kg || 0) * Number(s.reps || 0), 0)
+        )
+      }, 0)
+    )
+  }, 0)
+  return total >= 1000 ? `${Math.round(total / 1000)}k` : `${total}`
+}
 
 export default function ProgressOverview({
   history,
@@ -16,6 +98,7 @@ export default function ProgressOverview({
   photoSessions,
   setPhotoSessions,
   unitWeight,
+  onGoToTab,
   onGoToBody,
 }) {
   const [showPhotos, setShowPhotos] = useState(false)
@@ -23,7 +106,6 @@ export default function ProgressOverview({
   const [showAllHistory, setShowAllHistory] = useState(false)
 
   const safeHistory = Array.isArray(history) ? history : []
-  const safeWeekStreak = Array.isArray(weekStreak) ? weekStreak : []
   const safeWeightLog = Array.isArray(weightLog) ? weightLog : []
   const safeBodyFatLog = Array.isArray(bodyFatLog) ? bodyFatLog : []
   const safeMuscleMassLog = Array.isArray(muscleMassLog) ? muscleMassLog : []
@@ -31,43 +113,14 @@ export default function ProgressOverview({
   const sortedPhotoSessions = sortPhotoSessionsByDate(safePhotoSessions)
   const safeMuscleLastWorked = muscleLastWorked && typeof muscleLastWorked === 'object' ? muscleLastWorked : {}
 
-  const thisWeekSessions = safeWeekStreak.filter((d) => d.worked || d.isToday).length
-  const thisWeekTime = (() => {
-    const now = new Date()
-    now.setHours(0, 0, 0, 0)
-    const dayOfWeek = (now.getDay() + 6) % 7
-    return safeHistory
-      .filter((w) => {
-        const parts = (w.date || '').split('/')
-        if (parts.length !== 3) return false
-        const d = new Date(parts[2], parts[1] - 1, parts[0])
-        d.setHours(0, 0, 0, 0)
-        return (now - d) / 86400000 <= dayOfWeek
-      })
-      .reduce((sum, w) => sum + (w.duration || 0), 0)
-  })()
-  const thisWeekVol = (() => {
-    const now = new Date()
-    now.setHours(0, 0, 0, 0)
-    const dayOfWeek = (now.getDay() + 6) % 7
-    return safeHistory
-      .filter((w) => {
-        const parts = (w.date || '').split('/')
-        if (parts.length !== 3) return false
-        const d = new Date(parts[2], parts[1] - 1, parts[0])
-        d.setHours(0, 0, 0, 0)
-        return (now - d) / 86400000 <= dayOfWeek
-      })
-      .reduce(
-        (sum, w) =>
-          sum +
-          (w.exercises || []).reduce((s, ex) => {
-            const doneSets = (ex.sets || []).filter((set) => set.done === true)
-            return s + doneSets.reduce((v, set) => v + Number(set.kg || 0) * Number(set.reps || 0), 0)
-          }, 0),
-        0
-      )
-  })()
+  const last30Days = getLast30DaysGrid(safeHistory)
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+  const totalWorkouts = (safeHistory || []).filter((w) => {
+    const d = parseHistoryDate(w.date)
+    return d && d.getTime() >= thirtyDaysAgo
+  }).length
+  const totalTimeFormatted = getTotalTime(safeHistory)
+  const volumeFormatted = getTotalVolume(safeHistory)
 
   const movers = getTopMovers(safeHistory, 2)
 
@@ -78,7 +131,7 @@ export default function ProgressOverview({
   const firstMuscleMass = safeMuscleMassLog.length > 0 ? safeMuscleMassLog[0] : null
 
   const OVERVIEW_MUSCLES = ['chest', 'back', 'quads', 'side-delts', 'biceps', 'triceps', 'glutes', 'abs']
-  const CIRC = 2 * Math.PI * 14
+  const CIRC = 2 * Math.PI * 18
 
   const oldestSession = sortedPhotoSessions.length > 0 ? sortedPhotoSessions[sortedPhotoSessions.length - 1] : null
   const newestSession = sortedPhotoSessions.length > 0 ? sortedPhotoSessions[0] : null
@@ -87,24 +140,68 @@ export default function ProgressOverview({
 
   return (
     <div className="flex flex-col gap-0">
-      <div className="sec">This week</div>
-      <div className="grid grid-cols-3 gap-2 mb-2">
-        <StatTile val={thisWeekSessions} unit="×" label="Workouts" />
-        <StatTile val={(thisWeekTime / 3600).toFixed(1)} unit="h" label="Time" />
-        <StatTile
-          val={thisWeekVol >= 1000 ? (thisWeekVol / 1000).toFixed(1) + 'k' : thisWeekVol}
-          unit=""
-          label="Volume"
-        />
-      </div>
+      <button
+        type="button"
+        onClick={() => onGoToTab?.('Strength')}
+        className="progress-section-label text-left w-full cursor-pointer hover:opacity-80 transition-opacity"
+      >
+        Last 30 Days
+      </button>
+      <button
+        type="button"
+        onClick={() => onGoToTab?.('Strength')}
+        className="activity-card w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 rounded-[14px]"
+      >
+        <div className="activity-body">
+          <div className="activity-grid-side">
+            <div className="activity-grid-days">
+              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => (
+                <div key={d} className="activity-grid-day-label">
+                  {d}
+                </div>
+              ))}
+            </div>
+            <div className="activity-grid">
+              {last30Days.map((day, i) => (
+                <div
+                  key={i}
+                  className={`activity-cell ${day.trained ? 'active' : ''} ${day.istoday ? 'today' : ''}`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="activity-stats-side">
+            <div className="activity-stat-box">
+              <div className="activity-stat-v">{totalWorkouts}</div>
+              <div className="activity-stat-l">Workouts</div>
+            </div>
+            <div className="activity-stat-box">
+              <div className="activity-stat-v">{totalTimeFormatted}</div>
+              <div className="activity-stat-l">Total Time</div>
+            </div>
+            <div className="activity-stat-box green">
+              <div className="activity-stat-v">{volumeFormatted}</div>
+              <div className="activity-stat-l">Volume (kg)</div>
+            </div>
+          </div>
+        </div>
+      </button>
 
       {movers.length > 0 && (
         <>
-          <div className="sec">Strength · top movers</div>
+          <button
+            type="button"
+            onClick={() => onGoToTab?.('Strength')}
+            className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
+          >
+            Strength · top movers
+          </button>
           {movers.map((m) => (
-            <div
+            <button
               key={m.name}
-              className="bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] flex items-center justify-between"
+              type="button"
+              onClick={() => onGoToTab?.('Strength')}
+              className="w-full bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] flex items-center justify-between text-left cursor-pointer hover:border-accent/30 transition-colors"
             >
               <div>
                 <div className="text-[14px] font-bold text-text">{m.name}</div>
@@ -117,15 +214,25 @@ export default function ProgressOverview({
               }`}>
                 {m.pct > 0 ? `↑ +${m.pct}%` : m.pct < 0 ? `↓ ${m.pct}%` : '—'}
               </div>
-            </div>
+            </button>
           ))}
         </>
       )}
 
       {(latestWeight || latestMuscleMass) && (
         <>
-          <div className="sec">Body</div>
-          <div className="grid grid-cols-2 gap-2 mb-2">
+          <button
+            type="button"
+            onClick={() => onGoToTab?.('Body')}
+            className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
+          >
+            Body
+          </button>
+          <button
+            type="button"
+            onClick={() => onGoToTab?.('Body')}
+            className="grid grid-cols-2 gap-2 mb-2 w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 p-0 bg-transparent"
+          >
             {latestWeight && (
               <StatTile
                 val={latestWeight.value}
@@ -145,11 +252,17 @@ export default function ProgressOverview({
                 deltaLabel="since start"
               />
             )}
-          </div>
+          </button>
         </>
       )}
 
-      <div className="sec">Transformation</div>
+      <button
+        type="button"
+        onClick={() => onGoToBody?.()}
+        className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
+      >
+        Photos
+      </button>
       <TransformCard
         sessionA={sessionA}
         sessionB={sessionB}
@@ -164,10 +277,23 @@ export default function ProgressOverview({
         onGoToBody={onGoToBody}
         photoSessions={safePhotoSessions}
         fixedCompare={true}
+        weightLog={safeWeightLog}
+        muscleMassLog={safeMuscleMassLog}
+        unitWeight={unitWeight ?? 'kg'}
       />
 
-      <div className="sec">Recovery · now</div>
-      <div className="grid grid-cols-4 gap-[5px] mb-2">
+      <button
+        type="button"
+        onClick={() => onGoToTab?.('Recovery')}
+        className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
+      >
+        Recovery · now
+      </button>
+      <button
+        type="button"
+        onClick={() => onGoToTab?.('Recovery')}
+        className="grid grid-cols-4 gap-[5px] mb-2 w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 p-0 bg-transparent"
+      >
         {OVERVIEW_MUSCLES.map((slug) => {
           const pct = getMuscleRecoveryPct(slug, safeMuscleLastWorked[slug] ?? null)
           const colour = MUSCLE_COLOURS_HEX[slug] ?? '#888'
@@ -177,20 +303,20 @@ export default function ProgressOverview({
               key={slug}
               className="bg-card border border-border rounded-[12px] py-[10px] px-[5px] flex flex-col items-center gap-[5px]"
             >
-              <div className="relative w-[36px] h-[36px]">
-                <svg width="36" height="36" viewBox="0 0 36 36">
-                  <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.06)" strokeWidth="4" />
+              <div className="relative w-[40px] h-[40px]">
+                <svg width="40" height="40" viewBox="0 0 40 40">
+                  <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(255,255,255,.06)" strokeWidth="4" />
                   <circle
-                    cx="18"
-                    cy="18"
-                    r="14"
+                    cx="20"
+                    cy="20"
+                    r="18"
                     fill="none"
                     stroke={colour}
                     strokeWidth="4"
                     strokeLinecap="round"
                     strokeDasharray={CIRC}
                     strokeDashoffset={offset}
-                    transform="rotate(-90 18 18)"
+                    transform="rotate(-90 20 20)"
                   />
                 </svg>
                 <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] font-extrabold text-white">
@@ -203,9 +329,15 @@ export default function ProgressOverview({
             </div>
           )
         })}
-      </div>
+      </button>
 
-      <div className="sec">Recent workouts</div>
+      <button
+        type="button"
+        onClick={() => onGoToTab?.('Strength')}
+        className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
+      >
+        Workout history
+      </button>
       {safeHistory.length === 0 ? (
         <div className="text-sm text-muted italic mb-4">No workouts yet</div>
       ) : (
@@ -223,7 +355,7 @@ export default function ProgressOverview({
               onClick={() => setShowAllHistory(true)}
               className="w-full py-2.5 text-[12px] font-semibold text-accent text-center mb-2"
             >
-              Show all {safeHistory.length} workouts
+              See full workout history ({safeHistory.length})
             </button>
           )}
         </>
@@ -430,8 +562,11 @@ function WorkoutDetailSheet({ workout, unitWeight, onClose }) {
   )
 }
 
+const ROW_HEIGHT_ESTIMATE = 76
+
 function AllHistorySheet({ history, unitWeight, onSelect, onClose }) {
   const [search, setSearch] = useState('')
+  const parentRef = useRef(null)
 
   const filtered = search
     ? history.filter(
@@ -441,11 +576,20 @@ function AllHistorySheet({ history, unitWeight, onSelect, onClose }) {
       )
     : history
 
+  const virtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT_ESTIMATE,
+    overscan: 8,
+  })
+
+  const virtualItems = virtualizer.getVirtualItems()
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-50 flex items-end justify-center">
       <div className="w-full max-w-md bg-page rounded-t-[20px] max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
-          <h2 className="text-[17px] font-extrabold text-text">All workouts</h2>
+          <h2 className="text-[17px] font-extrabold text-text">Workout history</h2>
           <button
             type="button"
             onClick={onClose}
@@ -485,17 +629,33 @@ function AllHistorySheet({ history, unitWeight, onSelect, onClose }) {
           </div>
         </div>
 
-        <div className="overflow-y-auto flex-1 min-h-0 px-5 pb-8">
-          {filtered.map((w, i) => (
-            <WorkoutHistoryRow
-              key={w.date + (w.name || '') + i}
-              workout={w}
-              unitWeight={unitWeight}
-              onClick={() => onSelect(w)}
-            />
-          ))}
-          {filtered.length === 0 && (
+        <div ref={parentRef} className="overflow-y-auto flex-1 min-h-0 px-5 pb-8">
+          {filtered.length === 0 ? (
             <div className="text-sm text-muted italic text-center py-8">No workouts found</div>
+          ) : (
+            <div
+              className="relative w-full"
+              style={{ height: `${virtualizer.getTotalSize()}px` }}
+            >
+              {virtualItems.map((virtualRow) => {
+                const w = filtered[virtualRow.index]
+                return (
+                  <div
+                    key={w.date + (w.name || '') + virtualRow.index}
+                    className="absolute left-0 top-0 w-full pr-0"
+                    style={{
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <WorkoutHistoryRow
+                      workout={w}
+                      unitWeight={unitWeight}
+                      onClick={() => onSelect(w)}
+                    />
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       </div>

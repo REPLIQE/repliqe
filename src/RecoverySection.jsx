@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { formatMuscleLabel, getRecoveryPct, MUSCLE_COLOURS_HEX } from './utils'
 import RecoveryModal from './RecoveryModal'
 
-const RING_R = 36
+const RING_R = 44
 const RING_CIRC = 2 * Math.PI * RING_R
 const RING_STROKE = 6
 const RING_GREEN = '#00e5a0'

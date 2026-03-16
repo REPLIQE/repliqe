@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { groupPhotoSessionsByMonth, getOldestMiddleNewestSessions } from './progressUtils'
+import { getOldestMiddleNewestSessions } from './progressUtils'
+import ProgressPhoto from './ProgressPhoto'
+import ProgressPhotoEditor from './ProgressPhotoEditor'
 
 const TOTAL_FREE_PHOTOS = 12
 const WEB_PHOTO_STORAGE_KEY = 'repliqe_photoData'
@@ -9,8 +11,10 @@ const ANGLES = [
   { key: 'side', label: 'Side' },
 ]
 
-const MAX_PHOTO_PX = 800
-const PHOTO_QUALITY = 0.88
+/** Max longest side in px – good for mobile, keeps file size down. */
+const MAX_PHOTO_PX = 720
+/** JPEG quality 0–1 – balanced for viewing on phone without excess size. */
+const PHOTO_QUALITY = 0.82
 
 function getTodayEnGB() {
   return new Date().toLocaleDateString('en-GB')
@@ -190,6 +194,7 @@ export default function PhotosModal({
   const [captureStep, setCaptureStep] = useState(0)
   const [capturedImages, setCapturedImages] = useState({})
   const [captureSessionDate, setCaptureSessionDate] = useState(() => getTodayEnGB())
+  const [captureThumbSrcs, setCaptureThumbSrcs] = useState({ front: null, back: null, side: null })
   const inputCameraRef = useRef(null)
   const inputLibraryRef = useRef(null)
   const dateInputRef = useRef(null)
@@ -201,6 +206,25 @@ export default function PhotosModal({
   useEffect(() => {
     initialPhotoSessionsRef.current = JSON.stringify(photoSessions)
   }, [])
+
+  useEffect(() => {
+    const load = async () => {
+      const next = { front: null, back: null, side: null }
+      for (const { key } of ANGLES) {
+        const filename = capturedImages[key]
+        if (filename) {
+          try {
+            const src = await loadPhotoSrc(filename)
+            next[key] = src
+          } catch {
+            next[key] = null
+          }
+        }
+      }
+      setCaptureThumbSrcs(next)
+    }
+    load()
+  }, [capturedImages.front, capturedImages.back, capturedImages.side])
 
   useEffect(() => {
     if (openToAdd && canAddPhotos && !atLimit) {
@@ -215,6 +239,8 @@ export default function PhotosModal({
     initialPhotoSessionsRef.current !== null &&
     JSON.stringify(photoSessions) !== initialPhotoSessionsRef.current
 
+  const showCaptureUI =
+    capturing || (openToAdd && canAddPhotos && !atLimit)
 
   /** On native: opens camera or gallery. On web returns null (use file input instead). */
   async function takePhoto(source) {
@@ -222,7 +248,7 @@ export default function PhotosModal({
     try {
       const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
       const photo = await Camera.getPhoto({
-        quality: 85,
+        quality: 80,
         allowEditing: false,
         resultType: CameraResultType.Base64,
         source: source === 'library' ? CameraSource.Photos : CameraSource.Camera,
@@ -244,13 +270,10 @@ export default function PhotosModal({
     if (!base64) return
     const angle = ANGLES[captureStep]
     let normalized = base64.replace(/^data:image\/\w+;base64,/, '') || base64
-    // On native (iOS/Android) skip canvas normalization to avoid WebView issues; Camera already returns JPEG
-    if (!isNative) {
-      try {
-        normalized = await normalizeImage(base64)
-      } catch {
-        normalized = base64.replace(/^data:image\/\w+;base64,/, '') || base64
-      }
+    try {
+      normalized = await normalizeImage(base64)
+    } catch {
+      normalized = base64.replace(/^data:image\/\w+;base64,/, '') || base64
     }
     const sessionId = capturedImages._sessionId ?? `ps_${Date.now()}`
     const filename = `${sessionId}_${angle.key}.jpg`
@@ -328,9 +351,10 @@ export default function PhotosModal({
     setCapturing(false)
     setCaptureStep(0)
     setCapturedImages({})
+    if (openToAdd) onClose()
   }
 
-  if (capturing) {
+  if (showCaptureUI) {
     const currentAngle = ANGLES[captureStep]
     const isDone = captureStep >= ANGLES.length
 
@@ -348,6 +372,22 @@ export default function PhotosModal({
           <p className="text-sm text-muted text-center mb-4">
             {Object.values(capturedImages).filter((v) => v && v !== capturedImages._sessionId).length} photos taken
           </p>
+          <div className="flex gap-3 w-full max-w-sm mb-6 justify-center">
+            {ANGLES.map(({ key, label }) => (
+              <div key={key} className="flex flex-col items-center gap-1">
+                <div className="w-[56px] aspect-[0.72] rounded-xl border-2 border-border overflow-hidden bg-card-alt shrink-0">
+                  {captureThumbSrcs[key] ? (
+                    <img src={captureThumbSrcs[key]} alt={label} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-[10px] font-semibold text-muted">{label}</span>
+                    </div>
+                  )}
+                </div>
+                <span className="text-[9px] font-bold text-muted">{label}</span>
+              </div>
+            ))}
+          </div>
           <div className="w-full max-w-sm mb-6">
             <input
               ref={dateInputRef}
@@ -449,6 +489,31 @@ export default function PhotosModal({
             </div>
           </button>
         </div>
+        {(capturedImages.front || capturedImages.back || capturedImages.side) && (
+          <div className="px-6 pb-3">
+            <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-2">Uploaded</div>
+            <div className="flex gap-2 justify-center">
+              {ANGLES.map(({ key, label }) => (
+                <div key={key} className="flex flex-col items-center gap-1">
+                  <div className="w-[56px] aspect-[0.72] rounded-xl border-2 border-border overflow-hidden bg-card-alt shrink-0">
+                    {captureThumbSrcs[key] ? (
+                      <img
+                        src={captureThumbSrcs[key]}
+                        alt={label}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-[10px] font-semibold text-muted">{label}</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[9px] font-bold text-muted">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="flex-1 flex flex-col items-center justify-center px-6">
           <div className="text-text text-2xl font-extrabold mb-1">{currentAngle.label}</div>
           <div className="text-muted text-sm mb-8">
@@ -509,9 +574,13 @@ export default function PhotosModal({
           </button>
           <button
             onClick={() => {
-              setCapturing(false)
-              setCaptureStep(0)
-              setCapturedImages({})
+              if (openToAdd) {
+                onClose()
+              } else {
+                setCapturing(false)
+                setCaptureStep(0)
+                setCapturedImages({})
+              }
             }}
             className="w-full py-3 text-sm font-semibold text-muted border border-border rounded-lg"
           >
@@ -565,16 +634,30 @@ export function PhotosViewContent({
   onClose,
   hasChanges = false,
   onOpenAddPhotos,
+  inline = false,
 }) {
+  const padX = inline ? 'px-0' : 'px-5'
   const [view, setView] = useState('timeline')
-  const [compareA, setCompareA] = useState(photoSessions[0]?.id ?? null)
-  const [compareB, setCompareB] = useState(
-    photoSessions.length > 1 ? photoSessions[photoSessions.length - 1].id : null
-  )
+  const sortedSessionsForCompare = sortSessionsByDate(photoSessions || [])
+  const defaultOldest = sortedSessionsForCompare.length > 0 ? sortedSessionsForCompare[sortedSessionsForCompare.length - 1] : null
+  const defaultNewest = sortedSessionsForCompare.length > 0 ? sortedSessionsForCompare[0] : null
+  const [compareA, setCompareA] = useState(() => defaultOldest?.id ?? null)
+  const [compareB, setCompareB] = useState(() => (sortedSessionsForCompare.length > 1 ? defaultNewest?.id : null))
   const [compareAngle, setCompareAngle] = useState('front')
+
+  useEffect(() => {
+    const sorted = sortSessionsByDate(photoSessions || [])
+    if (sorted.length < 2) return
+    const oldest = sorted[sorted.length - 1]
+    const newest = sorted[0]
+    setCompareA((prev) => (prev == null ? oldest.id : prev))
+    setCompareB((prev) => (prev == null ? newest.id : prev))
+  }, [photoSessions?.length])
+  const [comparePickerOpen, setComparePickerOpen] = useState(null)
   const [showAllSessions, setShowAllSessions] = useState(false)
   const [editingDateSessionId, setEditingDateSessionId] = useState(null)
   const [sessionToDelete, setSessionToDelete] = useState(null)
+  const [editingCrop, setEditingCrop] = useState(null)
   const [thumbs, setThumbs] = useState({})
   const dateEditInputRef = useRef(null)
 
@@ -597,6 +680,16 @@ export function PhotosViewContent({
   }, [photoSessions])
 
   useEffect(() => {
+    if (!editingCrop) return
+    const session = (photoSessions || []).find((s) => s.id === editingCrop.sessionId)
+    const filename = session?.[editingCrop.angle]
+    if (!filename || thumbs[filename]) return
+    loadPhotoSrc(filename)
+      .then((src) => src && setThumbs((prev) => ({ ...prev, [filename]: src })))
+      .catch(() => {})
+  }, [editingCrop, photoSessions, thumbs])
+
+  useEffect(() => {
     if (editingDateSessionId && dateEditInputRef.current) dateEditInputRef.current.focus()
   }, [editingDateSessionId])
 
@@ -612,12 +705,23 @@ export function PhotosViewContent({
     setEditingDateSessionId(null)
   }
 
+  function updateSessionCrop(sessionId, angle, crop) {
+    if (!setPhotoSessions) return
+    setPhotoSessions((prev) =>
+      (prev || []).map((s) =>
+        s.id === sessionId
+          ? { ...s, crops: { ...(s.crops || {}), [angle]: crop } }
+          : s
+      )
+    )
+  }
+
   const sessionA = (photoSessions || []).find((s) => s.id === compareA)
   const sessionB = (photoSessions || []).find((s) => s.id === compareB)
 
   return (
     <>
-      <div className="flex px-5 pt-3 pb-2 gap-2 shrink-0">
+      <div className={`flex ${padX} pt-3 pb-2 gap-2 shrink-0`}>
         {['timeline', 'compare'].map((v) => (
           <button
             key={v}
@@ -632,7 +736,7 @@ export function PhotosViewContent({
       </div>
 
       {showExitCTA && (
-        <div className="shrink-0 px-5 pb-3">
+        <div className={`shrink-0 ${padX} pb-3`}>
           <button
             onClick={onClose}
             className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
@@ -643,7 +747,7 @@ export function PhotosViewContent({
       )}
 
       {view === 'timeline' && canAddPhotos && (
-        <div className="shrink-0 px-5 pb-3 space-y-2">
+        <div className={`shrink-0 ${padX} pb-3 space-y-2`}>
           <button
             onClick={() => {
               if (atLimit) {
@@ -680,7 +784,7 @@ export function PhotosViewContent({
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-5 pb-6 min-h-0">
+      <div className={`flex-1 overflow-y-auto ${padX} pb-6 min-h-0`}>
           {view === 'timeline' && (
             <>
               {((Array.isArray(photoSessions) ? photoSessions : []).length <= 3 || showAllSessions
@@ -718,24 +822,26 @@ export function PhotosViewContent({
                   </div>
                   <div className="grid grid-cols-3 gap-1">
                     {ANGLES.map(({ key, label }) => (
-                      <div
-                        key={key}
-                        className="aspect-[0.72] bg-card rounded-[10px] overflow-hidden flex items-center justify-center relative"
-                      >
-                        {thumbs[session[key]] ? (
-                          <img
-                            src={thumbs[session[key]]}
-                            alt={label}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : session[key] ? (
-                          <div className="w-5 h-5 border-2 border-muted border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <span className="text-[9px] text-muted font-semibold">—</span>
-                        )}
-                        <span className="absolute bottom-1.5 left-0 right-0 text-center text-[8px] font-bold text-muted uppercase">
-                          {label}
-                        </span>
+                      <div key={key} className="relative rounded-[10px] overflow-hidden">
+                        <ProgressPhoto
+                          src={thumbs[session[key]] || null}
+                          crop={session.crops?.[key]}
+                          className={`rounded-[10px] ${session[key] && canAddPhotos ? 'cursor-pointer' : ''}`}
+                          onClick={session[key] && canAddPhotos ? () => setEditingCrop({ sessionId: session.id, angle: key }) : undefined}
+                        >
+                          {session[key] ? (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <div className="w-5 h-5 border-2 border-muted border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          ) : (
+                            <span className="text-[9px] text-muted font-semibold">—</span>
+                          )}
+                        </ProgressPhoto>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 py-1.5 px-1 text-center pointer-events-none rounded-b-[10px]">
+                          <span className="text-[8px] font-bold text-white uppercase tracking-[0.5px]">
+                            {label}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -761,51 +867,81 @@ export function PhotosViewContent({
                 </div>
               ) : (
                 <>
-                  <div className="text-[10px] font-bold text-muted uppercase tracking-[0.8px] mb-2">
-                    Choose before and after date
-                  </div>
-                  <div className="flex gap-2 mb-3">
-                    {['A', 'B'].map((label, idx) => {
-                      const currentId = idx === 0 ? compareA : compareB
-                      const setCurrent = idx === 0 ? setCompareA : setCompareB
-                      const currentSession = idx === 0 ? sessionA : sessionB
-                      return (
-                        <div key={label} className="flex-1 min-w-0">
-                          <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1.5">
-                            {label === 'A' ? 'Before' : 'After'}
-                          </div>
-                          <div className="space-y-2.5 max-h-[160px] overflow-y-auto">
-                            {groupPhotoSessionsByMonth(photoSessions || []).map(({ monthLabel, sessions }) => (
-                              <div key={monthLabel} className="rounded-lg border border-border bg-card-alt/50 py-1.5 px-2">
-                                <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1.5 sticky top-0 bg-card-alt/80 py-0.5 -mx-0.5 px-0.5">
-                                  {monthLabel}
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {sessions.map((session) => (
+                  {(() => {
+                    const sorted = sortSessionsByDate(photoSessions || [])
+                    const oldest = sorted.length > 0 ? sorted[sorted.length - 1] : null
+                    const newest = sorted.length > 0 ? sorted[0] : null
+                    const isOldestNewestSelected = oldest && newest && compareA === oldest.id && compareB === newest.id
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (oldest && newest) {
+                              setCompareA(oldest.id)
+                              setCompareB(newest.id)
+                              setComparePickerOpen(null)
+                            }
+                          }}
+                          className={`w-full py-3 rounded-xl border text-[13px] font-bold mb-3 transition-colors ${
+                            isOldestNewestSelected
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-border bg-card-alt text-text hover:border-accent/50 hover:bg-card'
+                          }`}
+                        >
+                          Compare oldest → newest
+                        </button>
+                        <div className="text-[10px] font-bold text-muted uppercase tracking-[0.8px] mb-2">
+                          Or choose dates
+                        </div>
+                        <div className="flex gap-2 mb-3">
+                          {[
+                            { key: 'A', label: 'Before', currentId: compareA, setCurrent: setCompareA, session: sessionA },
+                            { key: 'B', label: 'After', currentId: compareB, setCurrent: setCompareB, session: sessionB },
+                          ].map(({ key, label, currentId, setCurrent, session }) => (
+                            <div key={key} className="flex-1 min-w-0 relative">
+                              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1">
+                                {label}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setComparePickerOpen((v) => (v === key ? null : key))}
+                                className={`w-full py-2.5 px-3 rounded-lg border text-[12px] font-semibold text-left flex items-center justify-between transition-colors ${
+                                  !isOldestNewestSelected
+                                    ? 'border-accent bg-accent/10 text-accent'
+                                    : 'border-border bg-card text-text'
+                                }`}
+                              >
+                                <span className="truncate">{session?.date ?? 'Select'}</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`shrink-0 ml-1 transition-transform ${comparePickerOpen === key ? 'rotate-180' : ''}`}>
+                                  <polyline points="6 9 12 15 18 9" />
+                                </svg>
+                              </button>
+                              {comparePickerOpen === key && (
+                                <div className="absolute top-full left-0 right-0 mt-1 z-20 rounded-xl border border-border bg-page shadow-lg max-h-[220px] overflow-y-auto">
+                                  {sorted.map((s) => (
                                     <button
-                                      key={session.id}
+                                      key={s.id}
                                       type="button"
-                                      onClick={() => setCurrent(session.id)}
-                                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border ${
-                                        currentId === session.id ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card-alt text-muted'
+                                      onClick={() => {
+                                        setCurrent(s.id)
+                                        setComparePickerOpen(null)
+                                      }}
+                                      className={`w-full px-3 py-2.5 text-left text-[12px] font-medium border-b border-border last:border-0 transition-colors ${
+                                        currentId === s.id ? 'bg-accent/15 text-accent' : 'text-text hover:bg-card-alt'
                                       }`}
                                     >
-                                      {session.date}
+                                      {s.date}
                                     </button>
                                   ))}
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                          {currentSession && (
-                            <div className="mt-1.5 text-[10px] font-semibold text-text truncate">
-                              {currentSession.date}
+                              )}
                             </div>
-                          )}
+                          ))}
                         </div>
-                      )
-                    })}
-                  </div>
+                      </>
+                    )
+                  })()}
 
                   <div className="border-t border-border pt-3 mt-3">
                     <div className="text-[10px] font-bold text-muted uppercase tracking-[0.8px] mb-2">
@@ -835,25 +971,22 @@ export function PhotosViewContent({
                           ? muscleMassLog.find((e) => e.date === session.date)
                           : null
                         const statsLine = [weightEntry?.value != null && `Weight ${weightEntry.value} ${unitWeight}`, muscleEntry?.value != null && `Muscle ${muscleEntry.value}%`].filter(Boolean).join(' · ')
+                        const placeholderSvg = (
+                          <svg width="40" height="72" viewBox="0 0 50 90" fill="none" className="text-muted">
+                            <ellipse cx="25" cy="14" rx="10" ry="11" fill="currentColor" />
+                            <path d="M14 26 L36 26 L34 54 L34 90 L26 90 L26 54 L24 54 L24 90 L16 90 L16 54 Z" fill="currentColor" />
+                          </svg>
+                        )
                         return (
                           <div key={i} className="flex flex-col gap-1">
-                            <div className="aspect-[0.72] bg-card rounded-[12px] overflow-hidden flex items-center justify-center">
-                              {session?.[compareAngle] && thumbs[session[compareAngle]] ? (
-                                <img
-                                  src={thumbs[session[compareAngle]]}
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <svg width="40" height="72" viewBox="0 0 50 90" fill="none" className="text-muted">
-                                  <ellipse cx="25" cy="14" rx="10" ry="11" fill="currentColor" />
-                                  <path
-                                    d="M10 35 Q10 24 25 24 Q40 24 40 35 L43 70 Q43 74 39 74 L34 74 L32 90 L18 90 L16 74 L11 74 Q7 74 7 70 Z"
-                                    fill="currentColor"
-                                  />
-                                </svg>
-                              )}
-                            </div>
+                            <ProgressPhoto
+                              src={session?.[compareAngle] && thumbs[session[compareAngle]] ? thumbs[session[compareAngle]] : null}
+                              crop={session?.crops?.[compareAngle]}
+                              className={`rounded-[12px] ${session?.[compareAngle] && canAddPhotos ? 'cursor-pointer' : ''}`}
+                              onClick={session?.[compareAngle] && canAddPhotos ? () => setEditingCrop({ sessionId: session.id, angle: compareAngle }) : undefined}
+                            >
+                              {placeholderSvg}
+                            </ProgressPhoto>
                             <span className="text-[9px] font-bold text-muted text-center">
                               {session?.date ?? '—'}
                             </span>
@@ -873,9 +1006,24 @@ export function PhotosViewContent({
           )}
         </div>
 
+      {editingCrop && (() => {
+        const session = (photoSessions || []).find((s) => s.id === editingCrop.sessionId)
+        const filename = session?.[editingCrop.angle]
+        if (!session || !filename) return null
+        const editorSrc = thumbs[filename]
+        return (
+          <ProgressPhotoEditor
+            src={editorSrc || null}
+            initialCrop={session.crops?.[editingCrop.angle]}
+            onSave={(crop) => updateSessionCrop(editingCrop.sessionId, editingCrop.angle, crop)}
+            onClose={() => setEditingCrop(null)}
+          />
+        )
+      })()}
+
       {sessionToDelete && (
-        <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/50 z-10">
-          <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-xl">
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 z-[100]" aria-modal="true">
+          <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-xl relative z-[101]">
             <div className="text-[15px] font-bold text-text mb-1">Delete session?</div>
             <div className="text-[13px] text-muted mb-5">
               All photos from this date will be removed. This cannot be undone.
