@@ -5,7 +5,10 @@ import { MUSCLE_COLOURS_HEX, getMuscleRecoveryPct, formatMuscleLabel } from './u
 import { getExerciseSlugs } from './exerciseLibrary'
 import PhotosModal from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
+import ProgressPhoto from './ProgressPhoto'
 import { TransformCard } from './TransformCard'
+
+const PHOTO_ANGLES = [{ key: 'front', label: 'Front' }, { key: 'back', label: 'Back' }, { key: 'side', label: 'Side' }]
 
 const TOTAL_FREE_PHOTOS = 12
 
@@ -615,6 +618,46 @@ function PhotoThumbSmall({ filename, date }) {
   )
 }
 
+/** Shows the 3 angles (front, back, side) for a session with cropped display. */
+function SessionPhotosCropped({ session, dateLabel }) {
+  const [srcs, setSrcs] = useState({ front: null, back: null, side: null })
+  useEffect(() => {
+    if (!session) return
+    setSrcs({ front: null, back: null, side: null })
+    PHOTO_ANGLES.forEach(({ key }) => {
+      const file = session[key]
+      if (!file) return
+      loadPhotoSrc(file).then((src) => setSrcs((prev) => ({ ...prev, [key]: src }))).catch(() => {})
+    })
+  }, [session?.id, session?.front, session?.back, session?.side])
+  return (
+    <div className="shrink-0">
+      <div className="text-[8px] font-bold text-muted uppercase tracking-[0.5px] mb-1 text-center">{dateLabel}</div>
+      <div className="flex gap-1.5">
+        {PHOTO_ANGLES.map(({ key, label }) => {
+          const file = session?.[key]
+          const src = srcs[key]
+          const crop = session?.crops?.[key]
+          return (
+            <div key={key} className="flex-1 min-w-0 flex flex-col items-center gap-0.5">
+              <div className="w-full rounded-lg overflow-hidden border border-border bg-card-deep" style={{ aspectRatio: 'var(--progress-photo-ratio)' }}>
+                {file && src ? (
+                  <ProgressPhoto src={src} crop={crop} className="w-full h-full rounded-lg" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-[8px] text-muted">—</span>
+                  </div>
+                )}
+              </div>
+              <span className="text-[8px] text-muted">{label}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatDateForDisplay, weightLog = [], muscleMassLog = [], bodyFatLog = [], photoSessions = [], allLibraryExercises = [], onClose }) {
   const fmt = formatDecimal ?? ((n) => (n != null ? String(n) : '—'))
   const num = toNum ?? ((v) => Number(v) || 0)
@@ -778,16 +821,15 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
             )}
             {photosThen.length > 0 && (
               <div className="mt-3">
-                <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1">Photos</div>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {photosThen.map((s) => {
-                    const file = s.front || s.back || s.side
-                    return (
-                      <div key={s.id} className="shrink-0 w-14">
-                        <PhotoThumbSmall filename={file} date={formatDateForDisplay ? formatDateForDisplay(s.date) : s.date} />
-                      </div>
-                    )
-                  })}
+                <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-2">Photos</div>
+                <div className="flex flex-col gap-3">
+                  {photosThen.map((s) => (
+                    <SessionPhotosCropped
+                      key={s.id}
+                      session={s}
+                      dateLabel={formatDateForDisplay ? formatDateForDisplay(s.date) : s.date}
+                    />
+                  ))}
                 </div>
               </div>
             )}
