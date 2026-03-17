@@ -8,7 +8,7 @@ import SupersetWrapper from './SupersetWrapper'
 import LinkModeBanner from './LinkModeBanner'
 import RirSheet from './RirSheet'
 import MuscleMapCard from './MuscleMapCard'
-import { getDayMuscles, getDayMusclesSlugs } from './utils'
+import { getDayMuscles, getDayMusclesSlugs, formatDecimal as formatDecimalUtil, parseDecimal as parseDecimalUtil } from './utils'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
 import RecoverySection from './RecoverySection'
 import RepliqeLogo from './RepliqeLogo'
@@ -242,6 +242,7 @@ function App() {
   const [unitWeight, setUnitWeight] = useState(() => localStorage.getItem('unitWeight') || 'kg')
   const [unitDistance, setUnitDistance] = useState(() => localStorage.getItem('unitDistance') || 'km')
   const [unitLength, setUnitLength] = useState(() => localStorage.getItem('unitLength') || 'cm')
+  const [decimalSeparator, setDecimalSeparator] = useState(() => localStorage.getItem('decimalSeparator') || 'comma')
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [showCreateExercise, setShowCreateExercise] = useState(false)
   const [editingCustomExercise, setEditingCustomExercise] = useState(null)
@@ -395,6 +396,7 @@ function App() {
   useEffect(() => { localStorage.setItem('unitWeight', unitWeight) }, [unitWeight])
   useEffect(() => { localStorage.setItem('unitDistance', unitDistance) }, [unitDistance])
   useEffect(() => { localStorage.setItem('unitLength', unitLength) }, [unitLength])
+  useEffect(() => { localStorage.setItem('decimalSeparator', decimalSeparator) }, [decimalSeparator])
   useEffect(() => { localStorage.setItem('customExercises', JSON.stringify(customExercises)) }, [customExercises])
   useEffect(() => { localStorage.setItem('rirEnabled', rirEnabled ? 'true' : 'false') }, [rirEnabled])
   useEffect(() => { localStorage.setItem('repliqe_weightLog', JSON.stringify(weightLog)) }, [weightLog])
@@ -886,8 +888,8 @@ function App() {
 
   function getPRValue(set, type) {
     switch (type) {
-      case 'weight_reps': { const kg = Number(set.kg||0); const r = Number(set.reps||0); return kg > 0 && r > 0 ? kg * r : null }
-      case 'bw_reps': { const r = Number(set.reps||0); const sign = (set.bwSign || '+') === '+' ? 1 : -1; return r > 0 ? (bodyweight + sign * Number(set.kg||0)) * r : null }
+      case 'weight_reps': { const kg = toNum(set.kg); const r = Number(set.reps||0); return kg > 0 && r > 0 ? kg * r : null }
+      case 'bw_reps': { const r = Number(set.reps||0); const sign = (set.bwSign || '+') === '+' ? 1 : -1; return r > 0 ? (bodyweight + sign * toNum(set.kg)) * r : null }
       case 'reps_only': { const r = Number(set.reps||0); return r > 0 ? r : null }
       case 'time_only': { const t = parseTimeToSeconds(set.time); return t > 0 ? t : null }
       case 'distance_time': { const d = Number(set.distance||0); return d > 0 ? d : null }
@@ -897,11 +899,11 @@ function App() {
 
   function getPRDisplay(set, type) {
     switch (type) {
-      case 'weight_reps': return `${set.kg} ${unitWeight} × ${set.reps}`
-      case 'bw_reps': { const sign = (set.bwSign || '+') === '+' ? '+' : '−'; return `${sign}${set.kg||0} ${unitWeight} × ${set.reps}` }
+      case 'weight_reps': { const k = typeof set.kg === 'number' ? set.kg : parseDecimal(set.kg); return `${Number.isNaN(k) ? set.kg : formatDecimal(k)} ${unitWeight} × ${set.reps}` }
+      case 'bw_reps': { const sign = (set.bwSign || '+') === '+' ? '+' : '−'; const k = typeof set.kg === 'number' ? set.kg : parseDecimal(set.kg); return `${sign}${Number.isNaN(k) ? (set.kg ?? 0) : formatDecimal(k)} ${unitWeight} × ${set.reps}` }
       case 'reps_only': return `${set.reps} reps`
       case 'time_only': return set.time
-      case 'distance_time': return `${set.distance} ${unitDistance}`
+      case 'distance_time': { const d = typeof set.distance === 'number' ? set.distance : parseDecimal(set.distance); return `${Number.isNaN(d) ? set.distance : formatDecimal(d)} ${unitDistance}` }
       default: return ''
     }
   }
@@ -933,8 +935,8 @@ function App() {
 
     const curDoneSets = currentExercises.flatMap(ex => ex.sets.filter(s => s.done))
     const prevDoneSets = prev.exercises.flatMap(ex => ex.sets.filter(s => s.done))
-    const curVolume = curDoneSets.reduce((sum, s) => sum + (Number(s.kg||0) * Number(s.reps||0)), 0)
-    const prevVolume = prevDoneSets.reduce((sum, s) => sum + (Number(s.kg||0) * Number(s.reps||0)), 0)
+    const curVolume = curDoneSets.reduce((sum, s) => sum + (toNum(s.kg) * Number(s.reps||0)), 0)
+    const prevVolume = prevDoneSets.reduce((sum, s) => sum + (toNum(s.kg) * Number(s.reps||0)), 0)
     const curSetCount = curDoneSets.length
     const prevSetCount = prevDoneSets.length
     const prevDuration = prev.duration || 0
@@ -1043,7 +1045,7 @@ function App() {
 
   function isSetComplete(set, type) {
     switch (type) {
-      case 'weight_reps': return (set.kg !== undefined && set.kg !== '' && set.kg !== null) || (set.reps !== undefined && set.reps !== '' && set.reps !== null)
+      case 'weight_reps': return (set.kg !== undefined && set.kg !== '' && set.kg !== null && !Number.isNaN(toNum(set.kg))) || (set.reps !== undefined && set.reps !== '' && set.reps !== null)
       case 'bw_reps': return set.reps !== '' && set.reps !== undefined && set.reps !== null
       case 'reps_only': return set.reps !== '' && set.reps !== undefined && set.reps !== null
       case 'time_only': return set.time !== '' && set.time !== undefined && set.time !== null
@@ -1080,9 +1082,14 @@ function App() {
 
   function deleteSet(exIndex, setIndex) { const n = [...exercises]; n[exIndex].sets.splice(setIndex, 1); if (n[exIndex].sets.length === 0) n.splice(exIndex, 1); setExercises(n) }
   function updateSet(exIndex, setIndex, field, value) {
+    let stored = value
+    if (field === 'kg' || field === 'distance') {
+      if (value === '' || value === null || value === undefined) stored = ''
+      else stored = String(value).trim()
+    }
     setExercises(prev => prev.map((e, ei) => {
       if (ei !== exIndex) return e
-      return { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, [field]: value } : s) }
+      return { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, [field]: stored } : s) }
     }))
   }
 
@@ -1267,7 +1274,7 @@ function App() {
   function getBestSet(eName) {
     let best = null
     for (const w of history) for (const ex of w.exercises) if (ex.name === eName) for (const s of ex.sets) {
-      const vol = Number(s.kg || 0) * Number(s.reps || 0)
+      const vol = toNum(s.kg) * Number(s.reps || 0)
       if (!best || vol > best.volume) best = { kg: s.kg, reps: s.reps, volume: vol }
     }
     return best
@@ -1310,7 +1317,7 @@ function App() {
 
     const duration = Math.floor((Date.now() - workoutStartTime) / 1000)
     const doneSets = exercises.flatMap(ex => ex.sets.filter(s => s.done))
-    const totalVolume = doneSets.reduce((sum, s) => sum + (Number(s.kg||0) * Number(s.reps||0)), 0)
+    const totalVolume = doneSets.reduce((sum, s) => sum + (toNum(s.kg) * Number(s.reps||0)), 0)
     const newPRs = findNewPRs(exercises)
     const progressionSource = routineId ? routineId : templateName
     const progression = getProgression(progressionSource, exercises, duration, routineId)
@@ -1563,6 +1570,9 @@ function App() {
 
   function formatTime(sec) { return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}` }
   function formatDuration(sec) { const m = Math.floor(sec/60); if (m < 60) return `${m} min`; const h = Math.floor(m/60); return `${h}h ${m%60}m` }
+  function formatDecimal(n, decimals) { return formatDecimalUtil(n, decimalSeparator, decimals) }
+  function parseDecimal(str) { return parseDecimalUtil(str) }
+  function toNum(v) { const n = parseDecimal(v); return Number.isNaN(n) ? 0 : n }
 
   // WO estimate: 40 sec per set + rest between sets. Used in workout remaining and on home card.
   const SET_SECONDS_DEFAULT = 40
@@ -1639,6 +1649,8 @@ function App() {
                 weekDays={getWeekDays()}
                 unitWeight={unitWeight ?? 'kg'}
                 unitLength={unitLength ?? 'cm'}
+                formatDecimal={formatDecimal}
+                parseDecimal={parseDecimal}
                 allLibraryExercises={allLibraryExercises ?? []}
               />
             </ProgressErrorBoundary>
@@ -1646,7 +1658,7 @@ function App() {
 
           {/* WORKOUT COMPLETE SCREEN */}
           {page === 'workout' && showCompleteScreen && completedWorkoutData && (
-            <WorkoutCompleteScreen data={completedWorkoutData} weekDays={getWeekDays()} weekStreak={getWeekStreak()} onDone={dismissCompleteScreen} formatDuration={formatDuration} unitWeight={unitWeight} getExerciseFromLibrary={getExerciseFromLibrary} />
+            <WorkoutCompleteScreen data={completedWorkoutData} weekDays={getWeekDays()} weekStreak={getWeekStreak()} onDone={dismissCompleteScreen} formatDuration={formatDuration} unitWeight={unitWeight} formatDecimal={formatDecimal} getExerciseFromLibrary={getExerciseFromLibrary} />
           )}
 
           {/* WORKOUT START SCREEN (also when workout active but sheet closed) */}
@@ -1757,7 +1769,12 @@ function App() {
                     </div>
                     {displayRtn && (
                     <div className="border-[1.5px] border-[rgba(0,229,160,0.25)] rounded-[14px] p-4 bg-[rgba(0,229,160,0.05)] mb-5">
-                      {displayRtnId === nextRtnId && (
+                      {workoutActive && (
+                        <div className="inline-flex items-center rounded-full px-3 py-1 mb-3 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
+                          <span className="text-[11px] font-extrabold tracking-[0.8px] text-[#00e5a0]">IN PROGRESS</span>
+                        </div>
+                      )}
+                      {!workoutActive && displayRtnId === nextRtnId && (
                         <div className="inline-flex items-center rounded-full px-3 py-1 mb-3 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
                           <span className="text-[11px] font-extrabold tracking-[0.8px] text-[#00e5a0]">UP NEXT</span>
                         </div>
@@ -1776,20 +1793,24 @@ function App() {
                           <span className="text-[9px] font-bold tracking-wider uppercase text-white/40">EST. MINUTES</span>
                         </div>
                       </div>
-                      <RecoverySection
-                        muscles={dayMuscles}
-                        muscleLastWorked={muscleLastWorked}
-                        dayName={displayRtn.name}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => tryStart('routine', displayRtn)}
-                        className="w-full py-4 rounded-2xl font-bold text-[15px] text-white flex items-center justify-center gap-2.5"
-                        style={{ background: 'linear-gradient(135deg, #7b7fff, #6060dd)', boxShadow: '0 8px 24px rgba(123,127,255,0.28)' }}
-                      >
-                        <span className="w-0 h-0 border-y-[5.5px] border-y-transparent border-l-[9px] border-l-white" style={{ marginLeft: 2 }} />
-                        Start {displayRtn.name}
-                      </button>
+                      {!workoutActive && (
+                        <RecoverySection
+                          muscles={dayMuscles}
+                          muscleLastWorked={muscleLastWorked}
+                          dayName={displayRtn.name}
+                        />
+                      )}
+                      {!workoutActive && (
+                        <button
+                          type="button"
+                          onClick={() => tryStart('routine', displayRtn)}
+                          className="w-full py-4 rounded-2xl font-bold text-[15px] text-white flex items-center justify-center gap-2.5"
+                          style={{ background: 'linear-gradient(135deg, #7b7fff, #6060dd)', boxShadow: '0 8px 24px rgba(123,127,255,0.28)' }}
+                        >
+                          <span className="w-0 h-0 border-y-[5.5px] border-y-transparent border-l-[9px] border-l-white" style={{ marginLeft: 2 }} />
+                          Start {displayRtn.name}
+                        </button>
+                      )}
                     </div>
                     )}
                     <button type="button" onClick={startEmpty} className="w-full mt-3 border border-[rgba(123,127,255,0.35)] rounded-2xl bg-[rgba(123,127,255,0.07)] p-4 flex items-center gap-3.5">
@@ -2018,6 +2039,8 @@ function App() {
                               bodyweight={bodyweight}
                               unitWeight={unitWeight}
                               unitDistance={unitDistance}
+                              formatDecimal={formatDecimal}
+                              parseDecimal={parseDecimal}
                               libraryEntry={getExerciseFromLibrary(exercise.name)}
                               rirEnabled={isRirActive(exercise, rirEnabled)}
                               globalRirEnabled={rirEnabled}
@@ -2068,6 +2091,8 @@ function App() {
                         bodyweight={bodyweight}
                         unitWeight={unitWeight}
                         unitDistance={unitDistance}
+                        formatDecimal={formatDecimal}
+                        parseDecimal={parseDecimal}
                         libraryEntry={getExerciseFromLibrary(ex.name)}
                         rirEnabled={isRirActive(ex, rirEnabled)}
                         globalRirEnabled={rirEnabled}
@@ -2133,7 +2158,7 @@ function App() {
                   <div className="text-sm font-semibold mb-1">Bodyweight</div>
                   <div className="text-sm text-muted-mid mb-3">Used for volume calculation on bodyweight exercises</div>
                   <div className="flex items-center gap-3">
-                    <input type="number" inputMode="decimal" value={bodyweight || ''} onChange={(e) => setBodyweight(e.target.value === '' ? '' : Number(e.target.value))} onBlur={() => { if (bodyweight === '' || bodyweight === 0) setBodyweight(0) }} className="w-24 bg-card-alt border border-border-strong rounded-xl px-3 py-2 text-center text-sm font-bold text-text outline-none focus:border-accent transition-colors" />
+                    <input type="text" inputMode="decimal" value={formatDecimal(bodyweight)} onChange={(e) => { const v = e.target.value; if (v === '') setBodyweight(0); else { const n = parseDecimal(v); if (!Number.isNaN(n)) setBodyweight(n) } }} onBlur={() => { if (bodyweight === '' || bodyweight == null) setBodyweight(0) }} className="w-24 bg-card-alt border border-border-strong rounded-xl px-3 py-2 text-center text-sm font-bold text-text outline-none focus:border-accent transition-colors" />
                     <span className="text-sm text-muted-mid">{unitWeight}</span>
                   </div>
                 </div>
@@ -2156,6 +2181,18 @@ function App() {
                   <div className="text-sm text-muted-mid mb-3">Used for body measurements (chest, waist, etc.)</div>
                   <div className="flex gap-2">
                     {['cm', 'inch'].map(u => <button key={u} onClick={() => setUnitLength(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitLength === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
+                  </div>
+                </div>
+                <div className="mb-5">
+                  <div className="text-sm font-semibold mb-1">Decimal separator</div>
+                  <div className="text-sm text-muted-mid mb-3">Used for weight, measurements and other numbers</div>
+                  <div className="flex gap-2">
+                    {[
+                      { id: 'comma', label: '1,5 (comma)' },
+                      { id: 'period', label: '1.5 (period)' }
+                    ].map(({ id, label }) => (
+                      <button key={id} onClick={() => setDecimalSeparator(id)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${decimalSeparator === id ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{label}</button>
+                    ))}
                   </div>
                 </div>
                 <div className="mb-5">
@@ -2467,7 +2504,12 @@ function App() {
                         setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, setConfigs: next }))
                       }
                       const updateSetAt = (setIdx, field, value) => {
-                        setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, setConfigs: setConfigs.map((s, si) => si === setIdx ? { ...s, [field]: value } : s) }))
+                        let stored = value
+                        if (field === 'targetKg') {
+                          if (value === '' || value == null) stored = ''
+                          else { const n = parseDecimal(value); stored = Number.isNaN(n) ? value : n }
+                        }
+                        setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, setConfigs: setConfigs.map((s, si) => si === setIdx ? { ...s, [field]: stored } : s) }))
                       }
                       const addSet = () => {
                         const last = setConfigs[setConfigs.length - 1]
@@ -2563,7 +2605,7 @@ function App() {
                         {setConfigs.map((setCfg, setIdx) => (
                           <div key={setIdx} className="gap-1.5 grid items-center mb-1" style={{ gridTemplateColumns: '28px 1fr 1fr 30px' }}>
                             <span className="text-sm font-bold text-muted text-center">{setIdx + 1}</span>
-                            <input ref={i === focusNewExerciseAt && setIdx === 0 ? routineEditorFirstInputRef : undefined} type="number" inputMode="decimal" value={setCfg.targetKg ?? ''} onChange={e => updateSetAt(setIdx, 'targetKg', e.target.value)} placeholder={unitWeight} onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-card-alt border border-border-strong px-1.5 py-1.5 text-center text-text text-sm font-bold outline-none focus:border-accent" />
+                            <input ref={i === focusNewExerciseAt && setIdx === 0 ? routineEditorFirstInputRef : undefined} type="text" inputMode="decimal" value={setCfg.targetKg !== '' && setCfg.targetKg != null ? formatDecimal(setCfg.targetKg) : ''} onChange={e => updateSetAt(setIdx, 'targetKg', e.target.value)} placeholder={unitWeight} onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-card-alt border border-border-strong px-1.5 py-1.5 text-center text-text text-sm font-bold outline-none focus:border-accent" />
                             <input type="number" inputMode="numeric" value={setCfg.targetReps ?? ''} onChange={e => updateSetAt(setIdx, 'targetReps', e.target.value)} placeholder="reps" onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-card-alt border border-border-strong px-1.5 py-1.5 text-center text-text text-sm font-bold outline-none focus:border-accent" />
                             {setConfigs.length > 1 ? <button type="button" onClick={() => removeSetAt(setIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-strong hover:text-red-400 hover:bg-red-500/10 shrink-0" aria-label="Delete set">✕</button> : <span className="w-7 shrink-0" />}
                           </div>
@@ -2787,7 +2829,7 @@ function App() {
   )
 }
 
-function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDuration, unitWeight, getExerciseFromLibrary }) {
+function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDuration, unitWeight, formatDecimal, getExerciseFromLibrary }) {
   const { name, templateName, duration, setCount, volume, newPRs, progression, templateUseCount, suggestedNext } = data
   const weekWorkouts = weekStreak.filter(d => d.worked || d.isToday).length
 
@@ -2813,7 +2855,7 @@ function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDurat
           <div className="text-sm font-bold text-muted-mid uppercase tracking-wider mt-1">Sets</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-3.5 text-center">
-          <div className="text-3xl font-extrabold">{volume.toLocaleString()}</div>
+          <div className="text-3xl font-extrabold">{formatDecimal ? formatDecimal(volume) : volume.toLocaleString()}</div>
           <div className="text-sm font-bold text-muted-mid uppercase tracking-wider mt-1">{unitWeight} Volume</div>
         </div>
       </div>
@@ -2847,9 +2889,9 @@ function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDurat
             <span className="text-sm text-[#aaa]">Volume</span>
             {(() => {
               const diff = progression.curVolume - progression.prevVolume
-              if (diff > 0) return <span className="flex items-center gap-1 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>+{diff.toLocaleString()} {unitWeight}</span>
-              if (diff < 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#ff6b6b]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#ff6b6b]"><polyline points="6 9 12 15 18 9"/></svg>{diff.toLocaleString()} {unitWeight}</span>
-              return <span className="text-sm font-bold text-muted-strong">Same ({progression.curVolume.toLocaleString()} {unitWeight})</span>
+              if (diff > 0) return <span className="flex items-center gap-1 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>+{formatDecimal ? formatDecimal(diff) : diff.toLocaleString()} {unitWeight}</span>
+              if (diff < 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#ff6b6b]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#ff6b6b]"><polyline points="6 9 12 15 18 9"/></svg>{formatDecimal ? formatDecimal(diff) : diff.toLocaleString()} {unitWeight}</span>
+              return <span className="text-sm font-bold text-muted-strong">Same ({formatDecimal ? formatDecimal(progression.curVolume) : progression.curVolume.toLocaleString()} {unitWeight})</span>
             })()}
           </div>
           {progression.prevDuration > 0 && (

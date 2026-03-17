@@ -3,7 +3,8 @@ import { getTopMovers, getTrainedExercises, getRecentlyTrainedExercises, getE1RM
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 
-export default function ProgressStrength({ history, unitWeight }) {
+export default function ProgressStrength({ history, unitWeight, formatDecimal }) {
+  const fmt = formatDecimal ?? ((n) => (n != null && n !== '' ? String(n) : '—'))
   const [period, setPeriod] = useState('6M')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
@@ -44,6 +45,8 @@ export default function ProgressStrength({ history, unitWeight }) {
         return null
       })()
     : null
+
+  const lastSetRir = lastSession?.sets?.length ? lastSession.sets[lastSession.sets.length - 1]?.rir : null
 
   const chartMax = e1rmHistory.length ? Math.max(...e1rmHistory.map((p) => p.e1rm)) : 0
 
@@ -261,10 +264,10 @@ export default function ProgressStrength({ history, unitWeight }) {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-2">
+          <div className={`grid gap-2 mb-2 ${lastSetRir != null ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
               <div className="text-[20px] font-extrabold text-text">
-                {e1rmHistory.length > 0 ? e1rmHistory[e1rmHistory.length - 1].e1rm : '—'}
+                {e1rmHistory.length > 0 ? fmt(e1rmHistory[e1rmHistory.length - 1].e1rm) : '—'}
                 <span className="text-[10px] text-muted ml-0.5">{unitWeight}</span>
               </div>
               <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">
@@ -274,7 +277,7 @@ export default function ProgressStrength({ history, unitWeight }) {
             </div>
             <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
               <div className="text-[20px] font-extrabold text-text">
-                {allTimePR ?? '—'}
+                {allTimePR != null ? fmt(allTimePR) : '—'}
                 <span className="text-[10px] text-muted ml-0.5">{unitWeight}</span>
               </div>
               <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">
@@ -282,6 +285,17 @@ export default function ProgressStrength({ history, unitWeight }) {
               </div>
               <div className="text-[8px] text-muted/80 mt-0.5">Best estimated 1RM ever</div>
             </div>
+            {lastSetRir != null && (
+              <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
+                <div className="text-[20px] font-extrabold text-text" style={{ color: '#2DD4BF' }}>
+                  {lastSetRir === 3 ? '3+' : lastSetRir} RIR
+                </div>
+                <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">
+                  Last set RIR
+                </div>
+                <div className="text-[8px] text-muted/80 mt-0.5">Reps in reserve, latest session</div>
+              </div>
+            )}
           </div>
 
           {lastSession && (
@@ -295,7 +309,7 @@ export default function ProgressStrength({ history, unitWeight }) {
                 </div>
                 <div className="text-right">
                   <div className="text-[16px] font-extrabold text-text">
-                    {lastSession.sets[0].kg} {unitWeight} × {lastSession.sets[0].reps}
+                    {fmt(lastSession.sets[0].kg)} {unitWeight} × {lastSession.sets[0].reps}
                   </div>
                 </div>
               </div>

@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { getTopMovers, sortPhotoSessionsByDate } from './progressUtils'
 import { MUSCLE_COLOURS_HEX, getMuscleRecoveryPct, formatMuscleLabel } from './utils'
 import PhotosModal from './PhotosModal'
+import { loadPhotoSrc } from './PhotosModal'
 import { TransformCard } from './TransformCard'
 
 const TOTAL_FREE_PHOTOS = 12
@@ -15,6 +16,45 @@ function parseHistoryDate(dateStr) {
   const [d, m, y] = parts
   const date = new Date(Number(y), Number(m) - 1, Number(d))
   return isNaN(date.getTime()) ? null : date
+}
+
+/** Get log entry at or most recent before date (dd/mm/yyyy). Log entries have { date, value }. */
+function getLogValueAtOrBefore(log, dateStr) {
+  const workoutDate = parseHistoryDate(dateStr)
+  if (!workoutDate || !Array.isArray(log) || log.length === 0) return null
+  const onOrBefore = log
+    .map((e) => ({ ...e, parsed: parseHistoryDate(e.date) }))
+    .filter((e) => e.parsed && e.parsed.getTime() <= workoutDate.getTime())
+  if (onOrBefore.length === 0) return null
+  onOrBefore.sort((a, b) => b.parsed.getTime() - a.parsed.getTime())
+  return { value: onOrBefore[0].value, date: onOrBefore[0].date }
+}
+
+/** Weight trend: last N entries on or before dateStr, oldest first (for chart). */
+function getWeightTrendBefore(weightLog, dateStr, maxPoints = 14) {
+  const workoutDate = parseHistoryDate(dateStr)
+  if (!workoutDate || !Array.isArray(weightLog)) return []
+  const onOrBefore = weightLog
+    .map((e) => ({ date: e.date, value: e.value, parsed: parseHistoryDate(e.date) }))
+    .filter((e) => e.parsed && e.parsed.getTime() <= workoutDate.getTime())
+  onOrBefore.sort((a, b) => a.parsed.getTime() - b.parsed.getTime())
+  return onOrBefore.slice(-maxPoints)
+}
+
+/** Photo sessions on or within a few days of dateStr. */
+function getPhotoSessionsAround(photoSessions, dateStr, max = 3) {
+  const workoutDate = parseHistoryDate(dateStr)
+  if (!workoutDate || !Array.isArray(photoSessions)) return []
+  const withParsed = photoSessions
+    .filter((s) => s && s.date)
+    .map((s) => ({ ...s, parsed: parseHistoryDate(s.date) }))
+    .filter((s) => s.parsed)
+  const nearby = withParsed.filter((s) => {
+    const diff = Math.abs(s.parsed.getTime() - workoutDate.getTime())
+    return diff <= 4 * 24 * 60 * 60 * 1000
+  })
+  nearby.sort((a, b) => b.parsed.getTime() - a.parsed.getTime())
+  return nearby.slice(0, max)
 }
 
 /** Build 35 cells (5×7) for last ~5 weeks from Monday; history items have { date: 'dd/mm/yyyy' } */
@@ -65,6 +105,13 @@ function getTotalTime(workoutHistory) {
   return hours > 0 ? `${hours}h` : `${mins}m`
 }
 
+/** Parse kg (accepts comma or period as decimal). */
+function parseKg(v) {
+  if (v === '' || v == null) return 0
+  const n = parseFloat(String(v).trim().replace(',', '.'))
+  return Number.isNaN(n) ? 0 : n
+}
+
 /** Volume (kg × reps) for done sets in last 30 days */
 function getTotalVolume(workoutHistory) {
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
@@ -80,12 +127,16 @@ function getTotalVolume(workoutHistory) {
           eSum +
           (ex.sets || [])
             .filter((s) => s.done)
-            .reduce((sSum, s) => sSum + Number(s.kg || 0) * Number(s.reps || 0), 0)
+            .reduce((sSum, s) => sSum + parseKg(s.kg) * Number(s.reps || 0), 0)
         )
       }, 0)
     )
   }, 0)
-  return total >= 1000 ? `${Math.round(total / 1000)}k` : `${total}`
+  if (total >= 1000) {
+    const k = total / 1000
+    return `${Number(k.toFixed(2))}k`
+  }
+  return String(Number(total.toFixed(2)))
 }
 
 export default function ProgressOverview({
@@ -98,9 +149,13 @@ export default function ProgressOverview({
   photoSessions,
   setPhotoSessions,
   unitWeight,
+  formatDecimal,
+  parseDecimal,
   onGoToTab,
   onGoToBody,
 }) {
+  const fmt = formatDecimal ?? ((n) => (n != null ? String(n) : '—'))
+  const toNum = (v) => { const n = parseDecimal ? parseDecimal(v) : parseFloat(String(v).replace(',', '.')); return Number.isNaN(n) ? 0 : n }
   const [showPhotos, setShowPhotos] = useState(false)
   const [selectedWorkout, setSelectedWorkout] = useState(null)
   const [showAllHistory, setShowAllHistory] = useState(false)
@@ -235,21 +290,23 @@ export default function ProgressOverview({
           >
             {latestWeight && (
               <StatTile
-                val={latestWeight.value}
+                val={fmt(latestWeight.value)}
                 unit={unitWeight}
                 label="Weight"
                 delta={firstWeight && firstWeight !== latestWeight ? latestWeight.value - firstWeight.value : null}
                 deltaLabel="since start"
                 invertDelta
+                formatDecimal={formatDecimal}
               />
             )}
             {latestMuscleMass && (
               <StatTile
-                val={latestMuscleMass.value}
+                val={fmt(latestMuscleMass.value)}
                 unit="%"
                 label="Muscle mass"
                 delta={firstMuscleMass ? latestMuscleMass.value - firstMuscleMass.value : null}
                 deltaLabel="since start"
+                formatDecimal={formatDecimal}
               />
             )}
           </button>
@@ -347,6 +404,8 @@ export default function ProgressOverview({
               key={w.date + (w.name || '') + i}
               workout={w}
               unitWeight={unitWeight}
+              formatDecimal={formatDecimal}
+              toNum={toNum}
               onClick={() => setSelectedWorkout(w)}
             />
           ))}
@@ -365,6 +424,12 @@ export default function ProgressOverview({
         <WorkoutDetailSheet
           workout={selectedWorkout}
           unitWeight={unitWeight}
+          formatDecimal={formatDecimal}
+          toNum={toNum}
+          weightLog={safeWeightLog}
+          muscleMassLog={safeMuscleMassLog}
+          bodyFatLog={safeBodyFatLog}
+          photoSessions={safePhotoSessions}
           onClose={() => setSelectedWorkout(null)}
         />
       )}
@@ -397,9 +462,10 @@ export default function ProgressOverview({
   )
 }
 
-function StatTile({ val, unit, label, delta, deltaLabel, invertDelta }) {
+function StatTile({ val, unit, label, delta, deltaLabel, invertDelta, formatDecimal }) {
   const isPositive = delta > 0
   const isGood = invertDelta ? !isPositive : isPositive
+  const fmtDelta = formatDecimal ? (n) => formatDecimal(n, 1) : (n) => Number(n).toFixed(1)
   return (
     <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
       <div className="text-[20px] font-extrabold text-text leading-none">
@@ -409,31 +475,16 @@ function StatTile({ val, unit, label, delta, deltaLabel, invertDelta }) {
       <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">{label}</div>
       {delta != null && delta !== 0 && (
         <div className={`text-[10px] font-bold mt-1 ${isGood ? 'text-success' : 'text-[#ff6b6b]'}`}>
-          {delta > 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(1)} {unit} {deltaLabel}
+          {delta > 0 ? '↑' : '↓'} {fmtDelta(Math.abs(delta))} {unit} {deltaLabel}
         </div>
       )}
     </div>
   )
 }
 
-function relDate(dateStr) {
-  if (!dateStr) return ''
-  const parts = (dateStr || '').split('/')
-  if (parts.length !== 3) return dateStr
-  const d = new Date(parts[2], parts[1] - 1, parts[0])
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  d.setHours(0, 0, 0, 0)
-  const diff = Math.floor((now - d) / 86400000)
-  if (diff === 0) return 'Today'
-  if (diff === 1) return 'Yesterday'
-  if (diff < 7) return `${diff} days ago`
-  if (diff < 14) return '1 week ago'
-  if (diff < 30) return `${Math.floor(diff / 7)} weeks ago`
-  return dateStr
-}
-
-function WorkoutHistoryRow({ workout, unitWeight, onClick }) {
+function WorkoutHistoryRow({ workout, unitWeight, formatDecimal, toNum, onClick }) {
+  const fmt = formatDecimal ?? ((n) => (n != null ? String(n) : '—'))
+  const num = toNum ?? ((v) => Number(v) || 0)
   const doneSets = (workout.exercises || []).reduce(
     (sum, ex) => sum + (ex.sets || []).filter((s) => s.done).length,
     0
@@ -443,10 +494,27 @@ function WorkoutHistoryRow({ workout, unitWeight, onClick }) {
       sum +
       (ex.sets || [])
         .filter((s) => s.done)
-        .reduce((v, s) => v + Number(s.kg || 0) * Number(s.reps || 0), 0),
+        .reduce((v, s) => v + num(s.kg) * Number(s.reps || 0), 0),
     0
   )
   const mins = workout.duration ? Math.floor(workout.duration / 60) : null
+  const volStr = volume >= 1000
+    ? `${(formatDecimal && formatDecimal(volume / 1000, 2)) ?? Number(volume / 1000).toFixed(2)}k`
+    : (formatDecimal && formatDecimal(volume, 2)) ?? (volume != null ? Number(volume).toFixed(2) : '—')
+  const totalRestSec = (workout.exercises || []).reduce(
+    (sum, ex) =>
+      sum + (ex.sets || []).reduce(
+        (s, set) => s + (Number(set.restTime ?? set.rest_time) || 0),
+        0
+      ),
+    0
+  )
+  const restStr =
+    totalRestSec >= 60
+      ? `${Math.floor(totalRestSec / 60)}:${String(totalRestSec % 60).padStart(2, '0')} rest`
+      : totalRestSec > 0
+        ? `${totalRestSec} sec rest`
+        : '— rest'
 
   return (
     <button
@@ -458,20 +526,42 @@ function WorkoutHistoryRow({ workout, unitWeight, onClick }) {
         <span className="text-[14px] font-bold text-text truncate mr-2">
           {workout.name || workout.date}
         </span>
-        <span className="text-[11px] text-muted shrink-0">{relDate(workout.date)}</span>
+        <span className="text-[11px] text-muted shrink-0">{workout.date}</span>
       </div>
       <div className="flex items-center gap-3 text-[11px] text-muted">
         {mins != null && <span>{mins} min</span>}
         <span>{doneSets} sets</span>
         {volume > 0 && (
-          <span>{volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : volume} {unitWeight}</span>
+          <span>{volStr} {unitWeight}</span>
         )}
+        <span>{restStr}</span>
       </div>
     </button>
   )
 }
 
-function WorkoutDetailSheet({ workout, unitWeight, onClose }) {
+function PhotoThumbSmall({ filename, date }) {
+  const [src, setSrc] = useState(null)
+  useEffect(() => {
+    if (!filename) return
+    loadPhotoSrc(filename).then(setSrc).catch(() => {})
+  }, [filename])
+  return (
+    <div className="aspect-[3/4] rounded-lg bg-card-deep overflow-hidden shrink-0 border border-border">
+      {src ? (
+        <img src={src} alt="" className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <span className="text-[9px] text-muted">{date || '—'}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, weightLog = [], muscleMassLog = [], bodyFatLog = [], photoSessions = [], onClose }) {
+  const fmt = formatDecimal ?? ((n) => (n != null ? String(n) : '—'))
+  const num = toNum ?? ((v) => Number(v) || 0)
   const doneSets = (workout.exercises || []).reduce(
     (sum, ex) => sum + (ex.sets || []).filter((s) => s.done).length,
     0
@@ -481,14 +571,28 @@ function WorkoutDetailSheet({ workout, unitWeight, onClose }) {
       sum +
       (ex.sets || [])
         .filter((s) => s.done)
-        .reduce((v, s) => v + Number(s.kg || 0) * Number(s.reps || 0), 0),
+        .reduce((v, s) => v + num(s.kg) * Number(s.reps || 0), 0),
     0
   )
   const mins = workout.duration ? Math.floor(workout.duration / 60) : null
+  const volStr = volume >= 1000
+    ? `${(formatDecimal && formatDecimal(volume / 1000, 2)) ?? Number(volume / 1000).toFixed(2)}k`
+    : (formatDecimal && formatDecimal(volume, 2)) ?? (volume != null ? Number(volume).toFixed(2) : '—')
+
+  const weightThen = getLogValueAtOrBefore(weightLog, workout.date)
+  const muscleThen = getLogValueAtOrBefore(muscleMassLog, workout.date)
+  const bodyFatThen = getLogValueAtOrBefore(bodyFatLog, workout.date)
+  const weightTrend = getWeightTrendBefore(weightLog, workout.date, 14)
+  const photosThen = getPhotoSessionsAround(photoSessions, workout.date, 3)
+  const weightMax = weightTrend.length ? Math.max(...weightTrend.map((p) => p.value)) : 0
+  const weightMin = weightTrend.length ? Math.min(...weightTrend.map((p) => p.value)) : 0
+  const weightRange = weightMax - weightMin || 1
+
+  const hasContext = weightThen || muscleThen || bodyFatThen || weightTrend.length > 1 || photosThen.length > 0
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-50 flex items-end justify-center">
-      <div className="w-full max-w-md bg-page rounded-t-[20px] max-h-[85vh] flex flex-col">
+      <div className="w-full max-w-md bg-page rounded-t-[20px] max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
           <div>
             <h2 className="text-[17px] font-extrabold text-text">
@@ -518,17 +622,80 @@ function WorkoutDetailSheet({ workout, unitWeight, onClose }) {
           </div>
           {volume > 0 && (
             <div className="bg-card border border-border rounded-[12px] p-3 text-center">
-              <div className="text-[18px] font-extrabold text-text">
-                {volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : volume}
-              </div>
-              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">
-                {unitWeight} vol
-              </div>
+              <div className="text-[18px] font-extrabold text-text">{volStr}</div>
+              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">{unitWeight} vol</div>
             </div>
           )}
         </div>
 
-        <div className="overflow-y-auto flex-1 min-h-0 px-5 pb-8">
+        {hasContext && (
+          <div className="px-5 pb-4 shrink-0 border-b border-border">
+            <div className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">At that time</div>
+            <div className="flex gap-2 flex-wrap items-start">
+              {weightThen && (
+                <div className="bg-card border border-border rounded-[12px] px-3 py-2 min-w-[72px]">
+                  <div className="text-[14px] font-extrabold text-text">{fmt(weightThen.value)}</div>
+                  <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px]">{unitWeight}</div>
+                </div>
+              )}
+              {muscleThen && (
+                <div className="bg-card border border-border rounded-[12px] px-3 py-2 min-w-[72px]">
+                  <div className="text-[14px] font-extrabold text-text">{fmt(muscleThen.value)}%</div>
+                  <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px]">Muscle</div>
+                </div>
+              )}
+              {bodyFatThen && (
+                <div className="bg-card border border-border rounded-[12px] px-3 py-2 min-w-[72px]">
+                  <div className="text-[14px] font-extrabold text-text">{fmt(bodyFatThen.value)}%</div>
+                  <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px]">Body fat</div>
+                </div>
+              )}
+            </div>
+            {weightTrend.length > 1 && (
+              <div className="mt-3">
+                <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1">Weight trend</div>
+                <div className="flex items-end gap-0.5 h-[44px]">
+                  {weightTrend.map((p, i) => {
+                    const heightPct = 15 + ((weightMax - p.value) / weightRange) * 70
+                    return (
+                      <div
+                        key={i}
+                        className="flex-1 rounded-t-[2px] min-w-0"
+                        style={{
+                          height: `${100 - heightPct}%`,
+                          background: i === weightTrend.length - 1 ? 'rgba(91,245,160,0.9)' : `rgba(91,245,160,${0.2 + (i / weightTrend.length) * 0.6})`,
+                        }}
+                        title={`${p.date} ${p.value}`}
+                      />
+                    )
+                  })}
+                </div>
+                <div className="flex justify-between mt-0.5">
+                  <span className="text-[8px] text-muted">{weightTrend[0]?.date}</span>
+                  <span className="text-[8px] text-muted">{weightTrend[weightTrend.length - 1]?.date}</span>
+                </div>
+              </div>
+            )}
+            {photosThen.length > 0 && (
+              <div className="mt-3">
+                <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1">Photos</div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {photosThen.map((s) => {
+                    const file = s.front || s.back || s.side
+                    return (
+                      <div key={s.id} className="shrink-0 w-14">
+                        <PhotoThumbSmall filename={file} date={s.date} />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="overflow-y-auto flex-1 min-h-0 px-5 pb-8 pt-3">
+          <div className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">Exercises</div>
           {(workout.exercises || []).map((ex, i) => {
             const done = (ex.sets || []).filter((s) => s.done)
             if (!done.length) return null
@@ -542,7 +709,7 @@ function WorkoutDetailSheet({ workout, unitWeight, onClose }) {
                   >
                     <span className="text-[11px] text-muted w-6">{j + 1}</span>
                     <span className="text-[12px] font-semibold text-text">
-                      {s.kg ? `${s.kg} ${unitWeight}` : ''}
+                      {s.kg != null && s.kg !== '' ? `${typeof s.kg === 'string' ? s.kg : fmt(s.kg)} ${unitWeight}` : ''}
                       {s.kg && s.reps ? ' × ' : ''}
                       {s.reps ? `${s.reps} reps` : ''}
                       {s.time ? s.time : ''}
@@ -650,6 +817,8 @@ function AllHistorySheet({ history, unitWeight, onSelect, onClose }) {
                     <WorkoutHistoryRow
                       workout={w}
                       unitWeight={unitWeight}
+                      formatDecimal={formatDecimal}
+                      toNum={toNum}
                       onClick={() => onSelect(w)}
                     />
                   </div>

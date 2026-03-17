@@ -20,10 +20,26 @@ function RirBadge({ rir }) {
 
 function ExerciseCard({
   exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onAddSet, onUpdateSet, onDoneSet, onUndoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote,
-  bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, bodyweight, unitWeight, unitDistance, libraryEntry,
+  bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, bodyweight, unitWeight, unitDistance, formatDecimal, parseDecimal, libraryEntry,
   supersetRole = null, supersetIsNext = false, supersetNextSetIndex = null, isLinkModeActive = false, isLinkSource = false, isLinkTarget = false, onTapAsTarget, onStartLinkMode, onBreakSuperset,
   rirEnabled = false, globalRirEnabled = false, onRirOverride = () => {}
 }) {
+  const fmtNum = formatDecimal ?? ((n) => (n !== '' && n != null ? String(n) : ''))
+  const parseNum = parseDecimal ?? ((s) => parseFloat(String(s).replace(',', '.')))
+  const displayKg = (v) => {
+    if (v === '' || v == null) return ''
+    const s = String(v)
+    if (s.endsWith(',') || s.endsWith('.')) return s
+    const n = typeof v === 'number' ? v : parseNum(v)
+    return Number.isNaN(n) ? s : fmtNum(n)
+  }
+  const displayDist = (v) => {
+    if (v === '' || v == null) return ''
+    const s = String(v)
+    if (s.endsWith(',') || s.endsWith('.')) return s
+    const n = typeof v === 'number' ? v : parseNum(v)
+    return Number.isNaN(n) ? s : fmtNum(n)
+  }
   const [showRestPicker, setShowRestPicker] = useState(false)
   const [showNoteInput, setShowNoteInput] = useState(false)
   const [showExerciseMenu, setShowExerciseMenu] = useState(false)
@@ -40,8 +56,8 @@ function ExerciseCard({
   function formatPrev(prevSet) {
     if (!prevSet) return '—'
     switch (type) {
-      case 'weight_reps': return `${prevSet.kg}×${prevSet.reps}`
-      case 'bw_reps': { const sign = (prevSet.bwSign || '+') === '+' ? '+' : '−'; return prevSet.kg ? `${sign}${prevSet.kg}×${prevSet.reps}` : `${prevSet.reps}r` }
+      case 'weight_reps': return `${displayKg(prevSet.kg)}×${prevSet.reps}`
+      case 'bw_reps': { const sign = (prevSet.bwSign || '+') === '+' ? '+' : '−'; return prevSet.kg != null && prevSet.kg !== '' ? `${sign}${displayKg(prevSet.kg)}×${prevSet.reps}` : `${prevSet.reps}r` }
       case 'reps_only': return `${prevSet.reps}r`
       case 'time_only': return prevSet.time || '—'
       case 'distance_time': return `${prevSet.distance || '?'}/${prevSet.time || '?'}`
@@ -140,7 +156,7 @@ function ExerciseCard({
   function renderInputs(set, j) {
     switch (type) {
       case 'weight_reps': return (<>
-        <input type="number" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={set.kg} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
         <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       </>)
       case 'bw_reps': return (<>
@@ -149,7 +165,7 @@ function ExerciseCard({
             className={`shrink-0 w-8 h-[34px] rounded-xl border-[1.5px] flex items-center justify-center text-sm font-extrabold transition-all ${set.done ? 'border-accent/25 bg-accent/5' : 'border-border-strong bg-card-alt hover:border-accent active:scale-90'} ${(set.bwSign || '+') === '+' ? 'text-success' : 'text-[#ff6b6b]'}`}>
             {(set.bwSign || '+') === '+' ? '+' : '−'}
           </button>
-          <input type="number" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={set.kg} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} disabled={set.done} className={`${base} flex-1 ${set.done ? doneStyle : editStyle}`} />
+          <input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} disabled={set.done} className={`${base} flex-1 ${set.done ? doneStyle : editStyle}`} />
         </div>
         <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       </>)
@@ -160,7 +176,7 @@ function ExerciseCard({
         <input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       )
       case 'distance_time': return (<>
-        <input type="number" inputMode="decimal" placeholder={unitDistance} data-ex={exIndex} data-set={j} data-field="distance" value={set.distance} onChange={(e) => onUpdateSet(exIndex, j, 'distance', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="text" inputMode="decimal" placeholder={unitDistance} data-ex={exIndex} data-set={j} data-field="distance" value={displayDist(set.distance)} onChange={(e) => onUpdateSet(exIndex, j, 'distance', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
         <input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       </>)
       default: return null
@@ -194,7 +210,7 @@ function ExerciseCard({
               </div>
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 {type === 'bw_reps' && <span className="text-xs text-muted-mid">BW: {bodyweight} {unitWeight}</span>}
-                {bestSet && type === 'weight_reps' && <span className="text-xs text-muted-mid">PR: {bestSet.kg}×{bestSet.reps}</span>}
+                {bestSet && type === 'weight_reps' && <span className="text-xs text-muted-mid">PR: {displayKg(bestSet.kg)}×{bestSet.reps}</span>}
                 {!isEditing && supersetRole !== 'A' && (
                   <span className="flex items-center gap-1 text-xs text-muted-mid">
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>

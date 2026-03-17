@@ -23,8 +23,8 @@ export default function ProgressScreen(props) {
     <div>
       {/* Fixed header – always at top of viewport */}
       <div className="fixed top-0 left-0 right-0 z-20 bg-page border-b border-border/50 max-w-md mx-auto">
-        <div className="px-4 pt-6 pb-3">
-          <div className="flex items-center gap-3 mb-4">
+        <div className="px-4 pt-3 pb-1.5">
+          <div className="flex items-center gap-3 mb-2">
             <RepliqeLogo size={28} />
             <h1 className="text-3xl font-bold tracking-tight">Progress</h1>
           </div>
@@ -48,9 +48,9 @@ export default function ProgressScreen(props) {
       </div>
 
       {/* Spacer so content starts below fixed header */}
-      <div className="h-[8rem]" aria-hidden="true" />
+      <div className="h-[6rem]" aria-hidden="true" />
 
-      <div className="mt-5">
+      <div className="mt-1">
       {tab === 'Overview' && (
         <ProgressOverview
           {...props}

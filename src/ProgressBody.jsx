@@ -28,9 +28,13 @@ export default function ProgressBody({
   setPhotoSessions,
   unitWeight,
   unitLength = 'cm',
+  formatDecimal,
+  parseDecimal,
   scrollToPhotosSection = false,
   onScrolledToPhotos,
 }) {
+  const fmt = formatDecimal ?? ((n, decimals) => (n != null ? (decimals != null ? Number(n).toFixed(decimals) : String(n)) : '—'))
+  const parse = parseDecimal ?? ((s) => parseFloat(String(s).replace(',', '.')))
   const [period, setPeriod] = useState('3M')
   const [showAddWeight, setShowAddWeight] = useState(false)
   const [showAddBF, setShowAddBF] = useState(false)
@@ -91,24 +95,24 @@ export default function ProgressBody({
   const firstMeasurements = safeMeasurementsLog.length > 0 ? safeMeasurementsLog[0] : null
 
   function addWeight() {
-    const val = parseFloat(newWeight)
-    if (!val) return
+    const val = parse(newWeight)
+    if (val === undefined || val === null || Number.isNaN(val)) return
     setWeightLog((prev) => [...prev, { date: today, value: val }])
     setNewWeight('')
     setShowAddWeight(false)
   }
 
   function addBF() {
-    const val = parseFloat(newBF)
-    if (!val) return
+    const val = parse(newBF)
+    if (val === undefined || val === null || Number.isNaN(val)) return
     setBodyFatLog((prev) => [...prev, { date: today, value: val }])
     setNewBF('')
     setShowAddBF(false)
   }
 
   function addMuscleMass() {
-    const val = parseFloat(newMuscleMass)
-    if (!val) return
+    const val = parse(newMuscleMass)
+    if (val === undefined || val === null || Number.isNaN(val)) return
     setMuscleMassLog((prev) => [...prev, { date: today, value: val }])
     setNewMuscleMass('')
     setShowAddMuscleMass(false)
@@ -121,8 +125,8 @@ export default function ProgressBody({
       MEASUREMENTS.forEach(({ key }) => {
         if (latest[key] != null && latest[key] !== undefined) {
           const cm = Number(latest[key])
-          if (unitLength === 'inch') initial[key] = (cm / CM_PER_INCH).toFixed(1)
-          else initial[key] = String(cm)
+          if (unitLength === 'inch') initial[key] = fmt(cm / CM_PER_INCH, 1)
+          else initial[key] = fmt(cm, 1)
         }
       })
       setNewMeasurements(initial)
@@ -136,8 +140,8 @@ export default function ProgressBody({
     const entry = { date: today }
     const toCm = unitLength === 'inch' ? (v) => v * CM_PER_INCH : (v) => v
     MEASUREMENTS.forEach(({ key }) => {
-      const v = parseFloat(newMeasurements[key])
-      if (v) entry[key] = Math.round(toCm(v) * 10) / 10
+      const v = parse(newMeasurements[key])
+      if (v !== undefined && !Number.isNaN(v)) entry[key] = Math.round(toCm(v) * 10) / 10
     })
     if (Object.keys(entry).length <= 1) return
     setMeasurementsLog((prev) => [...prev, entry])
@@ -151,7 +155,7 @@ export default function ProgressBody({
       <div className="bg-card border border-border rounded-[14px] p-4 mb-2">
         <div className="flex justify-between items-baseline mb-3">
           <div className="text-[13px] font-bold text-text">
-            {latestWeight ? `${latestWeight.value} ${unitWeight}` : '—'}
+            {latestWeight ? `${fmt(latestWeight.value)} ${unitWeight}` : '—'}
             <span className="text-[10px] text-muted font-normal ml-1">today</span>
           </div>
           {latestWeight && firstWeight && latestWeight !== firstWeight && (
@@ -161,7 +165,7 @@ export default function ProgressBody({
               }`}
             >
               {latestWeight.value < firstWeight.value ? '↓' : '↑'}&nbsp;
-              {Math.abs(latestWeight.value - firstWeight.value).toFixed(1)} {unitWeight}
+              {fmt(Math.abs(latestWeight.value - firstWeight.value), 1)} {unitWeight}
             </div>
           )}
         </div>
@@ -220,7 +224,7 @@ export default function ProgressBody({
       <div className="grid grid-cols-2 gap-2 mb-4">
         <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
           <div className="text-[20px] font-extrabold text-text">
-            {latestBF ? latestBF.value : '—'}
+            {latestBF ? fmt(latestBF.value) : '—'}
             <span className="text-[10px] text-muted ml-0.5">%</span>
           </div>
           <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">Body fat</div>
@@ -230,7 +234,7 @@ export default function ProgressBody({
         </div>
         <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
           <div className="text-[20px] font-extrabold text-text">
-            {latestMuscleMass != null ? latestMuscleMass.value : '—'}
+            {latestMuscleMass != null ? fmt(latestMuscleMass.value) : '—'}
             <span className="text-[10px] text-muted ml-0.5">%</span>
           </div>
           <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">Muscle mass</div>
@@ -385,7 +389,7 @@ function QuickInputModal({ title, placeholder, value, onChange, onConfirm, onCan
       <div className="w-full max-w-md bg-card rounded-t-3xl p-6 pb-10">
         <h2 className="text-base font-bold text-center mb-5">{title}</h2>
         <input
-          type="number"
+          type="text"
           inputMode={keyboardType === 'decimal' ? 'decimal' : 'numeric'}
           placeholder={placeholder}
           value={value}
@@ -421,7 +425,7 @@ function MeasurementsModal({ measurements, values, onChange, onConfirm, onCancel
             <span className="text-sm font-semibold text-text">{label}</span>
             <div className="flex items-center gap-2">
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
                 placeholder="—"
                 value={values[key] ?? ''}

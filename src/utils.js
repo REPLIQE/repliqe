@@ -103,3 +103,33 @@ export function getDayMusclesSlugs(exercises = [], library = []) {
   }
   return { primary: [...primary], secondary: [...secondary] }
 }
+
+/**
+ * Format a number for display with the chosen decimal separator.
+ * @param {number|null|undefined} n - Value to format
+ * @param {'comma'|'period'} separator - User preference
+ * @param {number} [decimals] - Fixed decimal places (optional; otherwise integers show no decimals)
+ * @returns {string} e.g. "72,5" or "72.5" or "80"
+ */
+export function formatDecimal(n, separator, decimals) {
+  if (n === null || n === undefined || Number.isNaN(n)) return ''
+  const num = Number(n)
+  if (decimals !== undefined) {
+    const s = num.toFixed(decimals)
+    return separator === 'comma' ? s.replace('.', ',') : s
+  }
+  if (Number.isInteger(num)) return String(num)
+  const s = num.toString()
+  return separator === 'comma' ? s.replace('.', ',') : s
+}
+
+/**
+ * Parse user input to a number. Accepts both comma and period as decimal separator.
+ * @param {string} str - User input
+ * @returns {number} Parsed number or NaN
+ */
+export function parseDecimal(str) {
+  if (str === '' || str === null || str === undefined) return NaN
+  const normalized = String(str).trim().replace(',', '.')
+  return parseFloat(normalized)
+}

@@ -3,7 +3,7 @@
  * Returns null if inputs invalid.
  */
 export function calcE1RM(kg, reps) {
-  const w = parseFloat(kg)
+  const w = parseFloat(String(kg).trim().replace(',', '.'))
   const r = parseInt(reps)
   if (!w || w <= 0 || !r || r <= 0) return null
   return Math.round(w * (1 + r / 30))
