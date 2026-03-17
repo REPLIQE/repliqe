@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { getOldestMiddleNewestSessions } from './progressUtils'
 import ProgressPhoto from './ProgressPhoto'
 import ProgressPhotoEditor from './ProgressPhotoEditor'
+import { useAuth } from './lib/AuthContext'
+import { uploadProgressPhoto, getProgressPhotoUrl } from './lib/photoStorage'
 
 const TOTAL_FREE_PHOTOS = 12
-const WEB_PHOTO_STORAGE_KEY = 'repliqe_photoData'
 const ANGLES = [
   { key: 'front', label: 'Front' },
   { key: 'back', label: 'Back' },
@@ -98,8 +99,13 @@ function normalizeImage(input) {
   })
 }
 
-/** Load a stored photo as a data URL. Tries Capacitor Data, then Cache, then localStorage. */
-export async function loadPhotoSrc(filename) {
+/**
+ * Load a stored photo as a data URL or HTTPS URL.
+ * Tries Capacitor Data, then Cache, then Firebase Storage (if uid).
+ * @param {string} filename - e.g. ps_123_front.jpg
+ * @param {string|null} [uid] - Firebase user id for Storage (required for web when not using Capacitor)
+ */
+export async function loadPhotoSrc(filename, uid = null) {
   if (!filename) return null
   try {
     const { Filesystem, Directory } = await import('@capacitor/filesystem')
@@ -117,19 +123,15 @@ export async function loadPhotoSrc(filename) {
       return `data:image/jpeg;base64,${result.data}`
     }
   } catch {
-    try {
-      const raw = localStorage.getItem(WEB_PHOTO_STORAGE_KEY)
-      if (!raw) return null
-      const data = JSON.parse(raw)
-      const base64 = data[filename]
-      return base64 ? `data:image/jpeg;base64,${base64}` : null
-    } catch {
-      return null
+    if (uid) {
+      const url = await getProgressPhotoUrl(uid, filename)
+      return url
     }
+    return null
   }
 }
 
-async function savePhoto(base64Data, filename) {
+async function savePhoto(base64Data, filename, uid) {
   const clean = base64Data.replace(/^data:image\/\w+;base64,/, '')
   const isNative = isNativePlatform()
   if (isNative) {
@@ -140,6 +142,7 @@ async function savePhoto(base64Data, filename) {
         data: clean,
         directory: Directory.Data,
       })
+      if (uid) uploadProgressPhoto(uid, filename, clean).catch(() => {})
       return filename
     } catch (dataErr) {
       try {
@@ -149,40 +152,23 @@ async function savePhoto(base64Data, filename) {
           data: clean,
           directory: Directory.Cache,
         })
+        if (uid) uploadProgressPhoto(uid, filename, clean).catch(() => {})
         return filename
       } catch (cacheErr) {
-        try {
-          const raw = localStorage.getItem(WEB_PHOTO_STORAGE_KEY) || '{}'
-          const data = JSON.parse(raw)
-          data[filename] = clean
-          localStorage.setItem(WEB_PHOTO_STORAGE_KEY, JSON.stringify(data))
+        if (uid) {
+          await uploadProgressPhoto(uid, filename, clean)
           return filename
-        } catch {
-          console.error('Save photo (native) Data/Cache/localStorage failed:', dataErr, cacheErr)
-          throw new Error('Could not save photo')
         }
+        console.error('Save photo (native) Data/Cache failed:', dataErr, cacheErr)
+        throw new Error('Could not save photo')
       }
     }
   }
-  try {
-    const { Filesystem, Directory } = await import('@capacitor/filesystem')
-    await Filesystem.writeFile({
-      path: filename,
-      data: clean,
-      directory: Directory.Data,
-    })
+  if (uid) {
+    await uploadProgressPhoto(uid, filename, clean)
     return filename
-  } catch {
-    try {
-      const raw = localStorage.getItem(WEB_PHOTO_STORAGE_KEY) || '{}'
-      const data = JSON.parse(raw)
-      data[filename] = clean
-      localStorage.setItem(WEB_PHOTO_STORAGE_KEY, JSON.stringify(data))
-      return filename
-    } catch {
-      throw new Error('Could not save photo')
-    }
   }
+  throw new Error('Could not save photo (sign in to sync photos)')
 }
 
 export default function PhotosModal({
@@ -197,6 +183,8 @@ export default function PhotosModal({
   formatDateForDisplay,
   openToAdd = false,
 }) {
+  const { user } = useAuth()
+  const uid = user?.uid ?? null
   const [capturing, setCapturing] = useState(false)
   const [captureStep, setCaptureStep] = useState(0)
   const [capturedImages, setCapturedImages] = useState({})
@@ -221,7 +209,7 @@ export default function PhotosModal({
         const filename = capturedImages[key]
         if (filename) {
           try {
-            const src = await loadPhotoSrc(filename)
+            const src = await loadPhotoSrc(filename, uid)
             next[key] = src
           } catch {
             next[key] = null
@@ -231,7 +219,7 @@ export default function PhotosModal({
       setCaptureThumbSrcs(next)
     }
     load()
-  }, [capturedImages.front, capturedImages.back, capturedImages.side])
+  }, [uid, capturedImages.front, capturedImages.back, capturedImages.side])
 
   useEffect(() => {
     if (openToAdd && canAddPhotos && !atLimit) {
@@ -285,7 +273,7 @@ export default function PhotosModal({
     const sessionId = capturedImages._sessionId ?? `ps_${Date.now()}`
     const filename = `${sessionId}_${angle.key}.jpg`
     try {
-      await savePhoto(normalized, filename)
+      await savePhoto(normalized, filename, uid)
     } catch (err) {
       console.error('Save photo failed:', err)
       if (typeof alert !== 'undefined') alert('Could not save photo. Try again.')
@@ -650,6 +638,8 @@ export function PhotosViewContent({
   onOpenAddPhotos,
   inline = false,
 }) {
+  const { user } = useAuth()
+  const uid = user?.uid ?? null
   const padX = inline ? 'px-0' : 'px-5'
   const fmtDate = formatDateForDisplay ?? ((d) => d ?? '')
   const [view, setView] = useState('timeline')
@@ -682,27 +672,27 @@ export function PhotosViewContent({
     (Array.isArray(photoSessions) ? photoSessions.reduce((s, sess) => s + [sess?.front, sess?.back, sess?.side].filter(Boolean).length, 0) : 0)
 
   useEffect(() => {
-    if (!Array.isArray(photoSessions)) return
+    if (!Array.isArray(photoSessions) || !uid) return
     photoSessions.forEach((session) => {
       ANGLES.forEach(({ key }) => {
         const filename = session?.[key]
         if (!filename || thumbs[filename]) return
-        loadPhotoSrc(filename)
+        loadPhotoSrc(filename, uid)
           .then((src) => src && setThumbs((prev) => ({ ...prev, [filename]: src })))
           .catch(() => {})
       })
     })
-  }, [photoSessions])
+  }, [uid, photoSessions])
 
   useEffect(() => {
-    if (!editingCrop) return
+    if (!editingCrop || !uid) return
     const session = (photoSessions || []).find((s) => s.id === editingCrop.sessionId)
     const filename = session?.[editingCrop.angle]
     if (!filename || thumbs[filename]) return
-    loadPhotoSrc(filename)
+    loadPhotoSrc(filename, uid)
       .then((src) => src && setThumbs((prev) => ({ ...prev, [filename]: src })))
       .catch(() => {})
-  }, [editingCrop, photoSessions, thumbs])
+  }, [uid, editingCrop, photoSessions, thumbs])
 
   useEffect(() => {
     if (editingDateSessionId && dateEditInputRef.current) dateEditInputRef.current.focus()

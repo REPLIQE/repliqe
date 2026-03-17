@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import PhotosModal, { PhotosViewContent } from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
+import { useAuth } from './lib/AuthContext'
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 const MEASUREMENTS = [
@@ -471,12 +472,13 @@ function MeasurementsModal({ measurements, values, onChange, onConfirm, onCancel
 }
 
 function PhotoSessionThumb({ filename, label, onClick }) {
+  const { user } = useAuth()
   const [src, setSrc] = useState(null)
 
   useEffect(() => {
     if (!filename) return
-    loadPhotoSrc(filename).then(setSrc).catch(() => {})
-  }, [filename])
+    loadPhotoSrc(filename, user?.uid ?? null).then(setSrc).catch(() => {})
+  }, [filename, user?.uid])
 
   return (
     <div

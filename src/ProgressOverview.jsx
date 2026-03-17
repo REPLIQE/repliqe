@@ -7,6 +7,7 @@ import PhotosModal from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
 import ProgressPhoto from './ProgressPhoto'
 import { TransformCard } from './TransformCard'
+import { useAuth } from './lib/AuthContext'
 
 const PHOTO_ANGLES = [{ key: 'front', label: 'Front' }, { key: 'back', label: 'Back' }, { key: 'side', label: 'Side' }]
 
@@ -600,11 +601,12 @@ function WorkoutHistoryRow({ workout, unitWeight, formatDecimal, toNum, formatDa
 }
 
 function PhotoThumbSmall({ filename, date }) {
+  const { user } = useAuth()
   const [src, setSrc] = useState(null)
   useEffect(() => {
     if (!filename) return
-    loadPhotoSrc(filename).then(setSrc).catch(() => {})
-  }, [filename])
+    loadPhotoSrc(filename, user?.uid ?? null).then(setSrc).catch(() => {})
+  }, [filename, user?.uid])
   return (
     <div className="aspect-[3/4] rounded-lg bg-card-deep overflow-hidden shrink-0 border border-border">
       {src ? (
@@ -620,16 +622,18 @@ function PhotoThumbSmall({ filename, date }) {
 
 /** Shows the 3 angles (front, back, side) for a session with cropped display. */
 function SessionPhotosCropped({ session, dateLabel }) {
+  const { user } = useAuth()
   const [srcs, setSrcs] = useState({ front: null, back: null, side: null })
   useEffect(() => {
     if (!session) return
     setSrcs({ front: null, back: null, side: null })
+    const uid = user?.uid ?? null
     PHOTO_ANGLES.forEach(({ key }) => {
       const file = session[key]
       if (!file) return
-      loadPhotoSrc(file).then((src) => setSrcs((prev) => ({ ...prev, [key]: src }))).catch(() => {})
+      loadPhotoSrc(file, uid).then((src) => setSrcs((prev) => ({ ...prev, [key]: src }))).catch(() => {})
     })
-  }, [session?.id, session?.front, session?.back, session?.side])
+  }, [user?.uid, session?.id, session?.front, session?.back, session?.side])
   return (
     <div className="shrink-0">
       <div className="text-[8px] font-bold text-muted uppercase tracking-[0.5px] mb-1 text-center">{dateLabel}</div>

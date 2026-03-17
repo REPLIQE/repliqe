@@ -10,6 +10,13 @@ import RirSheet from './RirSheet'
 import MuscleMapCard from './MuscleMapCard'
 import { getDayMuscles, getDayMusclesSlugs, formatDecimal as formatDecimalUtil, parseDecimal as parseDecimalUtil } from './utils'
 import { formatStoredDateForDisplay, DATE_FORMAT_DDMY, DATE_FORMAT_MMDY } from './dateFormatUtils'
+import { useAuth } from './lib/AuthContext'
+import LoginScreen from './lib/LoginScreen'
+import AccountTab from './lib/AccountTab'
+import { fetchWorkoutPlans, saveWorkoutPlans } from './lib/workoutPlansFirestore'
+import { addWorkoutSession, fetchWorkoutSessions, updateWorkoutSessionRating } from './lib/workoutSessionsFirestore'
+import { getUserDoc, mergeUserSettings, DEFAULT_SETTINGS } from './lib/userFirestore'
+import { fetchAppData, updateAppData } from './lib/appDataFirestore'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
 import RecoverySection from './RecoverySection'
 import RepliqeLogo from './RepliqeLogo'
@@ -150,21 +157,30 @@ function parseTimeToSeconds(t) {
 }
 
 function App() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-page flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+  if (!user) {
+    return <LoginScreen />
+  }
+
+  return <AppContent />
+}
+
+function AppContent() {
   const [page, setPage] = useState('workout')
   const [workoutActive, setWorkoutActive] = useState(false)
   const [workoutName, setWorkoutName] = useState('')
   const [workoutStartTime, setWorkoutStartTime] = useState(null)
   const [workoutElapsed, setWorkoutElapsed] = useState(0)
-  const [exercises, setExercises] = useState(() => {
-    const s = localStorage.getItem('exercises')
-    if (!s) return []
-    const list = JSON.parse(s)
-    return list.map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null }))
-  })
-  const [history, setHistory] = useState(() => {
-    const s = localStorage.getItem('history')
-    return s ? JSON.parse(s) : []
-  })
+  const [exercises, setExercises] = useState([])
+  const [history, setHistory] = useState([])
 
   /** Generer træningsdata for sidste 30 dage: 4 træninger/uge baseret på aktive program. */
   function getSeedHistory(programmes, routines) {
@@ -230,25 +246,19 @@ function App() {
     return seed.reverse()
   }
 
-  const [folders, setFolders] = useState(() => {
-    const s = localStorage.getItem('folders')
-    if (s) return JSON.parse(s)
-    const old = localStorage.getItem('templates')
-    if (old) { const t = JSON.parse(old); if (t.length > 0) return [{ name: 'My Templates', open: true, templates: t }] }
-    return [{ name: 'My Templates', open: true, templates: [] }]
-  })
-  const [defaultRest, setDefaultRest] = useState(() => { const s = localStorage.getItem('defaultRest'); return s ? Number(s) : 90 })
-  const [bodyweight, setBodyweight] = useState(() => { const s = localStorage.getItem('bodyweight'); return s ? Number(s) : 80 })
-  const [weekStart, setWeekStart] = useState(() => { const s = localStorage.getItem('weekStart'); return s ? Number(s) : 0 }) // 0=Monday
-  const [unitWeight, setUnitWeight] = useState(() => localStorage.getItem('unitWeight') || 'kg')
-  const [unitDistance, setUnitDistance] = useState(() => localStorage.getItem('unitDistance') || 'km')
-  const [unitLength, setUnitLength] = useState(() => localStorage.getItem('unitLength') || 'cm')
-  const [decimalSeparator, setDecimalSeparator] = useState(() => localStorage.getItem('decimalSeparator') || 'comma')
-  const [dateFormat, setDateFormat] = useState(() => localStorage.getItem('dateFormat') || DATE_FORMAT_DDMY)
+  const [folders, setFolders] = useState([{ name: 'My Templates', open: true, templates: [] }])
+  const [defaultRest, setDefaultRest] = useState(DEFAULT_SETTINGS.defaultRest)
+  const [bodyweight, setBodyweight] = useState(DEFAULT_SETTINGS.bodyweight)
+  const [weekStart, setWeekStart] = useState(DEFAULT_SETTINGS.weekStart) // 0=Monday
+  const [unitWeight, setUnitWeight] = useState(DEFAULT_SETTINGS.unitWeight)
+  const [unitDistance, setUnitDistance] = useState(DEFAULT_SETTINGS.unitDistance)
+  const [unitLength, setUnitLength] = useState(DEFAULT_SETTINGS.unitLength)
+  const [decimalSeparator, setDecimalSeparator] = useState(DEFAULT_SETTINGS.decimalSeparator)
+  const [dateFormat, setDateFormat] = useState(DEFAULT_SETTINGS.dateFormat)
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [showCreateExercise, setShowCreateExercise] = useState(false)
   const [editingCustomExercise, setEditingCustomExercise] = useState(null)
-  const [customExercises, setCustomExercises] = useState(() => { const s = localStorage.getItem('customExercises'); return s ? JSON.parse(s) : [] })
+  const [customExercises, setCustomExercises] = useState([])
   const [activeRest, setActiveRest] = useState(null)
   const [restTime, setRestTime] = useState(0)
   const [restDuration, setRestDuration] = useState(90)
@@ -273,28 +283,15 @@ function App() {
   const [showStickyRestBar, setShowStickyRestBar] = useState(false)
   const [workoutTab, setWorkoutTab] = useState('start') // 'start' | 'plan'
   const [profileSection, setProfileSection] = useState(null) // null | 'account' | 'settings' | 'about'
-  const [programmes, setProgrammes] = useState(() => {
-    const s = localStorage.getItem('repliqe_programmes')
-    if (s) {
-      const parsed = JSON.parse(s)
-      if (parsed.length > 0) return parsed
-    }
-    return [getDefault2SplitProgramme().programme]
-  })
-  const [muscleLastWorked, setMuscleLastWorked] = useState(() => {
-    try {
-      const s = localStorage.getItem('repliqe_muscleLastWorked')
-      return s ? JSON.parse(s) : {}
-    } catch { return {} }
-  })
-  const [routines, setRoutines] = useState(() => {
-    const s = localStorage.getItem('repliqe_routines')
-    if (s) {
-      const parsed = JSON.parse(s)
-      if (parsed.length > 0) return parsed
-    }
-    return getDefault2SplitProgramme().routines
-  })
+  const { user } = useAuth()
+  const workoutPlansLoadedRef = useRef(false)
+  const workoutSessionsLoadedRef = useRef(false)
+  const appDataLoadedRef = useRef(false)
+  const [workoutSessionsLoaded, setWorkoutSessionsLoaded] = useState(false)
+  const [appDataLoaded, setAppDataLoaded] = useState(false)
+  const [programmes, setProgrammes] = useState(() => [getDefault2SplitProgramme().programme])
+  const [muscleLastWorked, setMuscleLastWorked] = useState({})
+  const [routines, setRoutines] = useState(() => getDefault2SplitProgramme().routines)
   const [programmeMenuProgramme, setProgrammeMenuProgramme] = useState(null)
   const [showCreateProgramme, setShowCreateProgramme] = useState(false)
   const [editingProgrammeId, setEditingProgrammeId] = useState(null)
@@ -319,36 +316,18 @@ function App() {
   const [routineEditorSupersetMenuForId, setRoutineEditorSupersetMenuForId] = useState(null)
   const [focusNewExerciseAt, setFocusNewExerciseAt] = useState(null)
   const [focusWorkoutFirstFieldAt, setFocusWorkoutFirstFieldAt] = useState(null) // exIndex to focus first set first field after adding
-  const [rirEnabled, setRirEnabled] = useState(() => localStorage.getItem('rirEnabled') === 'true')
+  const [rirEnabled, setRirEnabled] = useState(DEFAULT_SETTINGS.rirEnabled)
   const [pendingRir, setPendingRir] = useState(null)
-  const [theme, setTheme] = useState(() => {
-    const t = localStorage.getItem('theme') || 'dark'
-    return t === 'light-bone' ? 'bone' : t
-  })
-  const [weightLog, setWeightLog] = useState(() => {
-    const s = localStorage.getItem('repliqe_weightLog')
-    return s ? JSON.parse(s) : []
-  })
-  const [bodyFatLog, setBodyFatLog] = useState(() => {
-    const s = localStorage.getItem('repliqe_bodyFatLog')
-    return s ? JSON.parse(s) : []
-  })
-  const [measurementsLog, setMeasurementsLog] = useState(() => {
-    const s = localStorage.getItem('repliqe_measurementsLog')
-    return s ? JSON.parse(s) : []
-  })
-  const [muscleMassLog, setMuscleMassLog] = useState(() => {
-    const s = localStorage.getItem('repliqe_muscleMassLog')
-    return s ? JSON.parse(s) : []
-  })
-  const [photoSessions, setPhotoSessions] = useState(() => {
-    const s = localStorage.getItem('repliqe_photoSessions')
-    return s ? JSON.parse(s) : []
-  })
+  const [theme, setTheme] = useState(DEFAULT_SETTINGS.theme)
+  const [weightLog, setWeightLog] = useState([])
+  const [bodyFatLog, setBodyFatLog] = useState([])
+  const [measurementsLog, setMeasurementsLog] = useState([])
+  const [muscleMassLog, setMuscleMassLog] = useState([])
+  const [photoSessions, setPhotoSessions] = useState([])
   const setThemeAndApply = (t) => {
     setTheme(t)
     document.documentElement.setAttribute('data-theme', t)
-    localStorage.setItem('theme', t)
+    if (user?.uid) mergeUserSettings(user.uid, { theme: t }).catch((err) => console.error('mergeUserSettings theme:', err))
     const meta = document.querySelector('meta[name="theme-color"]')
     if (meta) meta.setAttribute('content', t === 'bone' ? '#FAF7F2' : '#0D0D1A')
   }
@@ -370,10 +349,10 @@ function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('theme', theme)
+    if (user?.uid && appDataLoadedRef.current) mergeUserSettings(user.uid, { theme }).catch((err) => console.error('mergeUserSettings theme:', err))
     const meta = document.querySelector('meta[name="theme-color"]')
     if (meta) meta.setAttribute('content', theme === 'bone' ? '#FAF7F2' : '#0D0D1A')
-  }, [theme])
+  }, [theme, user?.uid])
   useEffect(() => { if (page === 'library') setPage('workout') }, [page])
   useEffect(() => { if (page !== 'profile') setProfileSection(null) }, [page])
   useEffect(() => {
@@ -381,37 +360,141 @@ function App() {
       setProgrammes(prev => prev.map(p => ({ ...p, isActive: true })))
     }
   }, [programmes.length])
-  useEffect(() => { localStorage.setItem('exercises', JSON.stringify(exercises)) }, [exercises])
-  useEffect(() => { localStorage.setItem('history', JSON.stringify(history)) }, [history])
 
-  // Når historik er helt tom: fyld med træningsdata for de sidste 30 dage (4 træninger/uge fra aktive program).
+  // Load workout plans from Firestore when user is set
   useEffect(() => {
-    if (history.length !== 0) return
+    if (!user?.uid) return
+    let cancelled = false
+    fetchWorkoutPlans(user.uid)
+      .then(({ programmes: p, routines: r }) => {
+        if (cancelled) return
+        if (p?.length > 0 && r?.length > 0) {
+          setProgrammes(p)
+          setRoutines(r)
+        } else {
+          // New user: persist default plan to Firestore
+          const def = getDefault2SplitProgramme()
+          saveWorkoutPlans(user.uid, [def.programme], def.routines).catch((err) =>
+            console.error('saveWorkoutPlans (default):', err)
+          )
+        }
+      })
+      .catch((err) => console.error('fetchWorkoutPlans:', err))
+      .finally(() => {
+        if (!cancelled) workoutPlansLoadedRef.current = true
+      })
+    return () => { cancelled = true }
+  }, [user?.uid])
+
+  // Persist workout plans to Firestore when they change (after initial load)
+  useEffect(() => {
+    if (!user?.uid || !workoutPlansLoadedRef.current) return
+    saveWorkoutPlans(user.uid, programmes, routines).catch((err) =>
+      console.error('saveWorkoutPlans:', err)
+    )
+  }, [user?.uid, programmes, routines])
+
+  // Load workout sessions (history) from Firestore when user is set
+  useEffect(() => {
+    if (!user?.uid) return
+    let cancelled = false
+    fetchWorkoutSessions(user.uid)
+      .then((sessions) => {
+        if (cancelled) return
+        setHistory(sessions)
+      })
+      .catch((err) => console.error('fetchWorkoutSessions:', err))
+      .finally(() => {
+        if (!cancelled) {
+          workoutSessionsLoadedRef.current = true
+          setWorkoutSessionsLoaded(true)
+        }
+      })
+    return () => { cancelled = true }
+  }, [user?.uid])
+
+  // Load user settings + app data (folders, logs, etc.) when user is set
+  useEffect(() => {
+    if (!user?.uid) return
+    let cancelled = false
+    Promise.all([getUserDoc(user.uid), fetchAppData(user.uid)])
+      .then(([userData, appData]) => {
+        if (cancelled) return
+        const settings = { ...DEFAULT_SETTINGS, ...(userData?.settings || {}) }
+        setDefaultRest(settings.defaultRest ?? DEFAULT_SETTINGS.defaultRest)
+        setBodyweight(settings.bodyweight ?? DEFAULT_SETTINGS.bodyweight)
+        setWeekStart(settings.weekStart ?? DEFAULT_SETTINGS.weekStart)
+        setUnitWeight(settings.unitWeight ?? DEFAULT_SETTINGS.unitWeight)
+        setUnitDistance(settings.unitDistance ?? DEFAULT_SETTINGS.unitDistance)
+        setUnitLength(settings.unitLength ?? DEFAULT_SETTINGS.unitLength)
+        setDecimalSeparator(settings.decimalSeparator ?? DEFAULT_SETTINGS.decimalSeparator)
+        setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
+        setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
+        const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
+        setTheme(themeVal === 'light-bone' ? 'bone' : themeVal)
+        if (appData.folders?.length) setFolders(appData.folders)
+        if (appData.customExercises?.length !== undefined) setCustomExercises(appData.customExercises || [])
+        if (appData.weightLog?.length !== undefined) setWeightLog(appData.weightLog || [])
+        if (appData.bodyFatLog?.length !== undefined) setBodyFatLog(appData.bodyFatLog || [])
+        if (appData.measurementsLog?.length !== undefined) setMeasurementsLog(appData.measurementsLog || [])
+        if (appData.muscleMassLog?.length !== undefined) setMuscleMassLog(appData.muscleMassLog || [])
+        if (appData.photoSessions?.length !== undefined) setPhotoSessions(appData.photoSessions || [])
+        if (appData.muscleLastWorked && Object.keys(appData.muscleLastWorked).length >= 0) setMuscleLastWorked(appData.muscleLastWorked || {})
+        const cw = appData.currentWorkout
+        if (cw?.exercises?.length) {
+          const list = (cw.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null }))
+          setExercises(list)
+          setWorkoutName(cw.workoutName || '')
+          setWorkoutStartTime(cw.workoutStartTime ?? null)
+          setWorkoutActive(true)
+          setShowActiveWorkoutSheet(true)
+        }
+      })
+      .catch((err) => console.error('load user/appData:', err))
+      .finally(() => {
+        if (!cancelled) {
+          appDataLoadedRef.current = true
+          setAppDataLoaded(true)
+        }
+      })
+    return () => { cancelled = true }
+  }, [user?.uid])
+
+  useEffect(() => {
+    if (!user?.uid || !appDataLoadedRef.current) return
+    const payload =
+      workoutActive && (exercises.length > 0 || workoutName)
+        ? { workoutName, workoutStartTime, exercises }
+        : null
+    updateAppData(user.uid, { currentWorkout: payload }).catch((err) =>
+      console.error('updateAppData currentWorkout:', err)
+    )
+  }, [user?.uid, workoutActive, workoutName, workoutStartTime, exercises])
+
+  // Når historik er helt tom efter Firestore-load: fyld med træningsdata for de sidste 30 dage (4 træninger/uge fra aktive program).
+  useEffect(() => {
+    if (!workoutSessionsLoaded || history.length !== 0) return
     const seed = getSeedHistory(programmes, routines)
     if (seed.length > 0) setHistory(seed)
-  }, [history.length, programmes, routines])
+  }, [workoutSessionsLoaded, history.length, programmes, routines])
 
   useEffect(() => {
-    if (photoSessions.length !== 0) return
+    if (!appDataLoaded || photoSessions.length !== 0) return
     const seed = getSeedPhotoSessions()
     if (seed.length > 0) setPhotoSessions(seed)
-  }, [photoSessions.length])
-  useEffect(() => { localStorage.setItem('folders', JSON.stringify(folders)) }, [folders])
-  useEffect(() => { localStorage.setItem('defaultRest', String(defaultRest)) }, [defaultRest])
-  useEffect(() => { localStorage.setItem('bodyweight', String(bodyweight)) }, [bodyweight])
-  useEffect(() => { localStorage.setItem('weekStart', String(weekStart)) }, [weekStart])
-  useEffect(() => { localStorage.setItem('unitWeight', unitWeight) }, [unitWeight])
-  useEffect(() => { localStorage.setItem('unitDistance', unitDistance) }, [unitDistance])
-  useEffect(() => { localStorage.setItem('unitLength', unitLength) }, [unitLength])
-  useEffect(() => { localStorage.setItem('decimalSeparator', decimalSeparator) }, [decimalSeparator])
-  useEffect(() => { localStorage.setItem('dateFormat', dateFormat) }, [dateFormat])
-  useEffect(() => { localStorage.setItem('customExercises', JSON.stringify(customExercises)) }, [customExercises])
-  useEffect(() => { localStorage.setItem('rirEnabled', rirEnabled ? 'true' : 'false') }, [rirEnabled])
-  useEffect(() => { localStorage.setItem('repliqe_weightLog', JSON.stringify(weightLog)) }, [weightLog])
-  useEffect(() => { localStorage.setItem('repliqe_bodyFatLog', JSON.stringify(bodyFatLog)) }, [bodyFatLog])
-  useEffect(() => { localStorage.setItem('repliqe_measurementsLog', JSON.stringify(measurementsLog)) }, [measurementsLog])
-  useEffect(() => { localStorage.setItem('repliqe_muscleMassLog', JSON.stringify(muscleMassLog)) }, [muscleMassLog])
-  useEffect(() => { localStorage.setItem('repliqe_photoSessions', JSON.stringify(photoSessions)) }, [photoSessions])
+  }, [appDataLoaded, photoSessions.length])
+  useEffect(() => {
+    if (!user?.uid || !appDataLoadedRef.current) return
+    updateAppData(user.uid, { folders }).catch((err) => console.error('updateAppData folders:', err))
+  }, [user?.uid, folders])
+  useEffect(() => {
+    if (!user?.uid || !appDataLoadedRef.current) return
+    mergeUserSettings(user.uid, { defaultRest, bodyweight, weekStart, unitWeight, unitDistance, unitLength, decimalSeparator, dateFormat, rirEnabled }).catch((err) => console.error('mergeUserSettings:', err))
+  }, [user?.uid, defaultRest, bodyweight, weekStart, unitWeight, unitDistance, unitLength, decimalSeparator, dateFormat, rirEnabled])
+  useEffect(() => {
+    if (!user?.uid || !appDataLoadedRef.current) return
+    updateAppData(user.uid, { customExercises, weightLog, bodyFatLog, measurementsLog, muscleMassLog, photoSessions, muscleLastWorked }).catch((err) => console.error('updateAppData:', err))
+  }, [user?.uid, customExercises, weightLog, bodyFatLog, measurementsLog, muscleMassLog, photoSessions, muscleLastWorked])
 
   useEffect(() => {
     if (editingProgrammeId) {
@@ -420,20 +503,8 @@ function App() {
     }
   }, [editingProgrammeId])
 
-  useEffect(() => {
-    if (exercises.length > 0) {
-      const savedName = localStorage.getItem('workoutName')
-      const savedStart = localStorage.getItem('workoutStartTime')
-      setWorkoutActive(true)
-      setShowActiveWorkoutSheet(true)
-      setWorkoutName(savedName || '')
-      if (savedStart) setWorkoutStartTime(Number(savedStart))
-      else { const now = Date.now(); setWorkoutStartTime(now); localStorage.setItem('workoutStartTime', String(now)) }
-    }
-  }, [])
+  // Workout restore from Firestore currentWorkout is done in the user+appData load effect above.
 
-  useEffect(() => { localStorage.setItem('workoutName', workoutName) }, [workoutName])
-  useEffect(() => { if (workoutStartTime) localStorage.setItem('workoutStartTime', String(workoutStartTime)) }, [workoutStartTime])
   useEffect(() => {
     if (focusNewExerciseAt === null) return
     const t = setTimeout(() => {
@@ -461,9 +532,7 @@ function App() {
 
   useEffect(() => {
     if (programmes.length > 0) return
-    const foldersRaw = localStorage.getItem('folders')
-    const foldersData = foldersRaw ? JSON.parse(foldersRaw) : [{ name: 'My Templates', open: true, templates: [] }]
-    const firstFolder = foldersData[0]
+    const firstFolder = folders[0]
     const hasTemplates = firstFolder?.templates?.length > 0
     const ts = Date.now()
     const progId = 'prog_' + ts
@@ -489,7 +558,7 @@ function App() {
         currentIndex: 0
       }])
     }
-  }, [programmes.length])
+  }, [programmes.length, folders])
 
   // Migrate away legacy auto names like "My New Program 1"
   useEffect(() => {
@@ -499,9 +568,6 @@ function App() {
     setProgrammes(prev => prev.map(p => (typeof p.name === 'string' && p.name.startsWith('My New Program')) ? { ...p, name: 'Programme' } : p))
   }, [programmes.length])
 
-  useEffect(() => { localStorage.setItem('repliqe_programmes', JSON.stringify(programmes)) }, [programmes])
-  useEffect(() => { localStorage.setItem('repliqe_routines', JSON.stringify(routines)) }, [routines])
-  useEffect(() => { localStorage.setItem('repliqe_muscleLastWorked', JSON.stringify(muscleLastWorked)) }, [muscleLastWorked])
 
   useEffect(() => {
     if (!workoutActive || !workoutStartTime) return
@@ -1412,21 +1478,35 @@ function App() {
     }
     setMuscleLastWorked(nextMuscleLastWorked)
 
-    // NOW save to history
-    setHistory([workout, ...history])
-    if (navigator.vibrate) navigator.vibrate([40, 40, 80])
-    if (routineId) {
-      advanceProgrammeRotation(routineId)
-      setSelectedStartRoutineId(null) // so Start tab shows next "Up Next" with green frame, not the one just completed
-    }
-    setShowFinishModal(false)
-    setShowCompleteScreen(true)
-
-    setExercises([]); setActiveRest(null); setRestTime(0); setPendingRir(null)
-    setWorkoutActive(false); setWorkoutName(''); setWorkoutStartTime(null); setWorkoutElapsed(0)
-    currentRoutineIdRef.current = null
-    startedFromEmptyRef.current = false
-    localStorage.removeItem('workoutStartTime')
+    // Save session to Firestore then update local history and UI
+    addWorkoutSession(user.uid, workout)
+      .then((sessionId) => {
+        setHistory([{ ...workout, sessionId }, ...history])
+        if (navigator.vibrate) navigator.vibrate([40, 40, 80])
+        if (routineId) {
+          advanceProgrammeRotation(routineId)
+          setSelectedStartRoutineId(null) // so Start tab shows next "Up Next" with green frame, not the one just completed
+        }
+        setShowFinishModal(false)
+        setShowCompleteScreen(true)
+        setExercises([]); setActiveRest(null); setRestTime(0); setPendingRir(null)
+        setWorkoutActive(false); setWorkoutName(''); setWorkoutStartTime(null); setWorkoutElapsed(0)
+        currentRoutineIdRef.current = null
+        startedFromEmptyRef.current = false
+        updateAppData(user.uid, { currentWorkout: null }).catch(() => {})
+      })
+      .catch((err) => {
+        console.error('addWorkoutSession:', err)
+        // Still add to local state so user doesn't lose the workout
+        setHistory([workout, ...history])
+        setShowFinishModal(false)
+        setShowCompleteScreen(true)
+        setExercises([]); setActiveRest(null); setRestTime(0); setPendingRir(null)
+        setWorkoutActive(false); setWorkoutName(''); setWorkoutStartTime(null); setWorkoutElapsed(0)
+        currentRoutineIdRef.current = null
+        startedFromEmptyRef.current = false
+        updateAppData(user.uid, { currentWorkout: null }).catch(() => {})
+      })
   }
 
   function confirmSaveAsRoutine(option, routineName) {
@@ -1491,6 +1571,12 @@ function App() {
   function dismissCompleteScreen(rating) {
     const hasRating = rating != null && rating >= 1 && rating <= 5
     if (hasRating && history.length > 0) {
+      const first = history[0]
+      if (first.sessionId && user?.uid) {
+        updateWorkoutSessionRating(user.uid, first.sessionId, rating).catch((err) =>
+          console.error('updateWorkoutSessionRating:', err)
+        )
+      }
       setHistory(prev => [{ ...prev[0], rating }, ...prev.slice(1)])
     }
     setShowCompleteScreen(false)
@@ -1503,7 +1589,7 @@ function App() {
     setWorkoutActive(false); setWorkoutName(''); setWorkoutStartTime(null); setWorkoutElapsed(0)
     currentRoutineIdRef.current = null
     startedFromEmptyRef.current = false
-    localStorage.removeItem('workoutStartTime')
+    if (user?.uid) updateAppData(user.uid, { currentWorkout: null }).catch(() => {})
   }
 
   function saveTemplate() { if (exercises.length === 0) return; setShowSaveModal(true) }
@@ -2179,11 +2265,7 @@ function App() {
               <div className="h-[6rem]" aria-hidden="true" />
 
               {(profileSection || 'account') === 'account' && (
-                <div className="mt-1">
-                  <div className="bg-card border border-border rounded-2xl p-5">
-                    <p className="text-sm text-muted-mid">Account options will appear here.</p>
-                  </div>
-                </div>
+                <AccountTab />
               )}
 
               {(profileSection || 'account') === 'settings' && (

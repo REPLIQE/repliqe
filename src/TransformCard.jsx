@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { loadPhotoSrc } from './PhotosModal'
 import { groupPhotoSessionsByMonth } from './progressUtils'
 import ProgressPhoto from './ProgressPhoto'
+import { useAuth } from './lib/AuthContext'
 
 const ANGLES = [
   { key: 'front', label: 'Front' },
@@ -20,6 +21,7 @@ const PLACEHOLDER_SVG = (
 )
 
 export function PhotoThumb({ session, label, angle = 'front', weightLog, muscleMassLog, unitWeight }) {
+  const { user } = useAuth()
   const [src, setSrc] = useState(null)
   const filename = session?.[angle]
   const crop = session?.crops?.[angle]
@@ -34,8 +36,8 @@ export function PhotoThumb({ session, label, angle = 'front', weightLog, muscleM
 
   useEffect(() => {
     if (!filename) return
-    loadPhotoSrc(filename).then(setSrc).catch(() => {})
-  }, [filename])
+    loadPhotoSrc(filename, user?.uid ?? null).then(setSrc).catch(() => {})
+  }, [filename, user?.uid])
 
   return (
     <div className="relative flex items-center justify-center">
