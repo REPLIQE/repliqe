@@ -350,7 +350,10 @@ input:focus:invalid {
   color: #888;
   font-size: 13px;
   font-weight: 700;
-  margin: 16px 0 8px;
+  margin: 0 0 8px;
+}
+.progress-section-label:first-child {
+  margin-top: 0;
 }
 
 .activity-card {
@@ -407,7 +410,8 @@ input:focus:invalid {
 }
 
 .activity-cell.today {
-  border: 1.5px solid #5BF5A0;
+  border: 1px solid rgba(91, 245, 160, 0.6);
+  box-shadow: 0 0 0 1px rgba(91, 245, 160, 0.25);
 }
 
 .activity-stats-side {

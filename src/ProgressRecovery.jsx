@@ -59,7 +59,7 @@ export default function ProgressRecovery({ muscleLastWorked, history, allLibrary
     .slice(0, 8)
 
   return (
-    <div>
+    <div className="-mt-4">
       <div className="sec">All muscle groups · now</div>
       <div className="grid grid-cols-4 gap-[5px] mb-4">
         {ALL_SLUGS.map((slug) => {

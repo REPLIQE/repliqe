@@ -30,8 +30,13 @@ export default function ProgressBody({
   unitLength = 'cm',
   formatDecimal,
   parseDecimal,
+  formatDateForDisplay,
   scrollToPhotosSection = false,
   onScrolledToPhotos,
+  openAddPhoto = false,
+  onConsumedOpenAddPhoto,
+  returnToWorkoutAfterPhotoClose = false,
+  onReturnToWorkoutAfterPhoto,
 }) {
   const fmt = formatDecimal ?? ((n, decimals) => (n != null ? (decimals != null ? Number(n).toFixed(decimals) : String(n)) : '—'))
   const parse = parseDecimal ?? ((s) => parseFloat(String(s).replace(',', '.')))
@@ -50,6 +55,14 @@ export default function ProgressBody({
       onScrolledToPhotos?.()
     }
   }, [scrollToPhotosSection, onScrolledToPhotos])
+
+  useEffect(() => {
+    if (!openAddPhoto) return
+    if (photosSectionRef.current) photosSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setShowPhotos(true)
+    onConsumedOpenAddPhoto?.()
+  }, [openAddPhoto])
+
   const [newWeight, setNewWeight] = useState('')
   const [newBF, setNewBF] = useState('')
   const [newMuscleMass, setNewMuscleMass] = useState('')
@@ -92,7 +105,10 @@ export default function ProgressBody({
   const weightRange = weightMax - weightMin || 1
 
   const latestMeasurements = safeMeasurementsLog.length > 0 ? safeMeasurementsLog[safeMeasurementsLog.length - 1] : null
-  const firstMeasurements = safeMeasurementsLog.length > 0 ? safeMeasurementsLog[0] : null
+  function getFirstMeasurementForKey(key) {
+    const entry = safeMeasurementsLog.find((e) => e[key] != null && e[key] !== '')
+    return entry ? Number(entry[key]) : null
+  }
 
   function addWeight() {
     const val = parse(newWeight)
@@ -150,7 +166,7 @@ export default function ProgressBody({
   }
 
   return (
-    <div>
+    <div className="-mt-4">
       <div className="sec">Weight</div>
       <div className="bg-card border border-border rounded-[14px] p-4 mb-2">
         <div className="flex justify-between items-baseline mb-3">
@@ -260,9 +276,9 @@ export default function ProgressBody({
       <div className="sec">Measurements</div>
       <div className="bg-card border border-border rounded-[14px] overflow-hidden mb-2">
         {MEASUREMENTS.map(({ key, label }, i) => {
-          const latest = latestMeasurements?.[key]
-          const first = firstMeasurements?.[key]
-          const delta = latest && first && latest !== first ? latest - first : null
+          const latest = latestMeasurements?.[key] != null && latestMeasurements?.[key] !== '' ? Number(latestMeasurements[key]) : null
+          const first = getFirstMeasurementForKey(key)
+          const delta = latest != null && first != null && latest !== first ? latest - first : null
           const display = (cm) => (unitLength === 'inch' ? (cm / CM_PER_INCH).toFixed(1) : cm.toFixed(1))
           const unitLabel = unitLength === 'inch' ? 'inch' : 'cm'
           return (
@@ -303,6 +319,7 @@ export default function ProgressBody({
           weightLog={safeWeightLog}
           muscleMassLog={safeMuscleMassLog}
           unitWeight={unitWeight ?? 'kg'}
+          formatDateForDisplay={formatDateForDisplay}
           showExitCTA={false}
           inline={true}
           onOpenAddPhotos={() => {
@@ -372,10 +389,12 @@ export default function ProgressBody({
           onClose={() => {
             setShowPhotos(false)
             setOpenPhotosToAdd(false)
+            if (returnToWorkoutAfterPhotoClose) onReturnToWorkoutAfterPhoto?.()
           }}
           weightLog={safeWeightLog}
           muscleMassLog={safeMuscleMassLog}
           unitWeight={unitWeight ?? 'kg'}
+          formatDateForDisplay={formatDateForDisplay}
           openToAdd={openPhotosToAdd}
         />
       )}

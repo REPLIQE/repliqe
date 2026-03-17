@@ -9,6 +9,7 @@ import LinkModeBanner from './LinkModeBanner'
 import RirSheet from './RirSheet'
 import MuscleMapCard from './MuscleMapCard'
 import { getDayMuscles, getDayMusclesSlugs, formatDecimal as formatDecimalUtil, parseDecimal as parseDecimalUtil } from './utils'
+import { formatStoredDateForDisplay, DATE_FORMAT_DDMY, DATE_FORMAT_MMDY } from './dateFormatUtils'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
 import RecoverySection from './RecoverySection'
 import RepliqeLogo from './RepliqeLogo'
@@ -243,6 +244,7 @@ function App() {
   const [unitDistance, setUnitDistance] = useState(() => localStorage.getItem('unitDistance') || 'km')
   const [unitLength, setUnitLength] = useState(() => localStorage.getItem('unitLength') || 'cm')
   const [decimalSeparator, setDecimalSeparator] = useState(() => localStorage.getItem('decimalSeparator') || 'comma')
+  const [dateFormat, setDateFormat] = useState(() => localStorage.getItem('dateFormat') || DATE_FORMAT_DDMY)
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [showCreateExercise, setShowCreateExercise] = useState(false)
   const [editingCustomExercise, setEditingCustomExercise] = useState(null)
@@ -253,6 +255,9 @@ function App() {
   const [showFinishModal, setShowFinishModal] = useState(false)
   const [showCompleteScreen, setShowCompleteScreen] = useState(false)
   const [completedWorkoutData, setCompletedWorkoutData] = useState(null)
+  const [completeScreenRating, setCompleteScreenRating] = useState(null)
+  const [postCompleteOpenPhoto, setPostCompleteOpenPhoto] = useState(false)
+  const [returnToWorkoutAfterPhotoClose, setReturnToWorkoutAfterPhotoClose] = useState(false)
   const [editingFolder, setEditingFolder] = useState(null)
   const [editingFolderName, setEditingFolderName] = useState('')
   const [showSaveModal, setShowSaveModal] = useState(false)
@@ -267,6 +272,7 @@ function App() {
   const [showCancelWorkoutConfirm, setShowCancelWorkoutConfirm] = useState(false)
   const [showStickyRestBar, setShowStickyRestBar] = useState(false)
   const [workoutTab, setWorkoutTab] = useState('start') // 'start' | 'plan'
+  const [profileSection, setProfileSection] = useState(null) // null | 'account' | 'settings' | 'about'
   const [programmes, setProgrammes] = useState(() => {
     const s = localStorage.getItem('repliqe_programmes')
     if (s) {
@@ -369,6 +375,7 @@ function App() {
     if (meta) meta.setAttribute('content', theme === 'bone' ? '#FAF7F2' : '#0D0D1A')
   }, [theme])
   useEffect(() => { if (page === 'library') setPage('workout') }, [page])
+  useEffect(() => { if (page !== 'profile') setProfileSection(null) }, [page])
   useEffect(() => {
     if (programmes.length === 1 && !programmes[0].isActive) {
       setProgrammes(prev => prev.map(p => ({ ...p, isActive: true })))
@@ -397,6 +404,7 @@ function App() {
   useEffect(() => { localStorage.setItem('unitDistance', unitDistance) }, [unitDistance])
   useEffect(() => { localStorage.setItem('unitLength', unitLength) }, [unitLength])
   useEffect(() => { localStorage.setItem('decimalSeparator', decimalSeparator) }, [decimalSeparator])
+  useEffect(() => { localStorage.setItem('dateFormat', dateFormat) }, [dateFormat])
   useEffect(() => { localStorage.setItem('customExercises', JSON.stringify(customExercises)) }, [customExercises])
   useEffect(() => { localStorage.setItem('rirEnabled', rirEnabled ? 'true' : 'false') }, [rirEnabled])
   useEffect(() => { localStorage.setItem('repliqe_weightLog', JSON.stringify(weightLog)) }, [weightLog])
@@ -1379,9 +1387,11 @@ function App() {
 
     setCompletedWorkoutData({
       name: workoutName, templateName: templateName || (routineId ? workoutName : null), duration, setCount: doneSets.length, volume: totalVolume,
+      exerciseCount: exercises.length,
       newPRs, progression, templateUseCount,
       suggestedNext: nextSuggested
     })
+    setCompleteScreenRating(null)
 
     // Update muscleLastWorked only for exercises that had at least one set marked done (recovery counts completed work only)
     const now = new Date().toISOString()
@@ -1478,7 +1488,15 @@ function App() {
     return null
   }
 
-  function dismissCompleteScreen() { setShowCompleteScreen(false); setCompletedWorkoutData(null) }
+  function dismissCompleteScreen(rating) {
+    const hasRating = rating != null && rating >= 1 && rating <= 5
+    if (hasRating && history.length > 0) {
+      setHistory(prev => [{ ...prev[0], rating }, ...prev.slice(1)])
+    }
+    setShowCompleteScreen(false)
+    setCompletedWorkoutData(null)
+    setCompleteScreenRating(null)
+  }
 
   function cancelWorkout() {
     setExercises([]); setActiveRest(null); setRestTime(0); setPendingRir(null)
@@ -1623,7 +1641,7 @@ function App() {
 
   return (
     <>
-      <div className="min-h-screen bg-page text-text pb-24">
+      <div className="min-h-screen bg-page text-text pb-16">
         <div className="px-4 py-6 max-w-md mx-auto">
 
           {/* PROGRESS */}
@@ -1647,18 +1665,33 @@ function App() {
                 bodyweight={bodyweight}
                 weekStreak={getWeekStreak()}
                 weekDays={getWeekDays()}
+                weekStart={weekStart}
                 unitWeight={unitWeight ?? 'kg'}
                 unitLength={unitLength ?? 'cm'}
                 formatDecimal={formatDecimal}
                 parseDecimal={parseDecimal}
+                formatDateForDisplay={(stored) => formatStoredDateForDisplay(stored, dateFormat)}
                 allLibraryExercises={allLibraryExercises ?? []}
+                postCompleteOpenPhoto={postCompleteOpenPhoto}
+                onConsumedOpenAddPhoto={() => setPostCompleteOpenPhoto(false)}
+                returnToWorkoutAfterPhotoClose={returnToWorkoutAfterPhotoClose}
+                onReturnToWorkoutAfterPhoto={() => { setPage('workout'); setReturnToWorkoutAfterPhotoClose(false) }}
               />
             </ProgressErrorBoundary>
           )}
 
           {/* WORKOUT COMPLETE SCREEN */}
           {page === 'workout' && showCompleteScreen && completedWorkoutData && (
-            <WorkoutCompleteScreen data={completedWorkoutData} weekDays={getWeekDays()} weekStreak={getWeekStreak()} onDone={dismissCompleteScreen} formatDuration={formatDuration} unitWeight={unitWeight} formatDecimal={formatDecimal} getExerciseFromLibrary={getExerciseFromLibrary} />
+            <WorkoutCompleteScreen
+              data={completedWorkoutData}
+              rating={completeScreenRating}
+              onRatingChange={setCompleteScreenRating}
+              onDone={dismissCompleteScreen}
+              onProgressPhoto={() => { setPostCompleteOpenPhoto(true); setReturnToWorkoutAfterPhotoClose(true); setPage('progress') }}
+              formatDuration={formatDuration}
+              unitWeight={unitWeight}
+              formatDecimal={formatDecimal}
+            />
           )}
 
           {/* WORKOUT START SCREEN (also when workout active but sheet closed) */}
@@ -2117,107 +2150,158 @@ function App() {
           {/* PROFILE */}
           {page === 'profile' && (
             <div>
-              <div className="flex items-center gap-3 mb-6"><RepliqeLogo size={28} /><h1 className="text-3xl font-bold tracking-tight">Profile</h1></div>
-              <div className="bg-card border border-border rounded-2xl p-5 mb-4">
-                <h3 className="text-sm font-semibold text-accent uppercase tracking-wide mb-4">Settings</h3>
-                <div className="flex items-center justify-between px-4 py-3 bg-card-alt rounded-xl border border-border mb-5">
-                  <div>
-                    <div className="text-sm font-bold text-text">RIR Tracking</div>
-                    <div className="text-xs text-muted-strong mt-0.5">Log reps in reserve per set</div>
+              {/* Fixed header – same pattern as Progress */}
+              <div className="fixed top-0 left-0 right-0 z-20 bg-page border-b border-border/50 max-w-md mx-auto">
+                <div className="px-4 pt-3 pb-1.5">
+                  <div className="flex items-center gap-3 mb-2">
+                    <RepliqeLogo size={28} />
+                    <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setRirEnabled(prev => !prev)}
-                    className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${rirEnabled ? 'bg-accent' : 'bg-border-strong'}`}
-                  >
-                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${rirEnabled ? 'left-5' : 'left-0.5'}`} />
-                  </button>
-                </div>
-                <div className="theme-selector mb-5">
-                  <div className="settings-label">Appearance</div>
-                  <div className="theme-options">
-                    <button type="button" className={`theme-option ${theme === 'dark' ? 'selected' : ''}`} onClick={() => setThemeAndApply('dark')}>
-                      <div className="theme-preview theme-preview-dark">
-                        <div className="tp-bar" />
-                        <div className="tp-block" />
-                        <div className="tp-block short" />
-                      </div>
-                      <span className="theme-option-name">Dark</span>
-                    </button>
-                    <button type="button" className={`theme-option ${theme === 'bone' ? 'selected' : ''}`} onClick={() => setThemeAndApply('bone')}>
-                      <div className="theme-preview theme-preview-bone">
-                        <div className="tp-bar" />
-                        <div className="tp-block" />
-                        <div className="tp-block short" />
-                      </div>
-                      <span className="theme-option-name">Bone</span>
-                    </button>
-                  </div>
-                </div>
-                <div className="mb-5">
-                  <div className="text-sm font-semibold mb-1">Bodyweight</div>
-                  <div className="text-sm text-muted-mid mb-3">Used for volume calculation on bodyweight exercises</div>
-                  <div className="flex items-center gap-3">
-                    <input type="text" inputMode="decimal" value={formatDecimal(bodyweight)} onChange={(e) => { const v = e.target.value; if (v === '') setBodyweight(0); else { const n = parseDecimal(v); if (!Number.isNaN(n)) setBodyweight(n) } }} onBlur={() => { if (bodyweight === '' || bodyweight == null) setBodyweight(0) }} className="w-24 bg-card-alt border border-border-strong rounded-xl px-3 py-2 text-center text-sm font-bold text-text outline-none focus:border-accent transition-colors" />
-                    <span className="text-sm text-muted-mid">{unitWeight}</span>
-                  </div>
-                </div>
-                <div className="mb-5">
-                  <div className="text-sm font-semibold mb-1">Weight unit</div>
-                  <div className="text-sm text-muted-mid mb-3">Used across all exercises</div>
-                  <div className="flex gap-2">
-                    {['kg', 'lbs'].map(u => <button key={u} onClick={() => setUnitWeight(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitWeight === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
-                  </div>
-                </div>
-                <div className="mb-5">
-                  <div className="text-sm font-semibold mb-1">Distance unit</div>
-                  <div className="text-sm text-muted-mid mb-3">Used for distance exercises</div>
-                  <div className="flex gap-2">
-                    {['km', 'miles'].map(u => <button key={u} onClick={() => setUnitDistance(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitDistance === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
-                  </div>
-                </div>
-                <div className="mb-5">
-                  <div className="text-sm font-semibold mb-1">Length unit</div>
-                  <div className="text-sm text-muted-mid mb-3">Used for body measurements (chest, waist, etc.)</div>
-                  <div className="flex gap-2">
-                    {['cm', 'inch'].map(u => <button key={u} onClick={() => setUnitLength(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitLength === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
-                  </div>
-                </div>
-                <div className="mb-5">
-                  <div className="text-sm font-semibold mb-1">Decimal separator</div>
-                  <div className="text-sm text-muted-mid mb-3">Used for weight, measurements and other numbers</div>
-                  <div className="flex gap-2">
-                    {[
-                      { id: 'comma', label: '1,5 (comma)' },
-                      { id: 'period', label: '1.5 (period)' }
-                    ].map(({ id, label }) => (
-                      <button key={id} onClick={() => setDecimalSeparator(id)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${decimalSeparator === id ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{label}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="mb-5">
-                  <div className="text-sm font-semibold mb-1">Rest timer</div>
-                  <div className="text-sm text-muted-mid mb-3">Default rest duration between sets</div>
-                  <div className="flex gap-2 flex-wrap">
-                    {REST_PRESETS.map(s => <button key={s} onClick={() => setDefaultRest(s)} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${defaultRest === s ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
-                  </div>
-                  <div className="text-sm text-muted-deep mt-3">Current: {defaultRest === 0 ? 'None' : formatTime(defaultRest)}</div>
-                </div>
-                <div className="mb-2">
-                  <div className="text-sm font-semibold mb-1">Week starts on</div>
-                  <div className="text-sm text-muted-mid mb-3">Used for weekly streak tracking</div>
-                  <div className="flex gap-2 flex-wrap">
-                    {WEEK_DAYS.map((d, i) => <button key={i} onClick={() => setWeekStart(i)} className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${weekStart === i ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{d.slice(0,3)}</button>)}
+                  <div className="flex rounded-[10px] p-[3px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]">
+                    {['Account', 'Settings', 'About'].map((t) => {
+                      const key = t.toLowerCase()
+                      const active = (profileSection || 'account') === key
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setProfileSection(key)}
+                          className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${active ? 'bg-accent text-on-accent shadow-lg shadow-accent/25' : 'text-muted-strong'}`}
+                        >
+                          {t}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
-              <div className="bg-card border border-border rounded-2xl p-5">
-                <h3 className="text-sm font-semibold text-accent uppercase tracking-wide mb-4">About</h3>
-                <div className="text-sm text-muted-mid">
-                  <div className="mb-1">REPLIQE v1.7</div>
-                  <div>Simple tracking. Real progress.</div>
+
+              <div className="h-[6rem]" aria-hidden="true" />
+
+              {(profileSection || 'account') === 'account' && (
+                <div className="mt-1">
+                  <div className="bg-card border border-border rounded-2xl p-5">
+                    <p className="text-sm text-muted-mid">Account options will appear here.</p>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {(profileSection || 'account') === 'settings' && (
+                <div className="mt-1">
+
+                  <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+                    <h3 className="text-xs font-semibold text-accent uppercase tracking-wide mb-3">Appearance</h3>
+                    <div className="theme-selector">
+                      <div className="theme-options flex gap-2">
+                        <button type="button" className={`theme-option flex-1 ${theme === 'dark' ? 'selected' : ''}`} onClick={() => setThemeAndApply('dark')}>
+                          <div className="theme-preview theme-preview-dark">
+                            <div className="tp-bar" />
+                            <div className="tp-block" />
+                            <div className="tp-block short" />
+                          </div>
+                          <span className="theme-option-name text-xs font-bold mt-1 block">Dark</span>
+                        </button>
+                        <button type="button" className={`theme-option flex-1 ${theme === 'bone' ? 'selected' : ''}`} onClick={() => setThemeAndApply('bone')}>
+                          <div className="theme-preview theme-preview-bone">
+                            <div className="tp-bar" />
+                            <div className="tp-block" />
+                            <div className="tp-block short" />
+                          </div>
+                          <span className="theme-option-name text-xs font-bold mt-1 block">Bone</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+                    <h3 className="text-xs font-semibold text-accent uppercase tracking-wide mb-3">Units</h3>
+                    <div className="mb-4">
+                      <div className="text-sm font-semibold mb-1">Weight</div>
+                      <div className="flex gap-2">
+                        {['kg', 'lbs'].map(u => <button key={u} onClick={() => setUnitWeight(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitWeight === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <div className="text-sm font-semibold mb-1">Distance</div>
+                      <div className="flex gap-2">
+                        {['km', 'miles'].map(u => <button key={u} onClick={() => setUnitDistance(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitDistance === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold mb-1">Length</div>
+                      <div className="flex gap-2">
+                        {['cm', 'inch'].map(u => <button key={u} onClick={() => setUnitLength(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitLength === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+                    <h3 className="text-xs font-semibold text-accent uppercase tracking-wide mb-3">Format</h3>
+                    <div className="mb-4">
+                      <div className="text-sm font-semibold mb-1">Decimal separator</div>
+                      <div className="flex gap-2">
+                        {[{ id: 'comma', label: '1,5 (comma)' }, { id: 'period', label: '1.5 (period)' }].map(({ id, label }) => (
+                          <button key={id} onClick={() => setDecimalSeparator(id)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${decimalSeparator === id ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold mb-1">Date format</div>
+                      <div className="flex gap-2 flex-wrap">
+                        {[{ id: DATE_FORMAT_DDMY, label: 'Day/Month/Year' }, { id: DATE_FORMAT_MMDY, label: 'Month/Day/Year' }].map(({ id, label }) => (
+                          <button key={id} onClick={() => setDateFormat(id)} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${dateFormat === id ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+                    <h3 className="text-xs font-semibold text-accent uppercase tracking-wide mb-3">Workout</h3>
+                    <div className="mb-4">
+                      <div className="text-sm font-semibold mb-1">Bodyweight</div>
+                      <div className="text-xs text-muted-mid mb-2">Used for volume on bodyweight exercises</div>
+                      <div className="flex items-center gap-3">
+                        <input type="text" inputMode="decimal" value={formatDecimal(bodyweight)} onChange={(e) => { const v = e.target.value; if (v === '') setBodyweight(0); else { const n = parseDecimal(v); if (!Number.isNaN(n)) setBodyweight(n) } }} onBlur={() => { if (bodyweight === '' || bodyweight == null) setBodyweight(0) }} className="w-24 bg-card-alt border border-border-strong rounded-xl px-3 py-2 text-center text-sm font-bold text-text outline-none focus:border-accent transition-colors" />
+                        <span className="text-sm text-muted-mid">{unitWeight}</span>
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <div className="text-sm font-semibold mb-1">Rest timer</div>
+                      <div className="text-xs text-muted-mid mb-2">Default rest between sets</div>
+                      <div className="flex gap-2 flex-wrap">
+                        {REST_PRESETS.map(s => <button key={s} onClick={() => setDefaultRest(s)} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${defaultRest === s ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
+                      </div>
+                      <div className="text-xs text-muted-deep mt-2">Current: {defaultRest === 0 ? 'None' : formatTime(defaultRest)}</div>
+                    </div>
+                    <div className="mb-4">
+                      <div className="text-sm font-semibold mb-1">Week starts on</div>
+                      <div className="flex gap-2 flex-wrap">
+                        {WEEK_DAYS.map((d, i) => <button key={i} onClick={() => setWeekStart(i)} className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${weekStart === i ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{d.slice(0, 3)}</button>)}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-3 bg-card-alt rounded-xl border border-border">
+                      <div>
+                        <div className="text-sm font-bold text-text">RIR Tracking</div>
+                        <div className="text-xs text-muted-strong mt-0.5">Log reps in reserve per set</div>
+                      </div>
+                      <button type="button" onClick={() => setRirEnabled(prev => !prev)} className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${rirEnabled ? 'bg-accent' : 'bg-border-strong'}`}>
+                        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${rirEnabled ? 'left-5' : 'left-0.5'}`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(profileSection || 'account') === 'about' && (
+                <div className="mt-1">
+                  <div className="bg-card border border-border rounded-2xl p-5">
+                    <div className="text-sm text-muted-mid">
+                      <div className="mb-1 font-semibold text-text">REPLIQE v1.7</div>
+                      <div>Simple tracking. Real progress.</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2819,7 +2903,7 @@ function App() {
         )}
 
         {/* BOTTOM NAV */}
-        <div className="fixed bottom-0 left-0 right-0 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-3 pb-8 flex justify-around max-w-md mx-auto">
+        <div className="fixed bottom-0 left-0 right-0 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-2.5 pb-4 flex justify-around max-w-md mx-auto">
           <button onClick={() => setPage('progress')} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-accent' : 'stroke-text'}`}><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-xs font-semibold ${page === 'progress' ? 'text-accent' : 'text-text'}`}>Progress</span></button>
           <button onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-accent' : 'stroke-text'}`}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-xs font-semibold ${page === 'workout' ? 'text-accent' : 'text-text'}`}>Workout</span></button>
           <button onClick={() => setPage('profile')} className={`flex flex-col items-center gap-1 ${page === 'profile' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'profile' ? 'stroke-accent' : 'stroke-text'}`}><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg><span className={`text-xs font-semibold ${page === 'profile' ? 'text-accent' : 'text-text'}`}>Profile</span></button>
@@ -2829,132 +2913,131 @@ function App() {
   )
 }
 
-function WorkoutCompleteScreen({ data, weekDays, weekStreak, onDone, formatDuration, unitWeight, formatDecimal, getExerciseFromLibrary }) {
-  const { name, templateName, duration, setCount, volume, newPRs, progression, templateUseCount, suggestedNext } = data
-  const weekWorkouts = weekStreak.filter(d => d.worked || d.isToday).length
+function WorkoutCompleteScreen({ data, rating, onRatingChange, onDone, onProgressPhoto, formatDuration, unitWeight, formatDecimal }) {
+  const { name, templateName, duration, setCount, volume, exerciseCount = 0, newPRs, progression } = data
+  const minutes = Math.floor(duration / 60)
+  const lastVolume = progression?.prevVolume ?? 0
+  const lastMinutes = progression?.prevDuration != null ? Math.floor(progression.prevDuration / 60) : 0
+  const volStr = formatDecimal ? formatDecimal(Math.round(volume ?? 0), 0) : (volume != null ? String(Math.round(volume)) : '—')
+  const labels = ['Terrible', 'Low', 'OK', 'Good', 'Great']
+  const hasPRs = newPRs && newPRs.length > 0
+
+  const volumeDiff = progression ? (volume ?? 0) - lastVolume : 0
+  const durationDiff = progression ? minutes - lastMinutes : 0
 
   return (
     <div>
-      {/* Celebration */}
-      <div className="text-center py-6">
-        <div className="w-16 h-16 rounded-full bg-success/12 flex items-center justify-center mx-auto mb-4 animate-bounce">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 stroke-success"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Workout Complete!</h1>
-        <div className="text-sm font-semibold text-accent mt-1">{name}</div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-card border border-border rounded-xl p-3.5 text-center">
-          <div className="text-3xl font-extrabold">{Math.floor(duration/60)}</div>
-          <div className="text-sm font-bold text-muted-mid uppercase tracking-wider mt-1">Minutes</div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-3.5 text-center">
-          <div className="text-3xl font-extrabold">{setCount}</div>
-          <div className="text-sm font-bold text-muted-mid uppercase tracking-wider mt-1">Sets</div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-3.5 text-center">
-          <div className="text-3xl font-extrabold">{formatDecimal ? formatDecimal(volume) : volume.toLocaleString()}</div>
-          <div className="text-sm font-bold text-muted-mid uppercase tracking-wider mt-1">{unitWeight} Volume</div>
+      {/* Header: workout name + bouncy green checkmark */}
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-text">{name}</h1>
+        <div className="w-10 h-10 rounded-full bg-success flex items-center justify-center shrink-0 animate-bounce">
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 stroke-white"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
       </div>
 
-      {/* PRs */}
-      <div className={`border rounded-2xl p-4 mb-3 ${newPRs.length > 0 ? 'bg-gradient-to-br from-[#7B7BFF]/8 to-[#5BF5A0]/5 border-accent/15' : 'bg-card border-border'}`}>
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 ${newPRs.length > 0 ? 'stroke-accent' : 'stroke-muted-deep'}`}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <span className={`text-sm font-bold uppercase tracking-wider ${newPRs.length > 0 ? 'text-accent' : 'text-muted-deep'}`}>Personal Records</span>
+      {/* 4 stat boxes – one row */}
+      <div className="grid grid-cols-4 gap-2 mb-4">
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <div className="text-xl font-extrabold text-text">{exerciseCount}</div>
+          <div className="text-[10px] font-bold text-muted-mid uppercase tracking-wider mt-1">Exercises</div>
         </div>
-        {newPRs.length > 0 ? newPRs.map((pr, i) => (
-          <div key={i} className="flex items-center justify-between py-1.5">
-            <span className="text-sm font-semibold">{pr.name}</span>
-            <span className="text-sm font-extrabold text-success">{pr.display}</span>
-          </div>
-        )) : (
-          <div className="text-sm text-muted-mid italic">No new records today — keep pushing!</div>
-        )}
-      </div>
-
-      {/* Progression */}
-      <div className="bg-card border border-border rounded-2xl p-4 mb-3">
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-accent"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-          <span className="text-sm font-bold text-muted-mid uppercase tracking-wider">
-            {templateName ? `vs. last ${templateName}` : 'Progression'}
-          </span>
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <div className="text-xl font-extrabold text-text">{setCount}</div>
+          <div className="text-[10px] font-bold text-muted-mid uppercase tracking-wider mt-1">Sets</div>
         </div>
-        {progression ? (<>
-          <div className="flex items-center justify-between py-1.5 border-b border-[#1a1a30]">
-            <span className="text-sm text-[#aaa]">Volume</span>
-            {(() => {
-              const diff = progression.curVolume - progression.prevVolume
-              if (diff > 0) return <span className="flex items-center gap-1 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>+{formatDecimal ? formatDecimal(diff) : diff.toLocaleString()} {unitWeight}</span>
-              if (diff < 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#ff6b6b]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#ff6b6b]"><polyline points="6 9 12 15 18 9"/></svg>{formatDecimal ? formatDecimal(diff) : diff.toLocaleString()} {unitWeight}</span>
-              return <span className="text-sm font-bold text-muted-strong">Same ({formatDecimal ? formatDecimal(progression.curVolume) : progression.curVolume.toLocaleString()} {unitWeight})</span>
-            })()}
-          </div>
-          {progression.prevDuration > 0 && (
-          <div className="flex items-center justify-between py-1.5 border-b border-[#1a1a30]">
-            <span className="text-sm text-[#aaa]">Duration</span>
-            {(() => {
-              const diffMin = Math.floor(progression.curDuration/60) - Math.floor(progression.prevDuration/60)
-              if (diffMin < 0) return <span className="flex items-center gap-1 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>{Math.abs(diffMin)} min faster</span>
-              if (diffMin > 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#ff6b6b]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#ff6b6b]"><polyline points="6 9 12 15 18 9"/></svg>{diffMin} min slower</span>
-              return <span className="text-sm font-bold text-muted-strong">Same ({Math.floor(progression.curDuration/60)} min)</span>
-            })()}
-          </div>
-          )}
-          <div className="flex items-center justify-between py-1.5">
-            <span className="text-sm text-[#aaa]">Sets completed</span>
-            {(() => {
-              const diff = progression.curSetCount - progression.prevSetCount
-              if (diff > 0) return <span className="flex items-center gap-1 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>+{diff} sets</span>
-              if (diff < 0) return <span className="flex items-center gap-1 text-sm font-bold text-[#ff6b6b]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3 h-3 stroke-[#ff6b6b]"><polyline points="6 9 12 15 18 9"/></svg>{diff} sets</span>
-              return <span className="text-sm font-bold text-muted-strong">Same ({progression.curSetCount})</span>
-            })()}
-          </div>
-        </>) : (
-          <div className="text-sm text-muted-strong italic">{templateName ? `Shown after ${templateName} has been used twice` : 'Will show when you start using templates'}</div>
-        )}
-      </div>
-
-      {/* Streak */}
-      <div className="bg-card border border-border rounded-2xl p-4 mb-3 flex items-center gap-4">
-        <div className="text-center shrink-0">
-          <div className="text-[28px] font-extrabold text-success">{weekWorkouts}</div>
-          <div className="text-xs font-bold text-muted-strong uppercase tracking-wider">This week</div>
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <div className="text-xl font-extrabold text-text">{minutes}</div>
+          <div className="text-[10px] font-bold text-muted-mid uppercase tracking-wider mt-1">Minutes</div>
         </div>
-        <div className="flex-1">
-          <div className="flex gap-1.5 mb-1.5">
-            {weekStreak.map((d, i) => (
-              <div key={i} className={`w-[28px] h-2 rounded-full ${d.isToday ? 'bg-accent' : d.worked ? 'bg-success' : 'bg-card-alt border border-border-strong'}`} />
-            ))}
-          </div>
-          <div className="flex gap-1.5">
-            {weekDays.map((d, i) => (
-              <span key={i} className={`w-[28px] text-center text-xs font-semibold ${weekStreak[i]?.isToday ? 'text-accent' : 'text-muted-deep'}`}>{d}</span>
-            ))}
-          </div>
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <div className="text-xl font-extrabold text-text">{volStr}</div>
+          <div className="text-[10px] font-bold text-muted-mid uppercase tracking-wider mt-1">Kg vol</div>
         </div>
       </div>
 
-      {/* Suggested next */}
-      {suggestedNext && (
-        <div className="bg-card border border-border rounded-2xl p-4 mb-4">
-          <div className="text-sm font-bold text-muted-mid uppercase tracking-wider mb-2">Suggested next</div>
-          <div className="flex justify-between items-center">
-            <span className="text-lg font-bold">{suggestedNext.template.name}</span>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-success/10 text-success">Up next</span>
+      {/* Personal Records – only when there are PRs */}
+      {hasPRs && (
+        <div className="rounded-2xl p-4 mb-3 bg-card border border-border">
+          <div className="flex items-center gap-1.5 mb-3">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-amber-400"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Personal Records</span>
           </div>
-          <div className="flex flex-wrap gap-1 mt-2">
-            <MusclePills exercises={suggestedNext.template.exercises} getExerciseFromLibrary={getExerciseFromLibrary} />
-          </div>
+          {newPRs.map((pr, i) => (
+            <div key={i} className="flex items-center justify-between py-1.5">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-text">
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 stroke-amber-400 shrink-0"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                {pr.name}
+              </span>
+              <span className="text-sm font-extrabold text-amber-400">{pr.display}</span>
+            </div>
+          ))}
         </div>
       )}
 
+      {/* Vs. last session – two side-by-side boxes */}
+      <div className="mb-3">
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-muted-mid"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          <span className="text-xs font-bold text-muted-mid uppercase tracking-wider">Vs. last session</span>
+        </div>
+        {progression ? (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-card border border-border rounded-xl p-3">
+              <div className="text-[10px] font-bold text-muted-mid uppercase tracking-wider mb-1">Volume</div>
+              <div className="flex items-center gap-1 flex-wrap">
+                {volumeDiff > 0 && <span className="flex items-center gap-0.5 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>+{formatDecimal ? formatDecimal(Math.round(volumeDiff), 0) : Math.round(volumeDiff)} {unitWeight}</span>}
+                {volumeDiff < 0 && <span className="flex items-center gap-0.5 text-sm font-bold text-[#ff6b6b]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-[#ff6b6b]"><polyline points="6 9 12 15 18 9"/></svg>{formatDecimal ? formatDecimal(Math.round(volumeDiff), 0) : Math.round(volumeDiff)} {unitWeight}</span>}
+                {volumeDiff === 0 && <span className="text-sm font-bold text-muted-strong">Same</span>}
+              </div>
+              <div className="text-xs text-muted-mid mt-0.5">{volStr} vs {formatDecimal ? formatDecimal(Math.round(lastVolume), 0) : Math.round(lastVolume)} {unitWeight}</div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-3">
+              <div className="text-[10px] font-bold text-muted-mid uppercase tracking-wider mb-1">Duration</div>
+              <div className="flex items-center gap-1 flex-wrap">
+                {durationDiff > 0 && <span className="flex items-center gap-0.5 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>+{durationDiff} min</span>}
+                {durationDiff < 0 && <span className="flex items-center gap-0.5 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>{Math.abs(durationDiff)} min faster</span>}
+                {durationDiff === 0 && <span className="text-sm font-bold text-muted-strong">Same</span>}
+              </div>
+              <div className="text-xs text-muted-mid mt-0.5">{minutes} vs {lastMinutes} min</div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-card border border-border rounded-xl p-3">
+            <div className="text-sm text-muted-strong italic">{templateName ? `Shown after ${templateName} has been used twice` : 'Will show when you have a previous session to compare'}</div>
+          </div>
+        )}
+      </div>
+
+      {/* How was your motivation? – number + label per option */}
+      <div className="mb-4">
+        <div className="text-xs font-bold text-muted-mid uppercase tracking-wider mb-2">How was your motivation?</div>
+        <div className="flex gap-1.5">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onRatingChange?.(n)}
+              className={`flex-1 flex flex-col items-center py-2.5 rounded-xl text-center transition-all ${rating === n ? 'bg-accent/20 border-2 border-accent' : 'bg-card border border-border'}`}
+            >
+              <span className={`text-base font-extrabold ${rating === n ? 'text-accent' : 'text-text'}`}>{n}</span>
+              <span className={`text-[10px] font-semibold mt-0.5 ${rating === n ? 'text-accent' : 'text-muted-mid'}`}>{labels[n - 1]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Progress photo */}
+      <div className="mb-4">
+        <button type="button" onClick={onProgressPhoto} className="w-full flex flex-col items-center gap-2 py-4 rounded-xl border border-border bg-card hover:border-accent/40 hover:bg-accent/5 transition-colors">
+          <div className="w-10 h-10 rounded-full bg-card-alt border border-border flex items-center justify-center">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 stroke-text"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </div>
+          <span className="text-sm font-bold text-text">Progress photo</span>
+        </button>
+      </div>
+
       {/* Done */}
-      <button onClick={onDone} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end text-on-accent rounded-2xl font-bold text-base shadow-lg shadow-accent/25 hover:translate-y-[-1px] active:translate-y-[1px] transition-transform mb-8">
+      <button onClick={() => onDone(rating)} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end text-on-accent rounded-2xl font-bold text-base shadow-lg shadow-accent/25 hover:translate-y-[-1px] active:translate-y-[1px] transition-transform mb-8">
         Done
       </button>
     </div>

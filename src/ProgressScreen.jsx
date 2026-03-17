@@ -5,9 +5,16 @@ import ProgressStrength from './ProgressStrength'
 import ProgressBody from './ProgressBody'
 import ProgressRecovery from './ProgressRecovery'
 
-const TABS = ['Overview', 'Strength', 'Body', 'Recovery']
+const TABS = ['Overview', 'Body', 'Strength', 'Recovery']
 
 export default function ProgressScreen(props) {
+  const {
+    postCompleteOpenPhoto = false,
+    onConsumedOpenAddPhoto,
+    returnToWorkoutAfterPhotoClose = false,
+    onReturnToWorkoutAfterPhoto,
+    ...restProps
+  } = props
   const [tab, setTab] = useState('Overview')
   const [scrollToPhotosSection, setScrollToPhotosSection] = useState(false)
   const [scrollRecoveryToTop, setScrollRecoveryToTop] = useState(false)
@@ -18,6 +25,10 @@ export default function ProgressScreen(props) {
       setScrollRecoveryToTop(false)
     }
   }, [tab, scrollRecoveryToTop])
+
+  useEffect(() => {
+    if (postCompleteOpenPhoto) setTab('Body')
+  }, [postCompleteOpenPhoto])
 
   return (
     <div>
@@ -67,9 +78,13 @@ export default function ProgressScreen(props) {
       {tab === 'Strength' && <ProgressStrength {...props} />}
       {tab === 'Body' && (
         <ProgressBody
-          {...props}
+          {...restProps}
           scrollToPhotosSection={scrollToPhotosSection}
           onScrolledToPhotos={() => setScrollToPhotosSection(false)}
+          openAddPhoto={postCompleteOpenPhoto}
+          onConsumedOpenAddPhoto={onConsumedOpenAddPhoto}
+          returnToWorkoutAfterPhotoClose={returnToWorkoutAfterPhotoClose}
+          onReturnToWorkoutAfterPhoto={onReturnToWorkoutAfterPhoto}
         />
       )}
       {tab === 'Recovery' && <ProgressRecovery {...props} />}

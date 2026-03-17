@@ -1,12 +1,24 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { getTopMovers, sortPhotoSessionsByDate } from './progressUtils'
+import { getTopMovers, getPhotoSessionSortKey, sortPhotoSessionsByDate } from './progressUtils'
 import { MUSCLE_COLOURS_HEX, getMuscleRecoveryPct, formatMuscleLabel } from './utils'
+import { getExerciseSlugs } from './exerciseLibrary'
 import PhotosModal from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
 import { TransformCard } from './TransformCard'
 
 const TOTAL_FREE_PHOTOS = 12
+
+const RATING_LABELS = ['Terrible', 'Low', 'OK', 'Good', 'Great']
+function getRatingLabel(rating) {
+  if (rating == null || rating < 1 || rating > 5) return null
+  return RATING_LABELS[rating - 1]
+}
+/** Only show rating UI when a rating was actually given (1–5). */
+function hasValidRating(workout) {
+  const r = workout?.rating
+  return r != null && r >= 1 && r <= 5
+}
 
 /** Parse dd/mm/yyyy to Date or null */
 function parseHistoryDate(dateStr) {
@@ -53,22 +65,21 @@ function getPhotoSessionsAround(photoSessions, dateStr, max = 3) {
     const diff = Math.abs(s.parsed.getTime() - workoutDate.getTime())
     return diff <= 4 * 24 * 60 * 60 * 1000
   })
-  nearby.sort((a, b) => b.parsed.getTime() - a.parsed.getTime())
+  nearby.sort((a, b) => getPhotoSessionSortKey(b) - getPhotoSessionSortKey(a))
   return nearby.slice(0, max)
 }
 
-/** Build 35 cells (5×7) for last ~5 weeks from Monday; history items have { date: 'dd/mm/yyyy' } */
-function getLast30DaysGrid(workoutHistory) {
+/** Build exactly 35 cells (5 weeks × 7 days); weekStart 0=Mon..6=Sun. Window chosen so it includes today. */
+function getLast30DaysGrid(workoutHistory, weekStart = 0) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const cells = []
+  const targetDay = weekStart === 6 ? 0 : weekStart + 1
   const start = new Date(today)
   start.setDate(start.getDate() - 34)
-  while (start.getDay() !== 1) start.setDate(start.getDate() - 1)
+  while (start.getDay() !== targetDay) start.setDate(start.getDate() + 1)
+  if (start > today) start.setDate(start.getDate() - 7)
   start.setHours(0, 0, 0, 0)
-  const end = new Date(start)
-  end.setDate(end.getDate() + 34)
-  end.setHours(23, 59, 59, 999)
 
   const trainedDates = new Set(
     (workoutHistory || [])
@@ -77,16 +88,15 @@ function getLast30DaysGrid(workoutHistory) {
       .map((d) => d.toDateString())
   )
 
-  const current = new Date(start)
-  while (current <= end) {
-    const d = new Date(current)
+  for (let i = 0; i < 35; i++) {
+    const d = new Date(start)
+    d.setDate(d.getDate() + i)
     d.setHours(0, 0, 0, 0)
     cells.push({
       trained: trainedDates.has(d.toDateString()),
       istoday: d.toDateString() === today.toDateString(),
       isFuture: d > today,
     })
-    current.setDate(current.getDate() + 1)
   }
   return cells
 }
@@ -133,16 +143,17 @@ function getTotalVolume(workoutHistory) {
     )
   }, 0)
   if (total >= 1000) {
-    const k = total / 1000
-    return `${Number(k.toFixed(2))}k`
+    return `${Math.round(total / 1000)}k`
   }
-  return String(Number(total.toFixed(2)))
+  return String(Math.round(total))
 }
 
 export default function ProgressOverview({
   history,
   muscleLastWorked,
   weekStreak,
+  weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  weekStart = 0,
   weightLog,
   bodyFatLog,
   muscleMassLog,
@@ -151,9 +162,12 @@ export default function ProgressOverview({
   unitWeight,
   formatDecimal,
   parseDecimal,
+  formatDateForDisplay,
   onGoToTab,
   onGoToBody,
+  allLibraryExercises = [],
 }) {
+  const fmtDate = formatDateForDisplay ?? ((d) => d ?? '')
   const fmt = formatDecimal ?? ((n) => (n != null ? String(n) : '—'))
   const toNum = (v) => { const n = parseDecimal ? parseDecimal(v) : parseFloat(String(v).replace(',', '.')); return Number.isNaN(n) ? 0 : n }
   const [showPhotos, setShowPhotos] = useState(false)
@@ -168,7 +182,7 @@ export default function ProgressOverview({
   const sortedPhotoSessions = sortPhotoSessionsByDate(safePhotoSessions)
   const safeMuscleLastWorked = muscleLastWorked && typeof muscleLastWorked === 'object' ? muscleLastWorked : {}
 
-  const last30Days = getLast30DaysGrid(safeHistory)
+  const last30Days = getLast30DaysGrid(safeHistory, weekStart)
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
   const totalWorkouts = (safeHistory || []).filter((w) => {
     const d = parseHistoryDate(w.date)
@@ -178,6 +192,17 @@ export default function ProgressOverview({
   const volumeFormatted = getTotalVolume(safeHistory)
 
   const movers = getTopMovers(safeHistory, 2)
+
+  /** Workouts with rating, newest first; take last 14 for chart (then reverse so oldest is left). */
+  const ratingSeries = (safeHistory || [])
+    .filter((w) => w.rating != null && w.rating >= 1 && w.rating <= 5)
+    .slice(0, 14)
+    .map((w) => ({ date: w.date, rating: w.rating, name: w.name }))
+  const ratingChartData = [...ratingSeries].reverse()
+  const avgRating = ratingSeries.length > 0
+    ? ratingSeries.reduce((s, w) => s + w.rating, 0) / ratingSeries.length
+    : null
+  const lastRating = ratingSeries.length > 0 ? ratingSeries[0].rating : null
 
   const latestWeight = safeWeightLog.length > 0 ? safeWeightLog[safeWeightLog.length - 1] : null
   const firstWeight = safeWeightLog.length > 0 ? safeWeightLog[0] : null
@@ -194,11 +219,11 @@ export default function ProgressOverview({
   const sessionB = newestSession
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex flex-col gap-0 -mt-4">
       <button
         type="button"
         onClick={() => onGoToTab?.('Strength')}
-        className="progress-section-label text-left w-full cursor-pointer hover:opacity-80 transition-opacity"
+        className="progress-section-label text-left w-full cursor-pointer hover:opacity-80 transition-opacity first:mt-0"
       >
         Last 30 Days
       </button>
@@ -210,9 +235,9 @@ export default function ProgressOverview({
         <div className="activity-body">
           <div className="activity-grid-side">
             <div className="activity-grid-days">
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => (
+              {(weekDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']).map((d) => (
                 <div key={d} className="activity-grid-day-label">
-                  {d}
+                  {d.charAt(0)}
                 </div>
               ))}
             </div>
@@ -242,37 +267,61 @@ export default function ProgressOverview({
         </div>
       </button>
 
-      {movers.length > 0 && (
+      {ratingChartData.length > 0 && (
         <>
-          <button
-            type="button"
-            onClick={() => onGoToTab?.('Strength')}
-            className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
-          >
-            Strength · top movers
-          </button>
-          {movers.map((m) => (
-            <button
-              key={m.name}
-              type="button"
-              onClick={() => onGoToTab?.('Strength')}
-              className="w-full bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] flex items-center justify-between text-left cursor-pointer hover:border-accent/30 transition-colors"
-            >
-              <div>
-                <div className="text-[14px] font-bold text-text">{m.name}</div>
-                <div className="text-[10px] text-muted mt-0.5">
-                  {m.currentE1RM} {unitWeight} · est. max
-                </div>
-              </div>
-              <div className={`rounded-[6px] px-[10px] py-[4px] text-[12px] font-extrabold ${
-                m.pct > 0 ? 'bg-[rgba(91,245,160,0.09)] border border-[rgba(91,245,160,0.2)] text-success' : 'bg-card-alt border border-border text-muted'
-              }`}>
-                {m.pct > 0 ? `↑ +${m.pct}%` : m.pct < 0 ? `↓ ${m.pct}%` : '—'}
-              </div>
-            </button>
-          ))}
+          <div className="sec text-left w-full">
+            Motivation
+          </div>
+          <div className="w-full bg-card border border-border rounded-[14px] p-4 mb-2 text-left">
+            <div className="flex items-end justify-between gap-1 mb-2">
+              {lastRating != null && (
+                <span className="text-[11px] text-muted">Latest: <span className="font-bold text-accent">{getRatingLabel(lastRating)}</span></span>
+              )}
+              {avgRating != null && (
+                <span className="text-[11px] text-muted">Avg: <span className="font-bold text-text">{avgRating.toFixed(1)}</span></span>
+              )}
+            </div>
+            <div className="flex items-end gap-[3px] h-10" style={{ minHeight: '40px' }}>
+              {ratingChartData.map((w, i) => (
+                <div
+                  key={(w.date || '') + (w.name || '') + i}
+                  className="flex-1 min-w-0 rounded-t-[3px] bg-accent/40 hover:bg-accent/60 transition-colors"
+                  style={{ height: `${(w.rating / 5) * 100}%`, minHeight: '4px' }}
+                  title={`${fmtDate(w.date)} · ${getRatingLabel(w.rating)}`}
+                />
+              ))}
+            </div>
+            <p className="text-[9px] text-muted mt-1.5 uppercase tracking-wider">Change over time (last {ratingChartData.length} workouts)</p>
+          </div>
         </>
       )}
+
+      <button
+        type="button"
+        onClick={() => onGoToBody?.()}
+        className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
+      >
+        Photos
+      </button>
+      <TransformCard
+        sessionA={sessionA}
+        sessionB={sessionB}
+        sortedSessions={sortedPhotoSessions}
+        compareAId={oldestSession?.id}
+        compareBId={newestSession?.id}
+        onSelectA={() => {}}
+        onSelectB={() => {}}
+        showComparePicker={null}
+        onShowComparePicker={() => {}}
+        onOpen={() => setShowPhotos(true)}
+        onGoToBody={onGoToBody}
+        photoSessions={safePhotoSessions}
+        fixedCompare={true}
+        weightLog={safeWeightLog}
+        muscleMassLog={safeMuscleMassLog}
+        unitWeight={unitWeight ?? 'kg'}
+        formatDateForDisplay={formatDateForDisplay}
+      />
 
       {(latestWeight || latestMuscleMass) && (
         <>
@@ -313,31 +362,37 @@ export default function ProgressOverview({
         </>
       )}
 
-      <button
-        type="button"
-        onClick={() => onGoToBody?.()}
-        className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
-      >
-        Photos
-      </button>
-      <TransformCard
-        sessionA={sessionA}
-        sessionB={sessionB}
-        sortedSessions={sortedPhotoSessions}
-        compareAId={oldestSession?.id}
-        compareBId={newestSession?.id}
-        onSelectA={() => {}}
-        onSelectB={() => {}}
-        showComparePicker={null}
-        onShowComparePicker={() => {}}
-        onOpen={() => setShowPhotos(true)}
-        onGoToBody={onGoToBody}
-        photoSessions={safePhotoSessions}
-        fixedCompare={true}
-        weightLog={safeWeightLog}
-        muscleMassLog={safeMuscleMassLog}
-        unitWeight={unitWeight ?? 'kg'}
-      />
+      {movers.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => onGoToTab?.('Strength')}
+            className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
+          >
+            Strength · top movers
+          </button>
+          {movers.map((m) => (
+            <button
+              key={m.name}
+              type="button"
+              onClick={() => onGoToTab?.('Strength')}
+              className="w-full bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] flex items-center justify-between text-left cursor-pointer hover:border-accent/30 transition-colors"
+            >
+              <div>
+                <div className="text-[14px] font-bold text-text">{m.name}</div>
+                <div className="text-[10px] text-muted mt-0.5">
+                  {m.currentE1RM} {unitWeight} · est. max
+                </div>
+              </div>
+              <div className={`rounded-[6px] px-[10px] py-[4px] text-[12px] font-extrabold ${
+                m.pct > 0 ? 'bg-[rgba(91,245,160,0.09)] border border-[rgba(91,245,160,0.2)] text-success' : 'bg-card-alt border border-border text-muted'
+              }`}>
+                {m.pct > 0 ? `↑ +${m.pct}%` : m.pct < 0 ? `↓ ${m.pct}%` : '—'}
+              </div>
+            </button>
+          ))}
+        </>
+      )}
 
       <button
         type="button"
@@ -406,6 +461,7 @@ export default function ProgressOverview({
               unitWeight={unitWeight}
               formatDecimal={formatDecimal}
               toNum={toNum}
+              formatDateForDisplay={formatDateForDisplay}
               onClick={() => setSelectedWorkout(w)}
             />
           ))}
@@ -426,10 +482,12 @@ export default function ProgressOverview({
           unitWeight={unitWeight}
           formatDecimal={formatDecimal}
           toNum={toNum}
+          formatDateForDisplay={formatDateForDisplay}
           weightLog={safeWeightLog}
           muscleMassLog={safeMuscleMassLog}
           bodyFatLog={safeBodyFatLog}
           photoSessions={safePhotoSessions}
+          allLibraryExercises={allLibraryExercises}
           onClose={() => setSelectedWorkout(null)}
         />
       )}
@@ -438,6 +496,9 @@ export default function ProgressOverview({
         <AllHistorySheet
           history={safeHistory}
           unitWeight={unitWeight}
+          formatDecimal={formatDecimal}
+          toNum={toNum}
+          formatDateForDisplay={formatDateForDisplay}
           onSelect={(w) => {
             setSelectedWorkout(w)
             setShowAllHistory(false)
@@ -482,9 +543,11 @@ function StatTile({ val, unit, label, delta, deltaLabel, invertDelta, formatDeci
   )
 }
 
-function WorkoutHistoryRow({ workout, unitWeight, formatDecimal, toNum, onClick }) {
+function WorkoutHistoryRow({ workout, unitWeight, formatDecimal, toNum, formatDateForDisplay, onClick }) {
+  if (!workout || typeof workout !== 'object') return null
   const fmt = formatDecimal ?? ((n) => (n != null ? String(n) : '—'))
   const num = toNum ?? ((v) => Number(v) || 0)
+  const displayDate = formatDateForDisplay ? formatDateForDisplay(workout.date) : workout.date
   const doneSets = (workout.exercises || []).reduce(
     (sum, ex) => sum + (ex.sets || []).filter((s) => s.done).length,
     0
@@ -502,19 +565,11 @@ function WorkoutHistoryRow({ workout, unitWeight, formatDecimal, toNum, onClick 
     ? `${(formatDecimal && formatDecimal(volume / 1000, 2)) ?? Number(volume / 1000).toFixed(2)}k`
     : (formatDecimal && formatDecimal(volume, 2)) ?? (volume != null ? Number(volume).toFixed(2) : '—')
   const totalRestSec = (workout.exercises || []).reduce(
-    (sum, ex) =>
-      sum + (ex.sets || []).reduce(
-        (s, set) => s + (Number(set.restTime ?? set.rest_time) || 0),
-        0
-      ),
+    (sum, ex) => sum + (ex.sets || []).reduce((s, set) => s + (Number(set.restTime ?? set.rest_time) || 0), 0),
     0
   )
-  const restStr =
-    totalRestSec >= 60
-      ? `${Math.floor(totalRestSec / 60)}:${String(totalRestSec % 60).padStart(2, '0')} rest`
-      : totalRestSec > 0
-        ? `${totalRestSec} sec rest`
-        : '— rest'
+  const restMins = totalRestSec > 0 ? Math.round(totalRestSec / 60) : 0
+  const ratingLabel = hasValidRating(workout) ? getRatingLabel(workout.rating) : null
 
   return (
     <button
@@ -522,19 +577,20 @@ function WorkoutHistoryRow({ workout, unitWeight, formatDecimal, toNum, onClick 
       onClick={onClick}
       className="w-full bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] text-left"
     >
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[14px] font-bold text-text truncate mr-2">
-          {workout.name || workout.date}
+      <div className="flex gap-3 items-baseline pb-1.5 border-b border-border">
+        <span className="text-[11px] text-muted shrink-0 w-[72px] tabular-nums" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {displayDate}
         </span>
-        <span className="text-[11px] text-muted shrink-0">{workout.date}</span>
+        <span className="text-[14px] font-bold text-text truncate min-w-0 flex-1">
+          {workout.name || displayDate}
+        </span>
       </div>
-      <div className="flex items-center gap-3 text-[11px] text-muted">
-        {mins != null && <span>{mins} min</span>}
-        <span>{doneSets} sets</span>
-        {volume > 0 && (
-          <span>{volStr} {unitWeight}</span>
-        )}
-        <span>{restStr}</span>
+      <div className="grid grid-cols-[3rem_2.5rem_4rem_5rem_1fr] gap-x-3 gap-y-0 mt-1.5 text-[11px] text-muted items-center">
+        {mins != null && <span className="tabular-nums text-right">{mins} min</span>}
+        <span className="tabular-nums text-right">{doneSets} sets</span>
+        {volume > 0 ? <span className="tabular-nums text-right">{volStr} {unitWeight}</span> : <span />}
+        {restMins > 0 ? <span className="tabular-nums text-right">{restMins} min rest</span> : <span />}
+        {ratingLabel ? <span className="text-accent font-semibold truncate">Motivation: {ratingLabel}</span> : <span />}
       </div>
     </button>
   )
@@ -559,14 +615,17 @@ function PhotoThumbSmall({ filename, date }) {
   )
 }
 
-function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, weightLog = [], muscleMassLog = [], bodyFatLog = [], photoSessions = [], onClose }) {
+function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatDateForDisplay, weightLog = [], muscleMassLog = [], bodyFatLog = [], photoSessions = [], allLibraryExercises = [], onClose }) {
   const fmt = formatDecimal ?? ((n) => (n != null ? String(n) : '—'))
   const num = toNum ?? ((v) => Number(v) || 0)
-  const doneSets = (workout.exercises || []).reduce(
+  const displayDate = formatDateForDisplay ? formatDateForDisplay(workout.date) : workout.date
+  const exercises = workout.exercises || []
+  const exerciseCount = exercises.length
+  const doneSets = exercises.reduce(
     (sum, ex) => sum + (ex.sets || []).filter((s) => s.done).length,
     0
   )
-  const volume = (workout.exercises || []).reduce(
+  const volume = exercises.reduce(
     (sum, ex) =>
       sum +
       (ex.sets || [])
@@ -579,11 +638,22 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, weightL
     ? `${(formatDecimal && formatDecimal(volume / 1000, 2)) ?? Number(volume / 1000).toFixed(2)}k`
     : (formatDecimal && formatDecimal(volume, 2)) ?? (volume != null ? Number(volume).toFixed(2) : '—')
 
+  const muscleSlugs = [...new Set(
+    exercises.flatMap((ex) => {
+      const lib = (allLibraryExercises || []).find((e) => e.name === ex.name)
+      return getExerciseSlugs(lib)
+    })
+  )].filter(Boolean)
+
   const weightThen = getLogValueAtOrBefore(weightLog, workout.date)
   const muscleThen = getLogValueAtOrBefore(muscleMassLog, workout.date)
   const bodyFatThen = getLogValueAtOrBefore(bodyFatLog, workout.date)
   const weightTrend = getWeightTrendBefore(weightLog, workout.date, 14)
-  const photosThen = getPhotoSessionsAround(photoSessions, workout.date, 3)
+  // When no new photos were uploaded for this workout, show the single newest photo session
+  const photosThen = (() => {
+    const sorted = sortPhotoSessionsByDate(photoSessions)
+    return sorted.length > 0 ? [sorted[0]] : []
+  })()
   const weightMax = weightTrend.length ? Math.max(...weightTrend.map((p) => p.value)) : 0
   const weightMin = weightTrend.length ? Math.min(...weightTrend.map((p) => p.value)) : 0
   const weightRange = weightMax - weightMin || 1
@@ -596,9 +666,12 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, weightL
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
           <div>
             <h2 className="text-[17px] font-extrabold text-text">
-              {workout.name || workout.date}
+              {workout.name || displayDate}
             </h2>
-            <p className="text-[11px] text-muted mt-0.5">{workout.date}</p>
+            <p className="text-[11px] text-muted mt-0.5">{displayDate}</p>
+            {hasValidRating(workout) && (
+              <p className="text-[12px] font-semibold text-accent mt-1">Motivation: {getRatingLabel(workout.rating)}</p>
+            )}
           </div>
           <button
             type="button"
@@ -609,26 +682,53 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, weightL
           </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 px-5 py-4 shrink-0">
-          {mins != null && (
+        <div className="overflow-y-auto flex-1 min-h-0 flex flex-col">
+          <div className="grid grid-cols-4 gap-2 px-5 py-4 shrink-0">
             <div className="bg-card border border-border rounded-[12px] p-3 text-center">
-              <div className="text-[18px] font-extrabold text-text">{mins}</div>
+              <div className="text-[18px] font-extrabold text-text">{exerciseCount}</div>
+              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">Exercises</div>
+            </div>
+            <div className="bg-card border border-border rounded-[12px] p-3 text-center">
+              <div className="text-[18px] font-extrabold text-text">{doneSets}</div>
+              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">Sets</div>
+            </div>
+            <div className="bg-card border border-border rounded-[12px] p-3 text-center">
+              <div className="text-[18px] font-extrabold text-text">{mins != null ? mins : '—'}</div>
               <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">Min</div>
             </div>
-          )}
-          <div className="bg-card border border-border rounded-[12px] p-3 text-center">
-            <div className="text-[18px] font-extrabold text-text">{doneSets}</div>
-            <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">Sets</div>
-          </div>
-          {volume > 0 && (
             <div className="bg-card border border-border rounded-[12px] p-3 text-center">
-              <div className="text-[18px] font-extrabold text-text">{volStr}</div>
+              <div className="text-[18px] font-extrabold text-text">{volume > 0 ? volStr : '—'}</div>
               <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">{unitWeight} vol</div>
             </div>
-          )}
-        </div>
+          </div>
 
-        {hasContext && (
+          {muscleSlugs.length > 0 && (
+          <div className="px-5 pb-4 shrink-0">
+            <div className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">Muscles trained</div>
+            <div className="flex flex-wrap gap-1.5">
+              {muscleSlugs.map((slug) => {
+                const colour = MUSCLE_COLOURS_HEX[slug] ?? '#888'
+                const hex = colour.replace('#', '')
+                const r = parseInt(hex.slice(0, 2), 16)
+                const g = parseInt(hex.slice(2, 4), 16)
+                const b = parseInt(hex.slice(4, 6), 16)
+                const bg = `rgba(${r},${g},${b},0.1)`
+                const border = `rgba(${r},${g},${b},0.3)`
+                return (
+                  <span
+                    key={slug}
+                    className="flex items-center justify-center rounded-full py-[7px] px-2.5 text-[11px] font-bold border truncate"
+                    style={{ backgroundColor: bg, borderColor: border, color: colour }}
+                  >
+                    {formatMuscleLabel(slug)}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+          )}
+
+          {hasContext && (
           <div className="px-5 pb-4 shrink-0 border-b border-border">
             <div className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">At that time</div>
             <div className="flex gap-2 flex-wrap items-start">
@@ -665,14 +765,14 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, weightL
                           height: `${100 - heightPct}%`,
                           background: i === weightTrend.length - 1 ? 'rgba(91,245,160,0.9)' : `rgba(91,245,160,${0.2 + (i / weightTrend.length) * 0.6})`,
                         }}
-                        title={`${p.date} ${p.value}`}
+                        title={`${formatDateForDisplay ? formatDateForDisplay(p.date) : p.date} ${p.value}`}
                       />
                     )
                   })}
                 </div>
                 <div className="flex justify-between mt-0.5">
-                  <span className="text-[8px] text-muted">{weightTrend[0]?.date}</span>
-                  <span className="text-[8px] text-muted">{weightTrend[weightTrend.length - 1]?.date}</span>
+                  <span className="text-[8px] text-muted">{weightTrend[0]?.date != null && formatDateForDisplay ? formatDateForDisplay(weightTrend[0].date) : weightTrend[0]?.date}</span>
+                  <span className="text-[8px] text-muted">{weightTrend[weightTrend.length - 1]?.date != null && formatDateForDisplay ? formatDateForDisplay(weightTrend[weightTrend.length - 1].date) : weightTrend[weightTrend.length - 1]?.date}</span>
                 </div>
               </div>
             )}
@@ -684,7 +784,7 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, weightL
                     const file = s.front || s.back || s.side
                     return (
                       <div key={s.id} className="shrink-0 w-14">
-                        <PhotoThumbSmall filename={file} date={s.date} />
+                        <PhotoThumbSmall filename={file} date={formatDateForDisplay ? formatDateForDisplay(s.date) : s.date} />
                       </div>
                     )
                   })}
@@ -692,9 +792,9 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, weightL
               </div>
             )}
           </div>
-        )}
+          )}
 
-        <div className="overflow-y-auto flex-1 min-h-0 px-5 pb-8 pt-3">
+          <div className="px-5 pb-8 pt-3 shrink-0">
           <div className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">Exercises</div>
           {(workout.exercises || []).map((ex, i) => {
             const done = (ex.sets || []).filter((s) => s.done)
@@ -702,27 +802,48 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, weightL
             return (
               <div key={i} className="mb-4">
                 <div className="text-[13px] font-bold text-text mb-1.5">{ex.name}</div>
-                {done.map((s, j) => (
-                  <div
-                    key={j}
-                    className="flex items-center gap-3 py-1 border-b border-border last:border-0"
-                  >
-                    <span className="text-[11px] text-muted w-6">{j + 1}</span>
-                    <span className="text-[12px] font-semibold text-text">
-                      {s.kg != null && s.kg !== '' ? `${typeof s.kg === 'string' ? s.kg : fmt(s.kg)} ${unitWeight}` : ''}
-                      {s.kg && s.reps ? ' × ' : ''}
-                      {s.reps ? `${s.reps} reps` : ''}
-                      {s.time ? s.time : ''}
-                      {s.distance ? `${s.distance} km` : ''}
-                    </span>
-                    {s.rir !== undefined && s.rir !== null && (
-                      <span className="ml-auto text-[10px] text-muted">RIR {s.rir}</span>
-                    )}
-                  </div>
-                ))}
+                {done.map((s, j) => {
+                  const restSec = Number(s.restTime ?? s.rest_time ?? 0) || 0
+                  const restTimeStr = restSec > 0
+                    ? `${String(Math.floor(restSec / 60)).padStart(2, '0')}:${String(restSec % 60).padStart(2, '0')}`
+                    : null
+                  const hasRir = s.rir !== undefined && s.rir !== null
+                  return (
+                    <div
+                      key={j}
+                      className="grid grid-cols-[1.5rem_1fr_3.5rem_2.5rem] gap-x-3 items-center py-1 border-b border-border last:border-0"
+                    >
+                      <span className="text-[11px] text-muted">{j + 1}</span>
+                      <span className="text-[12px] font-semibold text-text min-w-0 truncate">
+                        {s.kg != null && s.kg !== '' ? `${(formatDecimal && formatDecimal(num(s.kg), 2)) ?? fmt(num(s.kg))} ${unitWeight}` : ''}
+                        {s.kg != null && s.kg !== '' && s.reps ? ' × ' : ''}
+                        {s.reps ? `${s.reps} reps` : ''}
+                        {s.time ? s.time : ''}
+                        {s.distance ? `${s.distance} km` : ''}
+                      </span>
+                      <span className="flex items-center gap-1 text-[10px] text-muted min-w-0">
+                        {restTimeStr ? (
+                          <>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="opacity-70 shrink-0">
+                              <circle cx="12" cy="12" r="10" />
+                              <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            <span className="tabular-nums">{restTimeStr}</span>
+                          </>
+                        ) : (
+                          <span className="text-muted/60">—</span>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-muted">
+                        {hasRir ? `RIR ${s.rir}` : <span className="text-muted/60">—</span>}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             )
           })}
+          </div>
         </div>
       </div>
     </div>
@@ -731,17 +852,21 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, weightL
 
 const ROW_HEIGHT_ESTIMATE = 76
 
-function AllHistorySheet({ history, unitWeight, onSelect, onClose }) {
+function AllHistorySheet({ history = [], unitWeight, formatDecimal, toNum, formatDateForDisplay, onSelect, onClose }) {
   const [search, setSearch] = useState('')
+  const [scrollReady, setScrollReady] = useState(false)
   const parentRef = useRef(null)
-
+  const safeHistory = Array.isArray(history) ? history : []
   const filtered = search
-    ? history.filter(
+    ? safeHistory.filter(
         (w) =>
-          (w.name || '').toLowerCase().includes(search.toLowerCase()) ||
-          (w.date || '').includes(search)
+          (w && ((w.name || '').toLowerCase().includes(search.toLowerCase()) || (w.date || '').includes(search)))
       )
-    : history
+    : safeHistory
+
+  useLayoutEffect(() => {
+    setScrollReady(true)
+  }, [])
 
   const virtualizer = useVirtualizer({
     count: filtered.length,
@@ -749,8 +874,7 @@ function AllHistorySheet({ history, unitWeight, onSelect, onClose }) {
     estimateSize: () => ROW_HEIGHT_ESTIMATE,
     overscan: 8,
   })
-
-  const virtualItems = virtualizer.getVirtualItems()
+  const virtualItems = scrollReady ? virtualizer.getVirtualItems() : []
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-50 flex items-end justify-center">
@@ -799,32 +923,48 @@ function AllHistorySheet({ history, unitWeight, onSelect, onClose }) {
         <div ref={parentRef} className="overflow-y-auto flex-1 min-h-0 px-5 pb-8">
           {filtered.length === 0 ? (
             <div className="text-sm text-muted italic text-center py-8">No workouts found</div>
-          ) : (
+          ) : scrollReady && virtualItems.length > 0 ? (
             <div
               className="relative w-full"
               style={{ height: `${virtualizer.getTotalSize()}px` }}
             >
               {virtualItems.map((virtualRow) => {
                 const w = filtered[virtualRow.index]
+                if (!w) return null
                 return (
                   <div
-                    key={w.date + (w.name || '') + virtualRow.index}
+                    key={(w.date || '') + (w.name || '') + virtualRow.index}
                     className="absolute left-0 top-0 w-full pr-0"
-                    style={{
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
+                    style={{ transform: `translateY(${virtualRow.start}px)` }}
                   >
                     <WorkoutHistoryRow
                       workout={w}
                       unitWeight={unitWeight}
                       formatDecimal={formatDecimal}
                       toNum={toNum}
+                      formatDateForDisplay={formatDateForDisplay}
                       onClick={() => onSelect(w)}
                     />
                   </div>
                 )
               })}
             </div>
+          ) : (
+            filtered.map((w, i) => {
+              if (!w) return null
+              return (
+                <div key={(w.date || '') + (w.name || '') + i} className="mb-[6px]">
+                  <WorkoutHistoryRow
+                    workout={w}
+                    unitWeight={unitWeight}
+                    formatDecimal={formatDecimal}
+                    toNum={toNum}
+                    formatDateForDisplay={formatDateForDisplay}
+                    onClick={() => onSelect(w)}
+                  />
+                </div>
+              )
+            })
           )}
         </div>
       </div>

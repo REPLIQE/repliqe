@@ -3,7 +3,7 @@ import { getTopMovers, getTrainedExercises, getRecentlyTrainedExercises, getE1RM
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 
-export default function ProgressStrength({ history, unitWeight, formatDecimal }) {
+export default function ProgressStrength({ history, unitWeight, formatDecimal, formatDateForDisplay }) {
   const fmt = formatDecimal ?? ((n) => (n != null && n !== '' ? String(n) : '—'))
   const [period, setPeriod] = useState('6M')
   const [search, setSearch] = useState('')
@@ -51,7 +51,7 @@ export default function ProgressStrength({ history, unitWeight, formatDecimal })
   const chartMax = e1rmHistory.length ? Math.max(...e1rmHistory.map((p) => p.e1rm)) : 0
 
   return (
-    <div>
+    <div className="-mt-4">
       <div className="sec">Top movers</div>
       {movers.length === 0 && (
         <div className="text-sm text-muted italic mb-4">Train each exercise at least 2 times to see top movers</div>
@@ -235,13 +235,14 @@ export default function ProgressStrength({ history, unitWeight, formatDecimal })
                 </div>
                 <div className="flex justify-between mt-1.5">
                   <span className="text-[8px] text-muted font-semibold">
-                    {e1rmHistory[0]?.date.toLocaleDateString('en-GB', { month: 'short' })}
+                    {formatDateForDisplay && e1rmHistory[0]?.dateStr
+                      ? formatDateForDisplay(e1rmHistory[0].dateStr)
+                      : e1rmHistory[0]?.date?.toLocaleDateString('en-GB', { month: 'short' })}
                   </span>
                   <span className="text-[8px] text-muted font-semibold">
-                    {e1rmHistory[e1rmHistory.length - 1]?.date.toLocaleDateString('en-GB', {
-                      month: 'short',
-                      year: '2-digit',
-                    })}
+                    {formatDateForDisplay && e1rmHistory[e1rmHistory.length - 1]?.dateStr
+                      ? formatDateForDisplay(e1rmHistory[e1rmHistory.length - 1].dateStr)
+                      : e1rmHistory[e1rmHistory.length - 1]?.date?.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })}
                   </span>
                 </div>
               </>
@@ -304,7 +305,7 @@ export default function ProgressStrength({ history, unitWeight, formatDecimal })
                 <div>
                   <div className="text-[13px] font-bold text-text">Last session</div>
                   <div className="text-[10px] text-muted mt-0.5">
-                    {lastSession.date} · {lastSession.sets.length} sets
+                    {(formatDateForDisplay ? formatDateForDisplay(lastSession.date) : lastSession.date)} · {lastSession.sets.length} sets
                   </div>
                 </div>
                 <div className="text-right">

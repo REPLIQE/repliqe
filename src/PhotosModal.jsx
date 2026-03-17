@@ -37,14 +37,20 @@ function dateInputToEnGB(value) {
   return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`
 }
 
-/** Sort sessions by session date (newest first). Uses date string dd/mm/yyyy. */
+/** Sort key for ordering: createdAt (ms) if set, else start-of-day from date. Time not shown in UI. */
+function getSessionSortKey(session) {
+  if (session?.createdAt != null && typeof session.createdAt === 'number') return session.createdAt
+  const parts = (session?.date || '').split('/')
+  if (parts.length !== 3) return 0
+  const [d, m, y] = parts
+  const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10))
+  return date.getTime()
+}
+
+/** Sort sessions by date + time (newest first). Uses createdAt when present for same-day order. */
 function sortSessionsByDate(sessions) {
   if (!Array.isArray(sessions) || sessions.length === 0) return []
-  return [...sessions].sort((a, b) => {
-    const da = enGBToDateInput(a?.date || '')
-    const db = enGBToDateInput(b?.date || '')
-    return db.localeCompare(da)
-  })
+  return [...sessions].sort((a, b) => getSessionSortKey(b) - getSessionSortKey(a))
 }
 
 function isNativePlatform() {
@@ -188,6 +194,7 @@ export default function PhotosModal({
   weightLog = [],
   muscleMassLog = [],
   unitWeight = 'kg',
+  formatDateForDisplay,
   openToAdd = false,
 }) {
   const [capturing, setCapturing] = useState(false)
@@ -290,14 +297,16 @@ export default function PhotosModal({
     // Persist session immediately so photo shows even if user leaves before clicking Done
     if (typeof setPhotoSessions === 'function') {
       const today = new Date().toLocaleDateString('en-GB')
-      const partial = {
-        id: sessionId,
-        date: today,
-        front: updated.front ?? null,
-        back: updated.back ?? null,
-        side: updated.side ?? null,
-      }
       setPhotoSessions((prev) => {
+        const existing = (prev || []).find((s) => s.id === sessionId)
+        const partial = {
+          id: sessionId,
+          date: today,
+          front: updated.front ?? null,
+          back: updated.back ?? null,
+          side: updated.side ?? null,
+          createdAt: existing?.createdAt ?? Date.now(),
+        }
         const without = (prev || []).filter((s) => s.id !== sessionId)
         return [...without, partial]
       })
@@ -337,15 +346,18 @@ export default function PhotosModal({
 
   function finishCapture() {
     const { _sessionId, ...angles } = capturedImages
-    const newSession = {
-      id: _sessionId ?? `ps_${Date.now()}`,
-      date: captureSessionDate,
-      front: angles.front ?? null,
-      back: angles.back ?? null,
-      side: angles.side ?? null,
-    }
+    const sessionId = _sessionId ?? `ps_${Date.now()}`
     setPhotoSessions((prev) => {
-      const without = (prev || []).filter((s) => s.id !== newSession.id)
+      const existing = (prev || []).find((s) => s.id === sessionId)
+      const newSession = {
+        id: sessionId,
+        date: captureSessionDate,
+        front: angles.front ?? null,
+        back: angles.back ?? null,
+        side: angles.side ?? null,
+        createdAt: existing?.createdAt ?? Date.now(),
+      }
+      const without = (prev || []).filter((s) => s.id !== sessionId)
       return [...without, newSession]
     })
     setCapturing(false)
@@ -606,6 +618,7 @@ export default function PhotosModal({
           weightLog={weightLog}
           muscleMassLog={muscleMassLog}
           unitWeight={unitWeight}
+          formatDateForDisplay={formatDateForDisplay}
           showExitCTA={true}
           onClose={onClose}
           hasChanges={hasChanges}
@@ -630,6 +643,7 @@ export function PhotosViewContent({
   weightLog = [],
   muscleMassLog = [],
   unitWeight = 'kg',
+  formatDateForDisplay,
   showExitCTA = false,
   onClose,
   hasChanges = false,
@@ -637,6 +651,7 @@ export function PhotosViewContent({
   inline = false,
 }) {
   const padX = inline ? 'px-0' : 'px-5'
+  const fmtDate = formatDateForDisplay ?? ((d) => d ?? '')
   const [view, setView] = useState('timeline')
   const sortedSessionsForCompare = sortSessionsByDate(photoSessions || [])
   const defaultOldest = sortedSessionsForCompare.length > 0 ? sortedSessionsForCompare[sortedSessionsForCompare.length - 1] : null
@@ -808,7 +823,7 @@ export function PhotosViewContent({
                         onClick={() => canAddPhotos && setEditingDateSessionId(session.id)}
                         className={`text-[10px] font-bold uppercase tracking-[0.8px] text-left ${canAddPhotos ? 'text-muted hover:text-accent active:opacity-80' : 'text-muted'}`}
                       >
-                        {session.date}
+                        {fmtDate(session.date)}
                       </button>
                     )}
                     {canAddPhotos && (
@@ -912,7 +927,7 @@ export function PhotosViewContent({
                                     : 'border-border bg-card text-text'
                                 }`}
                               >
-                                <span className="truncate">{session?.date ?? 'Select'}</span>
+                                <span className="truncate">{session ? fmtDate(session.date) : 'Select'}</span>
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`shrink-0 ml-1 transition-transform ${comparePickerOpen === key ? 'rotate-180' : ''}`}>
                                   <polyline points="6 9 12 15 18 9" />
                                 </svg>
@@ -931,7 +946,7 @@ export function PhotosViewContent({
                                         currentId === s.id ? 'bg-accent/15 text-accent' : 'text-text hover:bg-card-alt'
                                       }`}
                                     >
-                                      {s.date}
+                                      {fmtDate(s.date)}
                                     </button>
                                   ))}
                                 </div>
@@ -988,7 +1003,7 @@ export function PhotosViewContent({
                               {placeholderSvg}
                             </ProgressPhoto>
                             <span className="text-[9px] font-bold text-muted text-center">
-                              {session?.date ?? '—'}
+                              {session ? fmtDate(session.date) : '—'}
                             </span>
                             {statsLine ? (
                               <span className="text-[9px] text-muted text-center">

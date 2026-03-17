@@ -165,16 +165,24 @@ export function parseGBDate(str) {
 }
 
 /**
- * Sort photo sessions by session date. Returns newest first.
- * Sessions have { id, date, front, back, side } with date as "dd/mm/yyyy".
+ * Sort key for a photo session: timestamp ms for ordering (newest = largest).
+ * Uses createdAt if set (actual time), else start of date from "dd/mm/yyyy".
+ * Used only for sorting; time is not shown in UI.
+ */
+export function getPhotoSessionSortKey(session) {
+  if (session?.createdAt != null && typeof session.createdAt === 'number') return session.createdAt
+  const d = parseGBDate(session?.date)
+  return d ? d.getTime() : 0
+}
+
+/**
+ * Sort photo sessions by date + time. Returns newest first.
+ * Sessions have { id, date, front, back, side, createdAt? } with date as "dd/mm/yyyy".
+ * createdAt (ms) is used when present so same-day sessions order by actual time.
  */
 export function sortPhotoSessionsByDate(sessions) {
   if (!Array.isArray(sessions) || sessions.length === 0) return []
-  return [...sessions].sort((a, b) => {
-    const da = parseGBDate(a?.date)?.getTime() ?? 0
-    const db = parseGBDate(b?.date)?.getTime() ?? 0
-    return db - da
-  })
+  return [...sessions].sort((a, b) => getPhotoSessionSortKey(b) - getPhotoSessionSortKey(a))
 }
 
 /**

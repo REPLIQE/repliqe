@@ -77,8 +77,10 @@ export function TransformCard({
   weightLog,
   muscleMassLog,
   unitWeight = 'kg',
+  formatDateForDisplay,
 }) {
   const [angle, setAngle] = useState('front')
+  const fmtDate = formatDateForDisplay ?? ((d) => d ?? '')
   const handleArrowClick = (e) => {
     e?.stopPropagation?.()
     if (onGoToBody) onGoToBody()
@@ -102,9 +104,6 @@ export function TransformCard({
             </div>
           ))}
         </div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-page border border-border rounded-[20px] px-2 py-1 text-[9px] font-extrabold text-muted z-10">
-          VS
-        </div>
         <div className="flex items-center justify-between p-[12px_14px] border-t border-border">
           <div>
             <div className="text-[13px] font-bold text-text">Start tracking</div>
@@ -124,18 +123,15 @@ export function TransformCard({
         onClick={fixedCompare ? undefined : onOpen}
         className={`grid grid-cols-2 gap-[2px] ${!fixedCompare ? 'cursor-pointer' : ''}`}
       >
-        <PhotoThumb session={sessionA} label={sessionA?.date} angle={angle} weightLog={weightLog} muscleMassLog={muscleMassLog} unitWeight={unitWeight} />
-        <PhotoThumb session={sessionB ?? sessionA} label={sessionB?.date ?? sessionA?.date} angle={angle} weightLog={weightLog} muscleMassLog={muscleMassLog} unitWeight={unitWeight} />
-      </div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-page border border-border rounded-[20px] px-2 py-1 text-[9px] font-extrabold text-muted z-10">
-        VS
+        <PhotoThumb session={sessionA} label={fmtDate(sessionA?.date)} angle={angle} weightLog={weightLog} muscleMassLog={muscleMassLog} unitWeight={unitWeight} />
+        <PhotoThumb session={sessionB ?? sessionA} label={sessionB ? fmtDate(sessionB.date) : fmtDate(sessionA?.date)} angle={angle} weightLog={weightLog} muscleMassLog={muscleMassLog} unitWeight={unitWeight} />
       </div>
       <div className="p-[12px_14px] border-t border-border space-y-2">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-[13px] font-bold text-text">Your transformation</div>
             <div className="text-[10px] text-muted mt-0.5">
-              {sessionA?.date ?? '—'} → {sessionB?.date ?? sessionA?.date ?? '—'}
+              {fmtDate(sessionA?.date) || '—'} → {fmtDate(sessionB?.date ?? sessionA?.date) || '—'}
             </div>
           </div>
           <button
@@ -171,14 +167,14 @@ export function TransformCard({
                 onClick={(e) => { e.stopPropagation(); onShowComparePicker?.(showComparePicker === 'A' ? null : 'A') }}
                 className="flex-1 py-2 rounded-lg border border-border-strong bg-card-alt text-[11px] font-bold text-text"
               >
-                Before: {sessionA?.date ?? '—'}
+                Before: {fmtDate(sessionA?.date) || '—'}
               </button>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onShowComparePicker?.(showComparePicker === 'B' ? null : 'B') }}
                 className="flex-1 py-2 rounded-lg border border-border-strong bg-card-alt text-[11px] font-bold text-text"
               >
-                After: {sessionB?.date ?? '—'}
+                After: {fmtDate(sessionB?.date) || '—'}
               </button>
             </div>
             {showComparePicker && (
@@ -204,7 +200,7 @@ export function TransformCard({
                               : 'border-border bg-card-alt text-muted'
                           }`}
                         >
-                          {s.date}
+                          {fmtDate(s.date)}
                         </button>
                       ))}
                     </div>
