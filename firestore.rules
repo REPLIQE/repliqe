@@ -1,0 +1,14 @@
+rules_version = '2';
+// Kopiér indholdet her til Firebase Console → Firestore Database → Rules,
+// eller brug: firebase deploy --only firestore:rules
+//
+// Uden disse regler kan appen ikke læse/skrive workout history, programmer eller app-data på tværs af devices.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Brugerens egen dokumentation og subcollections – kun egne data
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

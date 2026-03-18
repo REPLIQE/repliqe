@@ -394,21 +394,20 @@ function AppContent() {
     )
   }, [user?.uid, programmes, routines])
 
-  // Load workout sessions (history) from Firestore when user is set
+  // Load workout sessions (history) from Firestore when user is set (altid fra server)
   useEffect(() => {
     if (!user?.uid) return
     let cancelled = false
-    fetchWorkoutSessions(user.uid)
+    fetchWorkoutSessionsFromServer(user.uid)
       .then((sessions) => {
         if (cancelled) return
         setHistory(sessions)
+        workoutSessionsLoadedRef.current = true
+        setWorkoutSessionsLoaded(true)
       })
-      .catch((err) => console.error('fetchWorkoutSessions:', err))
-      .finally(() => {
-        if (!cancelled) {
-          workoutSessionsLoadedRef.current = true
-          setWorkoutSessionsLoaded(true)
-        }
+      .catch((err) => {
+        console.error('fetchWorkoutSessions (initial):', err?.code || err?.message || err)
+        if (err?.code === 'permission-denied') console.error('Tjek Firestore Security Rules – læs skal tillades for users/{userId}/workoutSessions')
       })
     return () => { cancelled = true }
   }, [user?.uid])
@@ -425,7 +424,7 @@ function AppContent() {
     let cancelled = false
     fetchWorkoutSessionsFromServer(user.uid)
       .then((sessions) => { if (cancelled) return; setHistory(sessions) })
-      .catch((err) => console.error('fetchWorkoutSessions (progress):', err))
+      .catch((err) => console.error('fetchWorkoutSessions (progress):', err?.code || err?.message || err))
     return () => { cancelled = true }
   }, [page, user?.uid])
 
@@ -435,7 +434,7 @@ function AppContent() {
     const interval = setInterval(() => {
       fetchWorkoutSessionsFromServer(user.uid)
         .then((sessions) => setHistory(sessions))
-        .catch(() => {})
+        .catch((err) => console.error('fetchWorkoutSessions (interval):', err?.code || err?.message || err))
     }, 30000)
     return () => clearInterval(interval)
   }, [page, user?.uid])
@@ -451,7 +450,10 @@ function AppContent() {
           setRoutines(r)
         }
       })
-      .catch((err) => console.error('fetchWorkoutPlans (workout):', err))
+      .catch((err) => {
+        console.error('fetchWorkoutPlans (workout):', err?.code || err?.message || err)
+        if (err?.code === 'permission-denied') console.error('Tjek Firestore Rules – læs for users/{userId}/workoutPlans')
+      })
     return () => { cancelled = true }
   }, [page, user?.uid])
 
@@ -482,7 +484,7 @@ function AppContent() {
         if (appData.photoSessions?.length !== undefined) setPhotoSessions(appData.photoSessions || [])
         if (appData.muscleLastWorked && Object.keys(appData.muscleLastWorked).length >= 0) setMuscleLastWorked(appData.muscleLastWorked || {})
       })
-      .catch((err) => console.error('load user/appData (profile):', err))
+      .catch((err) => console.error('load user/appData (profile):', err?.code || err?.message || err))
     return () => { cancelled = true }
   }, [page, user?.uid])
 
@@ -492,7 +494,7 @@ function AppContent() {
     const currentPage = pageRef.current
     if (!uid) return
     if (currentPage === 'progress') {
-      fetchWorkoutSessionsFromServer(uid).then((sessions) => setHistory(sessions)).catch(() => {})
+      fetchWorkoutSessionsFromServer(uid).then((sessions) => setHistory(sessions)).catch((err) => console.error('fetchWorkoutSessions (visibility/focus):', err?.code || err?.message || err))
     } else if (currentPage === 'workout') {
       fetchWorkoutPlans(uid).then(({ programmes: p, routines: r }) => {
         if (p?.length > 0 && r?.length > 0) { setProgrammes(p); setRoutines(r) }
@@ -576,7 +578,10 @@ function AppContent() {
           setShowActiveWorkoutSheet(true)
         }
       })
-      .catch((err) => console.error('load user/appData:', err))
+      .catch((err) => {
+        console.error('load user/appData:', err?.code || err?.message || err)
+        if (err?.code === 'permission-denied') console.error('Tjek Firestore Rules – læs for users/{userId} og users/{userId}/appData')
+      })
       .finally(() => {
         if (!cancelled) {
           appDataLoadedRef.current = true
@@ -1622,7 +1627,8 @@ function AppContent() {
         updateAppData(user.uid, { currentWorkout: null }).catch(() => {})
       })
       .catch((err) => {
-        console.error('addWorkoutSession:', err)
+        console.error('addWorkoutSession:', err?.code || err?.message || err)
+        if (err?.code === 'permission-denied') console.error('Tjek Firestore Security Rules – skriv skal tillades for users/{userId}/workoutSessions')
         // Still add to local state so user doesn't lose the workout
         setHistory([workout, ...history])
         setShowFinishModal(false)
