@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
 import { getTopMovers, getTrainedExercises, getRecentlyTrainedExercises, getE1RMHistory, getBestE1RM } from './progressUtils'
+import StrengthVolumeSection from './StrengthVolumeSection'
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 
-export default function ProgressStrength({ history, unitWeight, formatDecimal, formatDateForDisplay }) {
+export default function ProgressStrength({ history, unitWeight, formatDecimal, formatDateForDisplay, allLibraryExercises = [] }) {
   const fmt = formatDecimal ?? ((n) => (n != null && n !== '' ? String(n) : '—'))
   const [period, setPeriod] = useState('6M')
   const [search, setSearch] = useState('')
@@ -52,6 +53,7 @@ export default function ProgressStrength({ history, unitWeight, formatDecimal, f
 
   return (
     <div className="-mt-4">
+      <StrengthVolumeSection history={safeHistory} allLibraryExercises={allLibraryExercises} unitWeight={unitWeight} />
       <div className="sec">Top movers</div>
       {movers.length === 0 && (
         <div className="text-sm text-muted italic mb-4">Train each exercise at least 2 times to see top movers</div>

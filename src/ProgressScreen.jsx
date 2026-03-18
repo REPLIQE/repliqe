@@ -18,6 +18,7 @@ export default function ProgressScreen(props) {
   const [tab, setTab] = useState('Overview')
   const [scrollToPhotosSection, setScrollToPhotosSection] = useState(false)
   const [scrollRecoveryToTop, setScrollRecoveryToTop] = useState(false)
+  const [scrollStrengthToTop, setScrollStrengthToTop] = useState(false)
 
   useEffect(() => {
     if (tab === 'Recovery' && scrollRecoveryToTop) {
@@ -25,6 +26,13 @@ export default function ProgressScreen(props) {
       setScrollRecoveryToTop(false)
     }
   }, [tab, scrollRecoveryToTop])
+
+  useEffect(() => {
+    if (tab === 'Strength' && scrollStrengthToTop) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      setScrollStrengthToTop(false)
+    }
+  }, [tab, scrollStrengthToTop])
 
   useEffect(() => {
     if (postCompleteOpenPhoto) setTab('Body')
@@ -68,6 +76,7 @@ export default function ProgressScreen(props) {
           onGoToTab={(t) => {
             setTab(t)
             if (t === 'Recovery') setScrollRecoveryToTop(true)
+            if (t === 'Strength') setScrollStrengthToTop(true)
           }}
           onGoToBody={() => {
             setTab('Body')

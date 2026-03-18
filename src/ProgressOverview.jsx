@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { getTopMovers, getPhotoSessionSortKey, sortPhotoSessionsByDate } from './progressUtils'
 import { MUSCLE_COLOURS_HEX, getMuscleRecoveryPct, formatMuscleLabel } from './utils'
 import { getExerciseSlugs } from './exerciseLibrary'
+import StrengthVolumeSection from './StrengthVolumeSection'
 import PhotosModal from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
 import ProgressPhoto from './ProgressPhoto'
@@ -223,19 +224,20 @@ export default function ProgressOverview({
   const sessionB = newestSession
 
   return (
-    <div className="flex flex-col gap-0 -mt-4">
-      <button
-        type="button"
-        onClick={() => onGoToTab?.('Strength')}
-        className="progress-section-label text-left w-full cursor-pointer hover:opacity-80 transition-opacity first:mt-0"
-      >
-        Last 30 Days
-      </button>
-      <button
-        type="button"
-        onClick={() => onGoToTab?.('Strength')}
-        className="activity-card w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 rounded-[14px]"
-      >
+    <div className="overview-sections flex flex-col -mt-4">
+      <div className="overview-section">
+        <button
+          type="button"
+          onClick={() => onGoToTab?.('Strength')}
+          className="progress-section-label text-left w-full cursor-pointer hover:opacity-80 transition-opacity"
+        >
+          Last 30 Days
+        </button>
+        <button
+          type="button"
+          onClick={() => onGoToTab?.('Strength')}
+          className="activity-card w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 rounded-[14px]"
+        >
         <div className="activity-body">
           <div className="activity-grid-side">
             <div className="activity-grid-days">
@@ -270,13 +272,14 @@ export default function ProgressOverview({
           </div>
         </div>
       </button>
+      </div>
 
       {ratingChartData.length > 0 && (
-        <>
+        <div className="overview-section">
           <div className="sec text-left w-full">
             Motivation
           </div>
-          <div className="w-full bg-card border border-border rounded-[14px] p-4 mb-2 text-left">
+          <div className="w-full bg-card border border-border rounded-[14px] p-4 text-left">
             <div className="flex items-end justify-between gap-1 mb-2">
               {lastRating != null && (
                 <span className="text-[11px] text-muted">Latest: <span className="font-bold text-accent">{getRatingLabel(lastRating)}</span></span>
@@ -297,17 +300,18 @@ export default function ProgressOverview({
             </div>
             <p className="text-[9px] text-muted mt-1.5 uppercase tracking-wider">Change over time (last {ratingChartData.length} workouts)</p>
           </div>
-        </>
+        </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => onGoToBody?.()}
-        className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
-      >
-        Photos
-      </button>
-      <TransformCard
+      <div className="overview-section">
+        <button
+          type="button"
+          onClick={() => onGoToBody?.()}
+          className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
+        >
+          Photos
+        </button>
+        <TransformCard
         sessionA={sessionA}
         sessionB={sessionB}
         sortedSessions={sortedPhotoSessions}
@@ -326,9 +330,10 @@ export default function ProgressOverview({
         unitWeight={unitWeight ?? 'kg'}
         formatDateForDisplay={formatDateForDisplay}
       />
+      </div>
 
       {(latestWeight || latestMuscleMass) && (
-        <>
+        <div className="overview-section">
           <button
             type="button"
             onClick={() => onGoToTab?.('Body')}
@@ -339,7 +344,7 @@ export default function ProgressOverview({
           <button
             type="button"
             onClick={() => onGoToTab?.('Body')}
-            className="grid grid-cols-2 gap-2 mb-2 w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 p-0 bg-transparent"
+            className="grid grid-cols-2 gap-2 w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 p-0 bg-transparent"
           >
             {latestWeight && (
               <StatTile
@@ -363,11 +368,15 @@ export default function ProgressOverview({
               />
             )}
           </button>
-        </>
+        </div>
       )}
 
+      <div className="overview-section">
+        <StrengthVolumeSection history={safeHistory} allLibraryExercises={allLibraryExercises} unitWeight={unitWeight} onGoToStrength={() => onGoToTab?.('Strength')} />
+      </div>
+
       {movers.length > 0 && (
-        <>
+        <div className="overview-section">
           <button
             type="button"
             onClick={() => onGoToTab?.('Strength')}
@@ -380,7 +389,7 @@ export default function ProgressOverview({
               key={m.name}
               type="button"
               onClick={() => onGoToTab?.('Strength')}
-              className="w-full bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] flex items-center justify-between text-left cursor-pointer hover:border-accent/30 transition-colors"
+              className="w-full bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] flex items-center justify-between text-left cursor-pointer hover:border-accent/30 transition-colors last:mb-0"
             >
               <div>
                 <div className="text-[14px] font-bold text-text">{m.name}</div>
@@ -395,21 +404,22 @@ export default function ProgressOverview({
               </div>
             </button>
           ))}
-        </>
+        </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => onGoToTab?.('Recovery')}
-        className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
-      >
-        Recovery · now
-      </button>
-      <button
-        type="button"
-        onClick={() => onGoToTab?.('Recovery')}
-        className="grid grid-cols-4 gap-[5px] mb-2 w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 p-0 bg-transparent"
-      >
+      <div className="overview-section">
+        <button
+          type="button"
+          onClick={() => onGoToTab?.('Recovery')}
+          className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
+        >
+          Recovery · now
+        </button>
+        <button
+          type="button"
+          onClick={() => onGoToTab?.('Recovery')}
+          className="grid grid-cols-4 gap-[5px] w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 p-0 bg-transparent"
+        >
         {OVERVIEW_MUSCLES.map((slug) => {
           const pct = getMuscleRecoveryPct(slug, safeMuscleLastWorked[slug] ?? null)
           const colour = MUSCLE_COLOURS_HEX[slug] ?? '#888'
@@ -446,17 +456,19 @@ export default function ProgressOverview({
           )
         })}
       </button>
+      </div>
 
-      <button
-        type="button"
-        onClick={() => onGoToTab?.('Strength')}
-        className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
-      >
-        Workout history
-      </button>
-      {safeHistory.length === 0 ? (
-        <div className="text-sm text-muted italic mb-4">No workouts yet</div>
-      ) : (
+      <div className="overview-section">
+        <button
+          type="button"
+          onClick={() => onGoToTab?.('Strength')}
+          className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
+        >
+          Workout history
+        </button>
+        {safeHistory.length === 0 ? (
+          <div className="text-sm text-muted italic">No workouts yet</div>
+        ) : (
         <>
           {safeHistory.slice(0, 5).map((w, i) => (
             <WorkoutHistoryRow
@@ -478,7 +490,8 @@ export default function ProgressOverview({
             </button>
           )}
         </>
-      )}
+        )}
+      </div>
 
       {selectedWorkout && (
         <WorkoutDetailSheet

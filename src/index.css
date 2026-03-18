@@ -356,6 +356,28 @@ input:focus:invalid {
   margin-top: 0;
 }
 
+/* Overview: consistent spacing between sections and headings */
+.overview-sections {
+  --overview-gap: 1.25rem; /* 20px between sections */
+}
+.overview-sections .overview-section {
+  margin-bottom: 0;
+}
+.overview-sections .overview-section:not(:first-child) {
+  margin-top: var(--overview-gap);
+}
+.overview-sections .overview-section > .sec,
+.overview-sections .overview-section > .progress-section-label {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+.overview-sections .activity-card {
+  margin-bottom: 0;
+}
+.overview-sections .transform-card-overview {
+  margin-bottom: 0;
+}
+
 .activity-card {
   background: #13132A;
   border-radius: 16px;

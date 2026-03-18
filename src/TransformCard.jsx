@@ -92,7 +92,7 @@ export function TransformCard({
     return (
       <div
         onClick={onGoToBody || onOpen ? () => { if (onGoToBody) onGoToBody(); else onOpen?.() } : undefined}
-        className={`bg-card border border-border rounded-[14px] overflow-hidden mb-2 relative ${onGoToBody || onOpen ? 'cursor-pointer' : ''}`}
+        className={`bg-card border border-border rounded-[14px] overflow-hidden mb-2 relative ${fixedCompare ? 'transform-card-overview' : ''} ${onGoToBody || onOpen ? 'cursor-pointer' : ''}`}
       >
         <div className="grid grid-cols-2 gap-[2px]">
           {['Before', 'After'].map((label) => (
@@ -120,7 +120,7 @@ export function TransformCard({
   }
 
   return (
-    <div className="bg-card border border-border rounded-[14px] overflow-hidden mb-2 relative">
+    <div className={`bg-card border border-border rounded-[14px] overflow-hidden mb-2 relative ${fixedCompare ? 'transform-card-overview' : ''}`}>
       <div
         onClick={fixedCompare ? undefined : onOpen}
         className={`grid grid-cols-2 gap-[2px] ${!fixedCompare ? 'cursor-pointer' : ''}`}
