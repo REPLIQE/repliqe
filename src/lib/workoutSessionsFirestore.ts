@@ -4,6 +4,7 @@ import {
   getDoc,
   addDoc,
   getDocs,
+  getDocsFromServer,
   updateDoc,
   serverTimestamp,
   query,
@@ -25,6 +26,14 @@ export async function addWorkoutSession(uid, workout) {
   return ref.id
 }
 
+function mapSessionsSnapshot(snap) {
+  return snap.docs.map((d) => {
+    const data = d.data()
+    const w = data.workout || {}
+    return { ...w, sessionId: d.id }
+  })
+}
+
 export async function fetchWorkoutSessions(uid, max = 500) {
   const col = collection(db, 'users', uid, 'workoutSessions')
   const q = query(
@@ -33,11 +42,19 @@ export async function fetchWorkoutSessions(uid, max = 500) {
     limit(max)
   )
   const snap = await getDocs(q)
-  return snap.docs.map((d) => {
-    const data = d.data()
-    const w = data.workout || {}
-    return { ...w, sessionId: d.id }
-  })
+  return mapSessionsSnapshot(snap)
+}
+
+/** Hent sessions direkte fra server (undgår cache – brug ved synk på tværs af devices). */
+export async function fetchWorkoutSessionsFromServer(uid, max = 500) {
+  const col = collection(db, 'users', uid, 'workoutSessions')
+  const q = query(
+    col,
+    orderBy('completedAt', 'desc'),
+    limit(max)
+  )
+  const snap = await getDocsFromServer(q)
+  return mapSessionsSnapshot(snap)
 }
 
 export async function updateWorkoutSessionRating(uid, sessionId, rating) {

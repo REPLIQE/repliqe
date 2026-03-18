@@ -14,7 +14,7 @@ import { useAuth } from './lib/AuthContext'
 import LoginScreen from './lib/LoginScreen'
 import AccountTab from './lib/AccountTab'
 import { fetchWorkoutPlans, saveWorkoutPlans } from './lib/workoutPlansFirestore'
-import { addWorkoutSession, fetchWorkoutSessions, updateWorkoutSessionRating } from './lib/workoutSessionsFirestore'
+import { addWorkoutSession, fetchWorkoutSessions, fetchWorkoutSessionsFromServer, updateWorkoutSessionRating } from './lib/workoutSessionsFirestore'
 import { getUserDoc, mergeUserSettings, DEFAULT_SETTINGS } from './lib/userFirestore'
 import { fetchAppData, updateAppData } from './lib/appDataFirestore'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
@@ -419,13 +419,25 @@ function AppContent() {
   useEffect(() => { pageRef.current = page }, [page])
   useEffect(() => { userRef.current = user }, [user])
 
+  // Ved skift til Progress: hent sessions fra server (frisk synk)
   useEffect(() => {
     if (page !== 'progress' || !user?.uid) return
     let cancelled = false
-    fetchWorkoutSessions(user.uid)
+    fetchWorkoutSessionsFromServer(user.uid)
       .then((sessions) => { if (cancelled) return; setHistory(sessions) })
       .catch((err) => console.error('fetchWorkoutSessions (progress):', err))
     return () => { cancelled = true }
+  }, [page, user?.uid])
+
+  // Mens brugeren er på Progress: opdater sessions fra server hvert 30. sekund (synk fra anden device)
+  useEffect(() => {
+    if (page !== 'progress' || !user?.uid) return
+    const interval = setInterval(() => {
+      fetchWorkoutSessionsFromServer(user.uid)
+        .then((sessions) => setHistory(sessions))
+        .catch(() => {})
+    }, 30000)
+    return () => clearInterval(interval)
   }, [page, user?.uid])
 
   useEffect(() => {
@@ -474,47 +486,57 @@ function AppContent() {
     return () => { cancelled = true }
   }, [page, user?.uid])
 
-  // Når app-tab/browser kommer i fokus igen: refetch data for aktuel side (synk fra anden device)
+  // Fælles refetch-logik ved synk (visibility/focus) – bruger server så cache ikke viser gammel data
+  const refetchForCurrentPage = () => {
+    const uid = userRef.current?.uid
+    const currentPage = pageRef.current
+    if (!uid) return
+    if (currentPage === 'progress') {
+      fetchWorkoutSessionsFromServer(uid).then((sessions) => setHistory(sessions)).catch(() => {})
+    } else if (currentPage === 'workout') {
+      fetchWorkoutPlans(uid).then(({ programmes: p, routines: r }) => {
+        if (p?.length > 0 && r?.length > 0) { setProgrammes(p); setRoutines(r) }
+      }).catch(() => {})
+    } else if (currentPage === 'profile') {
+      Promise.all([getUserDoc(uid), fetchAppData(uid)]).then(([userData, appData]) => {
+        const settings = { ...DEFAULT_SETTINGS, ...(userData?.settings || {}) }
+        setDefaultRest(settings.defaultRest ?? DEFAULT_SETTINGS.defaultRest)
+        setBodyweight(settings.bodyweight ?? DEFAULT_SETTINGS.bodyweight)
+        setWeekStart(settings.weekStart ?? DEFAULT_SETTINGS.weekStart)
+        setUnitWeight(settings.unitWeight ?? DEFAULT_SETTINGS.unitWeight)
+        setUnitDistance(settings.unitDistance ?? DEFAULT_SETTINGS.unitDistance)
+        setUnitLength(settings.unitLength ?? DEFAULT_SETTINGS.unitLength)
+        setDecimalSeparator(settings.decimalSeparator ?? DEFAULT_SETTINGS.decimalSeparator)
+        setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
+        setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
+        const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
+        setTheme(themeVal === 'light-bone' ? 'bone' : themeVal)
+        if (appData.folders?.length) setFolders(appData.folders)
+        if (appData.customExercises?.length !== undefined) setCustomExercises(appData.customExercises || [])
+        if (appData.weightLog?.length !== undefined) setWeightLog(appData.weightLog || [])
+        if (appData.bodyFatLog?.length !== undefined) setBodyFatLog(appData.bodyFatLog || [])
+        if (appData.measurementsLog?.length !== undefined) setMeasurementsLog(appData.measurementsLog || [])
+        if (appData.muscleMassLog?.length !== undefined) setMuscleMassLog(appData.muscleMassLog || [])
+        if (appData.photoSessions?.length !== undefined) setPhotoSessions(appData.photoSessions || [])
+        if (appData.muscleLastWorked && Object.keys(appData.muscleLastWorked).length >= 0) setMuscleLastWorked(appData.muscleLastWorked || {})
+      }).catch(() => {})
+    }
+  }
+
+  // Når app-tab/browser kommer i fokus eller synlig: refetch fra server (synk fra anden device)
   useEffect(() => {
     if (!user?.uid) return
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
-      const uid = userRef.current?.uid
-      const currentPage = pageRef.current
-      if (!uid) return
-      if (currentPage === 'progress') {
-        fetchWorkoutSessions(uid).then((sessions) => setHistory(sessions)).catch(() => {})
-      } else if (currentPage === 'workout') {
-        fetchWorkoutPlans(uid).then(({ programmes: p, routines: r }) => {
-          if (p?.length > 0 && r?.length > 0) { setProgrammes(p); setRoutines(r) }
-        }).catch(() => {})
-      } else if (currentPage === 'profile') {
-        Promise.all([getUserDoc(uid), fetchAppData(uid)]).then(([userData, appData]) => {
-          const settings = { ...DEFAULT_SETTINGS, ...(userData?.settings || {}) }
-          setDefaultRest(settings.defaultRest ?? DEFAULT_SETTINGS.defaultRest)
-          setBodyweight(settings.bodyweight ?? DEFAULT_SETTINGS.bodyweight)
-          setWeekStart(settings.weekStart ?? DEFAULT_SETTINGS.weekStart)
-          setUnitWeight(settings.unitWeight ?? DEFAULT_SETTINGS.unitWeight)
-          setUnitDistance(settings.unitDistance ?? DEFAULT_SETTINGS.unitDistance)
-          setUnitLength(settings.unitLength ?? DEFAULT_SETTINGS.unitLength)
-          setDecimalSeparator(settings.decimalSeparator ?? DEFAULT_SETTINGS.decimalSeparator)
-          setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
-          setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
-          const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
-          setTheme(themeVal === 'light-bone' ? 'bone' : themeVal)
-          if (appData.folders?.length) setFolders(appData.folders)
-          if (appData.customExercises?.length !== undefined) setCustomExercises(appData.customExercises || [])
-          if (appData.weightLog?.length !== undefined) setWeightLog(appData.weightLog || [])
-          if (appData.bodyFatLog?.length !== undefined) setBodyFatLog(appData.bodyFatLog || [])
-          if (appData.measurementsLog?.length !== undefined) setMeasurementsLog(appData.measurementsLog || [])
-          if (appData.muscleMassLog?.length !== undefined) setMuscleMassLog(appData.muscleMassLog || [])
-          if (appData.photoSessions?.length !== undefined) setPhotoSessions(appData.photoSessions || [])
-          if (appData.muscleLastWorked && Object.keys(appData.muscleLastWorked).length >= 0) setMuscleLastWorked(appData.muscleLastWorked || {})
-        }).catch(() => {})
-      }
+      refetchForCurrentPage()
     }
+    const onFocus = () => refetchForCurrentPage()
     document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [user?.uid])
 
   // Load user settings + app data (folders, logs, etc.) when user is set
