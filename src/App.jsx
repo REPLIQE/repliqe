@@ -413,6 +413,110 @@ function AppContent() {
     return () => { cancelled = true }
   }, [user?.uid])
 
+  // Refetch ved skift af faner + når appen kommer i fokus (synk på tværs af devices)
+  const pageRef = useRef(page)
+  const userRef = useRef(user)
+  useEffect(() => { pageRef.current = page }, [page])
+  useEffect(() => { userRef.current = user }, [user])
+
+  useEffect(() => {
+    if (page !== 'progress' || !user?.uid) return
+    let cancelled = false
+    fetchWorkoutSessions(user.uid)
+      .then((sessions) => { if (cancelled) return; setHistory(sessions) })
+      .catch((err) => console.error('fetchWorkoutSessions (progress):', err))
+    return () => { cancelled = true }
+  }, [page, user?.uid])
+
+  useEffect(() => {
+    if (page !== 'workout' || !user?.uid) return
+    let cancelled = false
+    fetchWorkoutPlans(user.uid)
+      .then(({ programmes: p, routines: r }) => {
+        if (cancelled) return
+        if (p?.length > 0 && r?.length > 0) {
+          setProgrammes(p)
+          setRoutines(r)
+        }
+      })
+      .catch((err) => console.error('fetchWorkoutPlans (workout):', err))
+    return () => { cancelled = true }
+  }, [page, user?.uid])
+
+  useEffect(() => {
+    if (page !== 'profile' || !user?.uid) return
+    let cancelled = false
+    Promise.all([getUserDoc(user.uid), fetchAppData(user.uid)])
+      .then(([userData, appData]) => {
+        if (cancelled) return
+        const settings = { ...DEFAULT_SETTINGS, ...(userData?.settings || {}) }
+        setDefaultRest(settings.defaultRest ?? DEFAULT_SETTINGS.defaultRest)
+        setBodyweight(settings.bodyweight ?? DEFAULT_SETTINGS.bodyweight)
+        setWeekStart(settings.weekStart ?? DEFAULT_SETTINGS.weekStart)
+        setUnitWeight(settings.unitWeight ?? DEFAULT_SETTINGS.unitWeight)
+        setUnitDistance(settings.unitDistance ?? DEFAULT_SETTINGS.unitDistance)
+        setUnitLength(settings.unitLength ?? DEFAULT_SETTINGS.unitLength)
+        setDecimalSeparator(settings.decimalSeparator ?? DEFAULT_SETTINGS.decimalSeparator)
+        setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
+        setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
+        const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
+        setTheme(themeVal === 'light-bone' ? 'bone' : themeVal)
+        if (appData.folders?.length) setFolders(appData.folders)
+        if (appData.customExercises?.length !== undefined) setCustomExercises(appData.customExercises || [])
+        if (appData.weightLog?.length !== undefined) setWeightLog(appData.weightLog || [])
+        if (appData.bodyFatLog?.length !== undefined) setBodyFatLog(appData.bodyFatLog || [])
+        if (appData.measurementsLog?.length !== undefined) setMeasurementsLog(appData.measurementsLog || [])
+        if (appData.muscleMassLog?.length !== undefined) setMuscleMassLog(appData.muscleMassLog || [])
+        if (appData.photoSessions?.length !== undefined) setPhotoSessions(appData.photoSessions || [])
+        if (appData.muscleLastWorked && Object.keys(appData.muscleLastWorked).length >= 0) setMuscleLastWorked(appData.muscleLastWorked || {})
+      })
+      .catch((err) => console.error('load user/appData (profile):', err))
+    return () => { cancelled = true }
+  }, [page, user?.uid])
+
+  // Når app-tab/browser kommer i fokus igen: refetch data for aktuel side (synk fra anden device)
+  useEffect(() => {
+    if (!user?.uid) return
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const uid = userRef.current?.uid
+      const currentPage = pageRef.current
+      if (!uid) return
+      if (currentPage === 'progress') {
+        fetchWorkoutSessions(uid).then((sessions) => setHistory(sessions)).catch(() => {})
+      } else if (currentPage === 'workout') {
+        fetchWorkoutPlans(uid).then(({ programmes: p, routines: r }) => {
+          if (p?.length > 0 && r?.length > 0) { setProgrammes(p); setRoutines(r) }
+        }).catch(() => {})
+      } else if (currentPage === 'profile') {
+        Promise.all([getUserDoc(uid), fetchAppData(uid)]).then(([userData, appData]) => {
+          const settings = { ...DEFAULT_SETTINGS, ...(userData?.settings || {}) }
+          setDefaultRest(settings.defaultRest ?? DEFAULT_SETTINGS.defaultRest)
+          setBodyweight(settings.bodyweight ?? DEFAULT_SETTINGS.bodyweight)
+          setWeekStart(settings.weekStart ?? DEFAULT_SETTINGS.weekStart)
+          setUnitWeight(settings.unitWeight ?? DEFAULT_SETTINGS.unitWeight)
+          setUnitDistance(settings.unitDistance ?? DEFAULT_SETTINGS.unitDistance)
+          setUnitLength(settings.unitLength ?? DEFAULT_SETTINGS.unitLength)
+          setDecimalSeparator(settings.decimalSeparator ?? DEFAULT_SETTINGS.decimalSeparator)
+          setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
+          setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
+          const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
+          setTheme(themeVal === 'light-bone' ? 'bone' : themeVal)
+          if (appData.folders?.length) setFolders(appData.folders)
+          if (appData.customExercises?.length !== undefined) setCustomExercises(appData.customExercises || [])
+          if (appData.weightLog?.length !== undefined) setWeightLog(appData.weightLog || [])
+          if (appData.bodyFatLog?.length !== undefined) setBodyFatLog(appData.bodyFatLog || [])
+          if (appData.measurementsLog?.length !== undefined) setMeasurementsLog(appData.measurementsLog || [])
+          if (appData.muscleMassLog?.length !== undefined) setMuscleMassLog(appData.muscleMassLog || [])
+          if (appData.photoSessions?.length !== undefined) setPhotoSessions(appData.photoSessions || [])
+          if (appData.muscleLastWorked && Object.keys(appData.muscleLastWorked).length >= 0) setMuscleLastWorked(appData.muscleLastWorked || {})
+        }).catch(() => {})
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [user?.uid])
+
   // Load user settings + app data (folders, logs, etc.) when user is set
   useEffect(() => {
     if (!user?.uid) return
