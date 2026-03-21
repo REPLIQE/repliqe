@@ -182,6 +182,7 @@ export default function PhotosModal({
   unitWeight = 'kg',
   formatDateForDisplay,
   openToAdd = false,
+  onPhotoSessionCreated,
 }) {
   const { user } = useAuth()
   const uid = user?.uid ?? null
@@ -348,6 +349,7 @@ export default function PhotosModal({
       const without = (prev || []).filter((s) => s.id !== sessionId)
       return [...without, newSession]
     })
+    if (typeof onPhotoSessionCreated === 'function') onPhotoSessionCreated(sessionId)
     setCapturing(false)
     setCaptureStep(0)
     setCapturedImages({})

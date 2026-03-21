@@ -6,6 +6,21 @@ const REST_PRESETS = [0, 30, 60, 90, 120, 180]
 
 const RIR_BADGE_STYLE = { color: '#2DD4BF', background: 'rgba(45,212,191,.14)', border: '1px solid rgba(45,212,191,.3)' }
 
+/** Select all on focus so new typing replaces prefilled kg/reps/time without clearing first (mobile-friendly). */
+function selectWorkoutFieldOnFocus(e) {
+  const el = e.target
+  if (!el || el.disabled) return
+  const run = () => {
+    try {
+      if (typeof el.select === 'function') el.select()
+      else if (el.setSelectionRange && el.value != null) el.setSelectionRange(0, String(el.value).length)
+    } catch {
+      /* Safari / some number inputs */
+    }
+  }
+  requestAnimationFrame(run)
+}
+
 function RirBadge({ rir }) {
   if (rir === null || rir === undefined) return null
   return (
@@ -156,8 +171,8 @@ function ExerciseCard({
   function renderInputs(set, j) {
     switch (type) {
       case 'weight_reps': return (<>
-        <input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
-        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       </>)
       case 'bw_reps': return (<>
         <div className="flex items-center gap-1.5">
@@ -165,19 +180,19 @@ function ExerciseCard({
             className={`shrink-0 w-8 h-[34px] rounded-xl border-[1.5px] flex items-center justify-center text-sm font-extrabold transition-all ${set.done ? 'border-accent/25 bg-accent/5' : 'border-border-strong bg-card-alt hover:border-accent active:scale-90'} ${(set.bwSign || '+') === '+' ? 'text-success' : 'text-[#ff6b6b]'}`}>
             {(set.bwSign || '+') === '+' ? '+' : '−'}
           </button>
-          <input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} disabled={set.done} className={`${base} flex-1 ${set.done ? doneStyle : editStyle}`} />
+          <input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} flex-1 ${set.done ? doneStyle : editStyle}`} />
         </div>
-        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       </>)
       case 'reps_only': return (
-        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       )
       case 'time_only': return (
-        <input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       )
       case 'distance_time': return (<>
-        <input type="text" inputMode="decimal" placeholder={unitDistance} data-ex={exIndex} data-set={j} data-field="distance" value={displayDist(set.distance)} onChange={(e) => onUpdateSet(exIndex, j, 'distance', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
-        <input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="text" inputMode="decimal" placeholder={unitDistance} data-ex={exIndex} data-set={j} data-field="distance" value={displayDist(set.distance)} onChange={(e) => onUpdateSet(exIndex, j, 'distance', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       </>)
       default: return null
     }
@@ -378,25 +393,25 @@ function ExerciseCard({
               const barWidthPct = progress * 100
               const sidePct = (1 - progress) * 50 // each side grows from 0% to 50% as bar shrinks
               return (
-                <div data-rest-active="1" className="flex items-center justify-center gap-1.5 py-0.5 my-0.5 rounded-lg relative min-h-0 pointer-events-none overflow-hidden" style={{ height: '1.2rem' }}>
-                  {/* Dots – hvid mens rest kører */}
+                <div data-rest-active="1" className="flex items-center justify-center gap-1.5 py-0.5 my-0.5 rounded-lg relative min-h-0 pointer-events-none overflow-hidden isolate" style={{ height: '1.2rem' }}>
+                  {/* Center bar first (under dots) so venstre/højre prikker begge ligger synligt som animationen vokser */}
                   <div
-                    className="absolute top-0 bottom-0 right-1/2 transition-all duration-300 ease-out"
+                    className="absolute top-0 bottom-0 left-1/2 z-0 -translate-x-1/2 rounded-sm transition-all duration-300 ease-out bg-gradient-to-r from-accent to-accent-end"
+                    style={{ width: `${barWidthPct}%`, minWidth: 0 }}
+                  />
+                  {/* Dots – hvid mens rest kører; samme z så begge sider matcher højre */}
+                  <div
+                    className="absolute top-0 bottom-0 right-1/2 z-[1] transition-all duration-300 ease-out"
                     style={{
                       width: `${sidePct}%`,
                       backgroundImage: 'radial-gradient(circle, #fff 0.75px, transparent 0.75px)',
                       backgroundSize: '4px 1.2rem',
-                      backgroundPosition: '0 center',
+                      backgroundPosition: '100% center',
                       opacity: 0.7
                     }}
                   />
-                  {/* Center bar – shrinks from both sides */}
                   <div
-                    className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 rounded-sm transition-all duration-300 ease-out bg-gradient-to-r from-accent to-accent-end"
-                    style={{ width: `${barWidthPct}%`, minWidth: 0 }}
-                  />
-                  <div
-                    className="absolute top-0 bottom-0 left-1/2 transition-all duration-300 ease-out"
+                    className="absolute top-0 bottom-0 left-1/2 z-[1] transition-all duration-300 ease-out"
                     style={{
                       width: `${sidePct}%`,
                       backgroundImage: 'radial-gradient(circle, #fff 0.75px, transparent 0.75px)',

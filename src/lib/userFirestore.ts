@@ -57,3 +57,12 @@ export async function mergeUserSettings(uid: string, settings: UserSettings): Pr
     settings: { ...existing, ...settings },
   })
 }
+
+/**
+ * Set that the user has seen the "How programmes work" explainer (first-time create flow).
+ * Stored at users/{uid}.hasSeenProgrammeExplainer
+ */
+export async function setHasSeenProgrammeExplainer(uid: string): Promise<void> {
+  const ref = doc(db, 'users', uid)
+  await updateDoc(ref, { hasSeenProgrammeExplainer: true })
+}

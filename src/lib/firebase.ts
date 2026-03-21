@@ -14,7 +14,8 @@ const firebaseConfig = {
   measurementId: 'G-QZSHWLHK4H',
 }
 
-const app = initializeApp(firebaseConfig)
+/** Same app instance for Auth, Firestore, Storage, Analytics, and Functions callables. */
+export const app = initializeApp(firebaseConfig)
 
 export const auth = getAuth(app)
 export const db = getFirestore(app)

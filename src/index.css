@@ -202,12 +202,140 @@
   --font-sans: var(--font-sans);
 }
 
+/* Plan tab: section labels — explicit hex per theme (bypasses any stray var()/inherit from cached CSS) */
+[data-theme='dark'] div.plan-tab div.plan-section-title[role='heading'] {
+  display: block;
+  margin: 0 0 0.75rem;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+  color: #666666 !important;
+  -webkit-text-fill-color: #666666 !important;
+}
+[data-theme='bone'] div.plan-tab div.plan-section-title[role='heading'] {
+  display: block;
+  margin: 0 0 0.75rem;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+  color: #a89f90 !important;
+  -webkit-text-fill-color: #a89f90 !important;
+}
+.plan-tab .plan-section-title--after-block {
+  margin-top: 1rem;
+}
+
 @keyframes up-next-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
 .animate-up-next-pulse {
   animation: up-next-pulse 2.5s ease-in-out infinite;
+}
+
+/* Start button: pulse only on play triangle */
+@keyframes start-play-triangle-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.14);
+  }
+}
+.animate-start-play-triangle {
+  animation: start-play-triangle-pulse 1.85s ease-in-out infinite;
+  transform-origin: 40% 50%;
+}
+
+/* Active workout: soft green fill pulse inside clock icon */
+@keyframes wo-clock-fill-pulse {
+  0%,
+  100% {
+    opacity: 0.18;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+.animate-wo-clock-fill {
+  animation: wo-clock-fill-pulse 2s ease-in-out infinite;
+}
+
+/* Repliqe logo: slow smooth pulse — each firkant lights in sequence, one full round per cycle */
+@keyframes repliqe-logo-smooth-pulse {
+  0%,
+  100% {
+    opacity: 0.44;
+    filter: brightness(0.9);
+    transform: scale(1);
+  }
+  7% {
+    opacity: 0.58;
+    filter: brightness(0.96);
+    transform: scale(1.012);
+  }
+  15% {
+    opacity: 0.82;
+    filter: brightness(1.06);
+    transform: scale(1.028);
+  }
+  22% {
+    opacity: 1;
+    filter: brightness(1.12);
+    transform: scale(1.04);
+  }
+  30% {
+    opacity: 0.82;
+    filter: brightness(1.06);
+    transform: scale(1.028);
+  }
+  38% {
+    opacity: 0.58;
+    filter: brightness(0.96);
+    transform: scale(1.012);
+  }
+  46%,
+  100% {
+    opacity: 0.44;
+    filter: brightness(0.9);
+    transform: scale(1);
+  }
+}
+.repliqe-logo-building {
+  overflow: visible;
+}
+.repliqe-logo-building rect {
+  transform-box: fill-box;
+  transform-origin: center;
+  /* 3.6s = one complete pass through all 6 cells (6 × 0.6s stagger) */
+  animation: repliqe-logo-smooth-pulse 3.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  animation-fill-mode: backwards;
+  will-change: transform, filter, opacity;
+}
+.repliqe-logo-building rect:nth-child(1) {
+  animation-delay: 0s;
+}
+.repliqe-logo-building rect:nth-child(2) {
+  animation-delay: 0.6s;
+}
+.repliqe-logo-building rect:nth-child(3) {
+  animation-delay: 1.2s;
+}
+.repliqe-logo-building rect:nth-child(4) {
+  animation-delay: 1.8s;
+}
+.repliqe-logo-building rect:nth-child(5) {
+  animation-delay: 2.4s;
+}
+.repliqe-logo-building rect:nth-child(6) {
+  animation-delay: 3s;
 }
 
 html, body {

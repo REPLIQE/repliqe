@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  getDocsFromServer,
   setDoc,
   deleteDoc,
   serverTimestamp,
@@ -46,6 +47,18 @@ function programmesAndRoutinesToPlans(programmes, routines) {
       currentIndex: prog.currentIndex ?? 0,
       days,
       updatedAt: serverTimestamp(),
+      ...(prog.isQoreGenerated
+        ? {
+            isQoreGenerated: true,
+            qoreRationale: prog.rationale ?? '',
+            qoreSafetyNote: prog.safetyNote ?? null,
+            qoreGoal: prog.qoreGoal ?? null,
+            qoreLevel: prog.qoreLevel ?? null,
+            qoreEquipment: prog.qoreEquipment ?? null,
+            qoreDaysPerWeek: prog.qoreDaysPerWeek ?? null,
+            qoreCreatedAt: prog.qoreCreatedAt ?? null,
+          }
+        : {}),
     })
   }
   return plans
@@ -62,6 +75,18 @@ function plansToProgrammesAndRoutines(plans) {
       routineIds: p.routineIds || [],
       isActive: p.isActive ?? false,
       currentIndex: p.currentIndex ?? 0,
+      isQoreGenerated: !!p.isQoreGenerated,
+      ...(p.isQoreGenerated
+        ? {
+            rationale: p.qoreRationale ?? '',
+            safetyNote: p.qoreSafetyNote ?? null,
+            qoreGoal: p.qoreGoal ?? null,
+            qoreLevel: p.qoreLevel ?? null,
+            qoreEquipment: p.qoreEquipment ?? null,
+            qoreDaysPerWeek: p.qoreDaysPerWeek ?? null,
+            qoreCreatedAt: p.qoreCreatedAt ?? null,
+          }
+        : {}),
     })
     for (const day of p.days || []) {
       routines.push({
@@ -86,8 +111,18 @@ function plansToProgrammesAndRoutines(plans) {
   return { programmes, routines }
 }
 
-export async function fetchWorkoutPlans(uid) {
-  const snap = await getDocs(collection(db, 'users', uid, 'workoutPlans'))
+/** Prefer server to avoid showing deleted/reset data from Firestore persistence cache */
+async function snapshotWorkoutPlansCol(uid: string) {
+  const col = collection(db, 'users', uid, 'workoutPlans')
+  try {
+    return await getDocsFromServer(col)
+  } catch {
+    return await getDocs(col)
+  }
+}
+
+export async function fetchWorkoutPlans(uid: string) {
+  const snap = await snapshotWorkoutPlansCol(uid)
   const plans = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
   return plansToProgrammesAndRoutines(plans)
 }
@@ -95,14 +130,21 @@ export async function fetchWorkoutPlans(uid) {
 export async function saveWorkoutPlans(uid, programmes, routines) {
   const plans = programmesAndRoutinesToPlans(programmes, routines)
   const col = collection(db, 'users', uid, 'workoutPlans')
-  const existing = await getDocs(col)
+  const existing = await snapshotWorkoutPlansCol(uid)
   const existingIds = new Set(existing.docs.map((d) => d.id))
+  const currentIds = new Set(plans.map((p) => p.id))
   const batch = writeBatch(db)
   for (const plan of plans) {
     const ref = doc(col, plan.id)
     const { days, ...rest } = plan
     const isNew = !existingIds.has(plan.id)
     batch.set(ref, { ...rest, days, ...(isNew ? { createdAt: serverTimestamp() } : {}) }, { merge: true })
+  }
+  // Remove Firestore docs for programmes no longer in state (manual + Qore deletes must persist)
+  for (const d of existing.docs) {
+    if (!currentIds.has(d.id)) {
+      batch.delete(d.ref)
+    }
   }
   await batch.commit()
 }

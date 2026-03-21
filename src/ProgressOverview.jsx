@@ -709,10 +709,12 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
   const muscleThen = getLogValueAtOrBefore(muscleMassLog, workout.date)
   const bodyFatThen = getLogValueAtOrBefore(bodyFatLog, workout.date)
   const weightTrend = getWeightTrendBefore(weightLog, workout.date, 14)
-  // When no new photos were uploaded for this workout, show the single newest photo session
+  // Max 1 fotosession pr. WO: kun eksplicit link (ingen same-day fallback — flere WO samme dag må ikke dele/vise samme pool).
   const photosThen = (() => {
-    const sorted = sortPhotoSessionsByDate(photoSessions)
-    return sorted.length > 0 ? [sorted[0]] : []
+    const ids = Array.isArray(workout.photoSessionIds) ? workout.photoSessionIds.slice(0, 1) : []
+    if (ids.length === 0) return []
+    const sessions = ids.map((id) => (photoSessions || []).find((s) => s.id === id)).filter(Boolean)
+    return sessions
   })()
   const weightMax = weightTrend.length ? Math.max(...weightTrend.map((p) => p.value)) : 0
   const weightMin = weightTrend.length ? Math.min(...weightTrend.map((p) => p.value)) : 0

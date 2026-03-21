@@ -67,3 +67,18 @@ export async function updateWorkoutSessionRating(uid, sessionId, rating) {
   const workout = data.workout || {}
   await updateDoc(ref, { workout: { ...workout, rating } })
 }
+
+/** Link one photo session to a workout. At most one photo session per workout — no merge if one is already set. */
+export async function updateWorkoutSessionPhotoSessions(uid, sessionId, photoSessionIds) {
+  const ref = doc(db, 'users', uid, 'workoutSessions', sessionId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const data = snap.data()
+  const workout = data.workout || {}
+  const existing = Array.isArray(workout.photoSessionIds) ? workout.photoSessionIds : []
+  if (existing.length >= 1) return
+  const incoming = Array.isArray(photoSessionIds) ? photoSessionIds : []
+  const first = incoming.find((id) => id != null && id !== '')
+  if (first == null) return
+  await updateDoc(ref, { workout: { ...workout, photoSessionIds: [first] } })
+}

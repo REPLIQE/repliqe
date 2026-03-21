@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, getDocFromServer, setDoc } from 'firebase/firestore'
 import { db } from './firebase'
 
 const DEFAULT_FOLDERS = [{ name: 'My Templates', open: true, templates: [] }]
@@ -40,7 +40,12 @@ function appDataRef(uid: string) {
  */
 export async function fetchAppData(uid: string): Promise<AppData> {
   const ref = appDataRef(uid)
-  const snap = await getDoc(ref)
+  let snap
+  try {
+    snap = await getDocFromServer(ref)
+  } catch {
+    snap = await getDoc(ref)
+  }
   if (!snap.exists()) return { ...DEFAULT_APP_DATA }
   const data = snap.data() as AppData
   return {

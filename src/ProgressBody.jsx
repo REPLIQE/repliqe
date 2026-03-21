@@ -38,6 +38,9 @@ export default function ProgressBody({
   onConsumedOpenAddPhoto,
   returnToWorkoutAfterPhotoClose = false,
   onReturnToWorkoutAfterPhoto,
+  photoLinkTargetSessionId = null,
+  onClearPhotoLinkTarget,
+  onPhotoSessionLinkedToWorkout,
 }) {
   const fmt = formatDecimal ?? ((n, decimals) => (n != null ? (decimals != null ? Number(n).toFixed(decimals) : String(n)) : '—'))
   const parse = parseDecimal ?? ((s) => parseFloat(String(s).replace(',', '.')))
@@ -390,6 +393,7 @@ export default function ProgressBody({
           onClose={() => {
             setShowPhotos(false)
             setOpenPhotosToAdd(false)
+            onClearPhotoLinkTarget?.()
             if (returnToWorkoutAfterPhotoClose) onReturnToWorkoutAfterPhoto?.()
           }}
           weightLog={safeWeightLog}
@@ -397,6 +401,11 @@ export default function ProgressBody({
           unitWeight={unitWeight ?? 'kg'}
           formatDateForDisplay={formatDateForDisplay}
           openToAdd={openPhotosToAdd}
+          onPhotoSessionCreated={
+            photoLinkTargetSessionId && onPhotoSessionLinkedToWorkout
+              ? (photoSessionId) => onPhotoSessionLinkedToWorkout(photoSessionId, photoLinkTargetSessionId)
+              : undefined
+          }
         />
       )}
     </div>

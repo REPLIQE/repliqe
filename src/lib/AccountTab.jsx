@@ -7,7 +7,7 @@ import {
   updateUserPassword,
   deleteAuthUser,
 } from './auth'
-import { deleteUserData } from './deleteUserData'
+import { deleteUserData, clearAllUserContent } from './deleteUserData'
 
 function getInitials(displayName) {
   if (!displayName || typeof displayName !== 'string') return '?'
@@ -32,6 +32,7 @@ export default function AccountTab() {
   const canChangePassword = isEmailProvider(user)
 
   const [showChangePassword, setShowChangePassword] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -82,6 +83,20 @@ export default function AccountTab() {
         setError('Failed to update password. Please try again.')
       }
     } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResetAllData = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      const uid = auth.currentUser?.uid
+      if (!uid) throw new Error('Not signed in')
+      await clearAllUserContent(uid)
+      window.location.reload()
+    } catch (err) {
+      setError('Failed to reset data. Please try again.')
       setLoading(false)
     }
   }
@@ -195,7 +210,7 @@ export default function AccountTab() {
                     type="button"
                     onClick={handleChangePassword}
                     disabled={loading}
-                    className="w-full py-3 bg-accent text-on-accent font-semibold text-sm rounded-xl disabled:opacity-50"
+                    className="w-full py-3.5 sm:py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25 disabled:opacity-50 disabled:pointer-events-none"
                   >
                     {loading ? 'Saving…' : 'Save new password'}
                   </button>
@@ -228,6 +243,46 @@ export default function AccountTab() {
             </div>
             <ChevronRight />
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowResetConfirm((v) => !v)
+              setError('')
+            }}
+            className="w-full flex items-center justify-between px-4 py-3.5 border-b border-border text-left hover:bg-white/[0.03] transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <span className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                <RefreshIcon />
+              </span>
+              <span className="text-amber-400 font-semibold text-sm">Reset all data</span>
+            </div>
+            <ChevronRight />
+          </button>
+
+          {showResetConfirm && (
+            <div className="p-4 border-t border-border flex flex-col gap-3">
+              <div className="text-muted-strong text-xs bg-card-alt rounded-xl p-3">
+                This will delete all your programmes, workout history, photos, weight and body logs. You stay logged in and can start fresh as a new user. This cannot be undone.
+              </div>
+              <button
+                type="button"
+                onClick={handleResetAllData}
+                disabled={loading}
+                className="w-full py-3.5 sm:py-4 rounded-2xl font-bold text-sm bg-amber-600 text-white shadow-lg shadow-amber-900/20 disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {loading ? 'Resetting…' : 'Yes, reset all my data'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowResetConfirm(false); setError('') }}
+                className="w-full py-2.5 text-muted-strong text-sm font-semibold hover:text-text transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
 
           <button
             type="button"
@@ -267,14 +322,14 @@ export default function AccountTab() {
                 type="button"
                 onClick={handleDeleteAccount}
                 disabled={loading || (canChangePassword && !deletePassword)}
-                className="w-full py-3 bg-red-600 text-white font-semibold text-sm rounded-xl disabled:opacity-50"
+                className="w-full py-3.5 sm:py-4 rounded-2xl font-bold text-sm bg-red-600 text-white shadow-lg shadow-red-900/25 disabled:opacity-50 disabled:pointer-events-none"
               >
                 {loading ? 'Deleting…' : 'Yes, delete my account'}
               </button>
               <button
                 type="button"
                 onClick={() => { setShowDeleteConfirm(false); setError('') }}
-                className="w-full py-2 text-muted-strong text-sm font-semibold"
+                className="w-full py-2.5 text-muted-strong text-sm font-semibold hover:text-text transition-colors"
               >
                 Cancel
               </button>
@@ -309,6 +364,17 @@ function LogOutIcon() {
       <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
       <polyline points="11,11 14,8 11,5" />
       <line x1="14" y1="8" x2="6" y2="8" />
+    </svg>
+  )
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
+      <path d="M14 8a6 6 0 0 0-10.5-4.2" />
+      <path d="M2 8a6 6 0 0 0 10.5 4.2" />
+      <path d="M2 2v4h4" />
+      <path d="M14 14v-4h-4" />
     </svg>
   )
 }

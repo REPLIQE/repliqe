@@ -13,14 +13,15 @@ import { formatStoredDateForDisplay, DATE_FORMAT_DDMY, DATE_FORMAT_MMDY } from '
 import { useAuth } from './lib/AuthContext'
 import LoginScreen from './lib/LoginScreen'
 import AccountTab from './lib/AccountTab'
-import { fetchWorkoutPlans, saveWorkoutPlans } from './lib/workoutPlansFirestore'
-import { addWorkoutSession, fetchWorkoutSessions, fetchWorkoutSessionsFromServer, updateWorkoutSessionRating } from './lib/workoutSessionsFirestore'
+import { fetchWorkoutPlans, saveWorkoutPlans, deleteWorkoutPlan } from './lib/workoutPlansFirestore'
+import { addWorkoutSession, fetchWorkoutSessions, fetchWorkoutSessionsFromServer, updateWorkoutSessionRating, updateWorkoutSessionPhotoSessions } from './lib/workoutSessionsFirestore'
 import { getUserDoc, mergeUserSettings, DEFAULT_SETTINGS } from './lib/userFirestore'
 import { fetchAppData, updateAppData } from './lib/appDataFirestore'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
 import RecoverySection from './RecoverySection'
 import RepliqeLogo from './RepliqeLogo'
 import ProgressScreen from './ProgressScreen'
+import CreateProgrammeFlow from './CreateProgrammeFlow'
 
 class ProgressErrorBoundary extends Component {
   state = { error: null }
@@ -222,30 +223,6 @@ function AppContent() {
     return seed.reverse()
   }
 
-  /** Generer ca. 17 fotosessions for sidste 30 dage (samme dage som træning: man, tir, tor, fre). */
-  function getSeedPhotoSessions() {
-    const seed = []
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const dayOfWeekForWorkout = [1, 2, 4, 5]
-    let i = 0
-    for (let d = 29; d >= 0; d--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - d)
-      if (!dayOfWeekForWorkout.includes(date.getDay())) continue
-      const dateStr = date.toLocaleDateString('en-GB')
-      seed.push({
-        id: `ps_seed_${Date.now()}_${i}`,
-        date: dateStr,
-        front: null,
-        back: null,
-        side: null,
-      })
-      i += 1
-    }
-    return seed.reverse()
-  }
-
   const [folders, setFolders] = useState([{ name: 'My Templates', open: true, templates: [] }])
   const [defaultRest, setDefaultRest] = useState(DEFAULT_SETTINGS.defaultRest)
   const [bodyweight, setBodyweight] = useState(DEFAULT_SETTINGS.bodyweight)
@@ -267,6 +244,8 @@ function AppContent() {
   const [completedWorkoutData, setCompletedWorkoutData] = useState(null)
   const [completeScreenRating, setCompleteScreenRating] = useState(null)
   const [postCompleteOpenPhoto, setPostCompleteOpenPhoto] = useState(false)
+  /** Firestore workoutSessions doc id to attach photos to when opening Progress from complete screen (stable while modal is open). */
+  const [photoLinkTargetSessionId, setPhotoLinkTargetSessionId] = useState(null)
   const [returnToWorkoutAfterPhotoClose, setReturnToWorkoutAfterPhotoClose] = useState(false)
   const [editingFolder, setEditingFolder] = useState(null)
   const [editingFolderName, setEditingFolderName] = useState('')
@@ -289,11 +268,13 @@ function AppContent() {
   const appDataLoadedRef = useRef(false)
   const [workoutSessionsLoaded, setWorkoutSessionsLoaded] = useState(false)
   const [appDataLoaded, setAppDataLoaded] = useState(false)
-  const [programmes, setProgrammes] = useState(() => [getDefault2SplitProgramme().programme])
+  const [workoutPlansLoaded, setWorkoutPlansLoaded] = useState(false)
+  const [programmes, setProgrammes] = useState([])
   const [muscleLastWorked, setMuscleLastWorked] = useState({})
-  const [routines, setRoutines] = useState(() => getDefault2SplitProgramme().routines)
+  const [routines, setRoutines] = useState([])
   const [programmeMenuProgramme, setProgrammeMenuProgramme] = useState(null)
   const [showCreateProgramme, setShowCreateProgramme] = useState(false)
+  const [createProgrammeFlowStep, setCreateProgrammeFlowStep] = useState(null) // 'entry' | 'explainer' | 'choice' | 'qore'
   const [editingProgrammeId, setEditingProgrammeId] = useState(null)
   const [showCreateRoutine, setShowCreateRoutine] = useState(false)
   const [editingRoutineId, setEditingRoutineId] = useState(null)
@@ -368,20 +349,16 @@ function AppContent() {
     fetchWorkoutPlans(user.uid)
       .then(({ programmes: p, routines: r }) => {
         if (cancelled) return
-        if (p?.length > 0 && r?.length > 0) {
-          setProgrammes(p)
-          setRoutines(r)
-        } else {
-          // New user: persist default plan to Firestore
-          const def = getDefault2SplitProgramme()
-          saveWorkoutPlans(user.uid, [def.programme], def.routines).catch((err) =>
-            console.error('saveWorkoutPlans (default):', err)
-          )
-        }
+        // Always sync from fetch (incl. empty after reset) — don’t leave stale state
+        setProgrammes(Array.isArray(p) ? p : [])
+        setRoutines(Array.isArray(r) ? r : [])
+        // Only after successful load: enables save. (If we set ref on fetch error, save could run with [] and wipe Firestore.)
+        workoutPlansLoadedRef.current = true
+        setWorkoutPlansLoaded(true)
       })
-      .catch((err) => console.error('fetchWorkoutPlans:', err))
-      .finally(() => {
-        if (!cancelled) workoutPlansLoadedRef.current = true
+      .catch((err) => {
+        console.error('fetchWorkoutPlans:', err)
+        if (!cancelled) setWorkoutPlansLoaded(true)
       })
     return () => { cancelled = true }
   }, [user?.uid])
@@ -439,23 +416,9 @@ function AppContent() {
     return () => clearInterval(interval)
   }, [page, user?.uid])
 
-  useEffect(() => {
-    if (page !== 'workout' || !user?.uid) return
-    let cancelled = false
-    fetchWorkoutPlans(user.uid)
-      .then(({ programmes: p, routines: r }) => {
-        if (cancelled) return
-        if (p?.length > 0 && r?.length > 0) {
-          setProgrammes(p)
-          setRoutines(r)
-        }
-      })
-      .catch((err) => {
-        console.error('fetchWorkoutPlans (workout):', err?.code || err?.message || err)
-        if (err?.code === 'permission-denied') console.error('Tjek Firestore Rules – læs for users/{userId}/workoutPlans')
-      })
-    return () => { cancelled = true }
-  }, [page, user?.uid])
+  // NOTE: No refetch on every visit to Workout tab — it overwrote local state with a stale
+  // Firestore read right after delete. Initial load uses [user.uid] above; refresh uses
+  // visibility/focus refetchForCurrentPage.
 
   useEffect(() => {
     if (page !== 'profile' || !user?.uid) return
@@ -497,7 +460,8 @@ function AppContent() {
       fetchWorkoutSessionsFromServer(uid).then((sessions) => setHistory(sessions)).catch((err) => console.error('fetchWorkoutSessions (visibility/focus):', err?.code || err?.message || err))
     } else if (currentPage === 'workout') {
       fetchWorkoutPlans(uid).then(({ programmes: p, routines: r }) => {
-        if (p?.length > 0 && r?.length > 0) { setProgrammes(p); setRoutines(r) }
+        setProgrammes(Array.isArray(p) ? p : [])
+        setRoutines(Array.isArray(r) ? r : [])
       }).catch(() => {})
     } else if (currentPage === 'profile') {
       Promise.all([getUserDoc(uid), fetchAppData(uid)]).then(([userData, appData]) => {
@@ -525,19 +489,38 @@ function AppContent() {
     }
   }
 
-  // Når app-tab/browser kommer i fokus eller synlig: refetch fra server (synk fra anden device)
+  // Når app-tab/browser kommer i fokus eller synlig: refetch fra server (synk fra anden device).
+  // Vi henter altid workout history når appen bliver synlig, så telefon får data fra Mac selv om bruger ikke lige er på Progress.
+  const refetchHistoryWhenVisible = () => {
+    const uid = userRef.current?.uid
+    if (!uid) return
+    fetchWorkoutSessionsFromServer(uid)
+      .then((sessions) => setHistory(sessions))
+      .catch((err) => console.error('fetchWorkoutSessions (visible/focus):', err?.code || err?.message || err))
+  }
+
   useEffect(() => {
     if (!user?.uid) return
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
+      refetchHistoryWhenVisible()
       refetchForCurrentPage()
     }
-    const onFocus = () => refetchForCurrentPage()
+    const onFocus = () => {
+      refetchHistoryWhenVisible()
+      refetchForCurrentPage()
+    }
+    const onPageShow = (e) => {
+      if (e.persisted) refetchHistoryWhenVisible()
+      refetchForCurrentPage()
+    }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onFocus)
+    window.addEventListener('pageshow', onPageShow)
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', onFocus)
+      window.removeEventListener('pageshow', onPageShow)
     }
   }, [user?.uid])
 
@@ -609,11 +592,6 @@ function AppContent() {
     if (seed.length > 0) setHistory(seed)
   }, [workoutSessionsLoaded, history.length, programmes, routines])
 
-  useEffect(() => {
-    if (!appDataLoaded || photoSessions.length !== 0) return
-    const seed = getSeedPhotoSessions()
-    if (seed.length > 0) setPhotoSessions(seed)
-  }, [appDataLoaded, photoSessions.length])
   useEffect(() => {
     if (!user?.uid || !appDataLoadedRef.current) return
     updateAppData(user.uid, { folders }).catch((err) => console.error('updateAppData folders:', err))
@@ -904,11 +882,39 @@ function AppContent() {
       const lib = getExerciseFromLibrary(ex.exerciseId)
       const type = lib?.type || 'weight_reps'
       const setConfigs = getSetConfigs(ex)
-      const sets = setConfigs.map((cfg, i) => {
+      const sets = setConfigs.map((cfg) => {
         const empty = emptySetForType(type)
         const kg = cfg.targetKg ?? ''
         const reps = cfg.targetReps ?? ''
-        return { ...empty, kg, reps, initialKg: kg, initialReps: reps, initialTime: empty.time, initialDistance: empty.distance, initialBwSign: empty.bwSign || '+' }
+        if (type === 'time_only') {
+          const timeStr = String(reps ?? '').trim()
+          return { ...empty, time: timeStr, initialTime: timeStr }
+        }
+        if (type === 'reps_only') {
+          const r = String(reps ?? '').trim()
+          return { ...empty, reps: r, initialReps: r }
+        }
+        if (type === 'distance_time') {
+          const dist = String(kg ?? '').trim()
+          const tim = String(reps ?? '').trim()
+          return {
+            ...empty,
+            distance: dist,
+            time: tim,
+            initialDistance: dist,
+            initialTime: tim,
+          }
+        }
+        return {
+          ...empty,
+          kg,
+          reps,
+          initialKg: kg,
+          initialReps: reps,
+          initialTime: empty.time,
+          initialDistance: empty.distance,
+          initialBwSign: empty.bwSign || '+',
+        }
       })
       return {
         id: crypto.randomUUID(),
@@ -933,6 +939,12 @@ function AppContent() {
   }
 
   function createProgramme() {
+    setCreateProgrammeName('')
+    setCreateProgrammeFlowStep('entry')
+    setEditingProgrammeId(null)
+  }
+  function openManualCreateProgramme() {
+    setCreateProgrammeFlowStep(null)
     setCreateProgrammeName('')
     setShowCreateProgramme(true)
     setEditingProgrammeId(null)
@@ -965,6 +977,34 @@ function AppContent() {
     if (!isFirstProgramme) setShowSetActiveAfterCreate(progId)
   }
 
+  /**
+   * Gem Qore-program + routines (samme state/Firestore-sti som manuelle programmer via saveWorkoutPlans-useEffect).
+   * @param {{ programme: object, routines: object[] }} payload — fra buildProgrammeFromQore
+   * @param {boolean} makeActive — true = "Save & make active"
+   */
+  function saveQoreGeneratedProgramme(payload, makeActive) {
+    if (!user?.uid || !payload?.programme || !Array.isArray(payload.routines)) return
+    const { programme: progIn, routines: newRoutines } = payload
+    const isFirstProgramme = programmes.length === 0
+    const wantsActive = makeActive === true || progIn.isActive === true
+    const finalActive = wantsActive || isFirstProgramme
+
+    const progEntry = {
+      ...progIn,
+      routineIds: [...(progIn.routineIds || [])],
+      isActive: finalActive,
+      currentIndex: progIn.currentIndex ?? 0,
+    }
+
+    setRoutines((prev) => [...prev, ...newRoutines])
+    setProgrammes((prev) => {
+      const base = finalActive ? prev.map((p) => ({ ...p, isActive: false })) : prev
+      return [...base, progEntry]
+    })
+    setCreateProgrammeFlowStep(null)
+    if (!finalActive && !isFirstProgramme) setShowSetActiveAfterCreate(progIn.id)
+  }
+
   function openEditProgramme(progId) {
     const prog = programmes.find(p => p.id === progId)
     if (prog) setEditProgrammeName(prog.name)
@@ -977,17 +1017,28 @@ function AppContent() {
     setEditingProgrammeId(null)
   }
 
-  function confirmDeleteProgrammeAction(progId) {
+  async function confirmDeleteProgrammeAction(progId) {
     const prog = programmes.find(p => p.id === progId)
     if (!prog) return
-    setRoutines(prev => prev.filter(r => r.programmeId !== progId))
-    setProgrammes(prev => prev.filter(p => p.id !== progId))
-    if (activeProgramme?.id === progId) {
-      const next = programmes.find(p => p.id !== progId)
-      if (next) setProgrammeActive(next.id)
+    let programmesToSet = programmes.filter((p) => p.id !== progId)
+    const routinesToSet = routines.filter((r) => r.programmeId !== progId)
+    if (prog.isActive && programmesToSet.length > 0) {
+      const next = programmesToSet[0]
+      programmesToSet = programmesToSet.map((p) => ({ ...p, isActive: p.id === next.id }))
     }
+    setProgrammes(programmesToSet)
+    setRoutines(routinesToSet)
     setShowDeleteProgrammeConfirm(null)
     setProgrammeMenuProgramme(null)
+    const uid = user?.uid
+    if (uid) {
+      try {
+        await deleteWorkoutPlan(uid, progId)
+        await saveWorkoutPlans(uid, programmesToSet, routinesToSet)
+      } catch (err) {
+        console.error('confirmDeleteProgramme persistence:', err)
+      }
+    }
   }
 
   function addRoutineToProgramme(progId, routineData) {
@@ -1612,7 +1663,7 @@ function AppContent() {
     // Save session to Firestore then update local history and UI
     addWorkoutSession(user.uid, workout)
       .then((sessionId) => {
-        setHistory([{ ...workout, sessionId }, ...history])
+        setHistory((prev) => [{ ...workout, sessionId }, ...prev])
         if (navigator.vibrate) navigator.vibrate([40, 40, 80])
         if (routineId) {
           advanceProgrammeRotation(routineId)
@@ -1630,7 +1681,7 @@ function AppContent() {
         console.error('addWorkoutSession:', err?.code || err?.message || err)
         if (err?.code === 'permission-denied') console.error('Tjek Firestore Security Rules – skriv skal tillades for users/{userId}/workoutSessions')
         // Still add to local state so user doesn't lose the workout
-        setHistory([workout, ...history])
+        setHistory((prev) => [workout, ...prev])
         setShowFinishModal(false)
         setShowCompleteScreen(true)
         setExercises([]); setActiveRest(null); setRestTime(0); setPendingRir(null)
@@ -1857,6 +1908,27 @@ function AppContent() {
   const suggestedNext = getSuggestedNext()
   const isNew = history.length === 0
 
+  function handlePhotoSessionLinkedToWorkout(photoSessionId, targetWorkoutSessionId) {
+    const sid = targetWorkoutSessionId
+    if (!sid || !user?.uid || !photoSessionId) return
+    const target = history.find((h) => h.sessionId === sid)
+    if (!target) return
+    if ((target.photoSessionIds || []).length > 0) {
+      setPhotoLinkTargetSessionId(null)
+      return
+    }
+    const nextIds = [photoSessionId]
+    updateWorkoutSessionPhotoSessions(user.uid, sid, nextIds)
+      .then(() => setPhotoLinkTargetSessionId(null))
+      .catch((err) => console.error('updateWorkoutSessionPhotoSessions:', err))
+    setHistory((prev) => {
+      const h = [...prev]
+      const i = h.findIndex((x) => x.sessionId === sid)
+      if (i >= 0) h[i] = { ...h[i], photoSessionIds: nextIds }
+      return h
+    })
+  }
+
   return (
     <>
       <div className="min-h-screen bg-page text-text pb-16">
@@ -1894,6 +1966,9 @@ function AppContent() {
                 onConsumedOpenAddPhoto={() => setPostCompleteOpenPhoto(false)}
                 returnToWorkoutAfterPhotoClose={returnToWorkoutAfterPhotoClose}
                 onReturnToWorkoutAfterPhoto={() => { setPage('workout'); setReturnToWorkoutAfterPhotoClose(false) }}
+                photoLinkTargetSessionId={photoLinkTargetSessionId}
+                onClearPhotoLinkTarget={() => setPhotoLinkTargetSessionId(null)}
+                onPhotoSessionLinkedToWorkout={handlePhotoSessionLinkedToWorkout}
               />
             </ProgressErrorBoundary>
           )}
@@ -1905,7 +1980,15 @@ function AppContent() {
               rating={completeScreenRating}
               onRatingChange={setCompleteScreenRating}
               onDone={dismissCompleteScreen}
-              onProgressPhoto={() => { setPostCompleteOpenPhoto(true); setReturnToWorkoutAfterPhotoClose(true); setPage('progress') }}
+                onProgressPhoto={() => {
+                  const targetSid = history.find(
+                    (h) => h?.sessionId && !(Array.isArray(h.photoSessionIds) && h.photoSessionIds.length > 0)
+                  )?.sessionId ?? null
+                  setPhotoLinkTargetSessionId(targetSid)
+                  setPostCompleteOpenPhoto(true)
+                  setReturnToWorkoutAfterPhotoClose(true)
+                  setPage('progress')
+                }}
               formatDuration={formatDuration}
               unitWeight={unitWeight}
               formatDecimal={formatDecimal}
@@ -1919,10 +2002,13 @@ function AppContent() {
 
               {/* Continue workout bar when minimized */}
               {workoutActive && !showActiveWorkoutSheet && (
-                <button type="button" onClick={() => setShowActiveWorkoutSheet(true)} className="w-full mb-4 py-3.5 px-4 rounded-xl border-2 border-success bg-success/10 flex items-center justify-between gap-3">
+                <button type="button" onClick={() => setShowActiveWorkoutSheet(true)} className="w-full mb-4 py-3.5 px-4 rounded-xl border-2 border-success bg-success/10 flex items-center justify-between gap-3" aria-label={`Continue workout: ${workoutName || 'Workout'}`}>
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-                    <span className="text-text font-bold text-sm">{workoutName || 'Workout'}</span>
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0 text-success overflow-visible" aria-hidden>
+                      <circle cx="12" cy="12" r="8.5" className="fill-success animate-wo-clock-fill" />
+                      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+                      <polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                     <span className="text-success text-xs font-semibold">{exercises.length} exercise{exercises.length !== 1 ? 's' : ''}</span>
                   </div>
                   <span className="text-success text-sm font-bold">Continue</span>
@@ -1938,6 +2024,27 @@ function AppContent() {
               {workoutTab === 'start' && (
               <>
               {(() => {
+                if (workoutPlansLoaded && programmes.length === 0) {
+                  return (
+                    <>
+                      <div className="rounded-2xl border border-border bg-card p-6 text-center mb-5">
+                        <div className="w-12 h-12 rounded-full bg-card-alt flex items-center justify-center mx-auto mb-3 text-muted-strong">
+                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        </div>
+                        <div className="text-text font-bold text-base mb-1">No programme yet</div>
+                        <p className="text-muted-strong text-sm mb-4">Create a programme to get structured workouts and track your progress.</p>
+                        <button type="button" onClick={createProgramme} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">+ Create programme</button>
+                      </div>
+                      <button type="button" onClick={startEmpty} className="w-full py-4 px-4 border-2 border-accent/40 rounded-[14px] bg-accent/5 flex items-center gap-3">
+                        <span className="w-[38px] h-[38px] rounded-[10px] bg-accent/10 flex items-center justify-center text-accent text-lg font-bold">+</span>
+                        <div className="text-left">
+                          <div className="text-text text-sm font-bold">Empty Workout</div>
+                          <div className="text-[11px] text-muted-strong">Start fresh and add exercises as you go</div>
+                        </div>
+                      </button>
+                    </>
+                  )
+                }
                 const activeProgramme = programmes.find(p => p.isActive) || null
                 const activeHasNoRealRoutines = activeProgramme ? (() => {
                   const nextRtnId = getNextRoutine(activeProgramme, history)
@@ -1985,7 +2092,7 @@ function AppContent() {
 
                 return (
                   <>
-                    <h2 className="text-[17px] font-bold text-text mb-3">{activeProgramme.name}</h2>
+                    <h2 className="text-sm font-bold tracking-tight mb-3 text-accent">{activeProgramme.name}</h2>
                     <div className="flex gap-1.5 mb-1">
                       {routineIds.map((rtnId) => {
                         const rtn = routines.find(r => r.id === rtnId)
@@ -2055,11 +2162,16 @@ function AppContent() {
                         <button
                           type="button"
                           onClick={() => tryStart('routine', displayRtn)}
-                          className="w-full py-4 rounded-2xl font-bold text-[15px] text-white flex items-center justify-center gap-2.5"
+                          className="w-full py-4 rounded-2xl font-bold text-[15px] text-white flex items-center justify-center gap-2.5 active:opacity-95"
                           style={{ background: 'linear-gradient(135deg, #7b7fff, #6060dd)', boxShadow: '0 8px 24px rgba(123,127,255,0.28)' }}
+                          aria-label={`Start ${displayRtn?.name || 'workout'}`}
                         >
-                          <span className="w-0 h-0 border-y-[5.5px] border-y-transparent border-l-[9px] border-l-white" style={{ marginLeft: 2 }} />
-                          Start {displayRtn.name}
+                          <span
+                            className="inline-block w-0 h-0 border-y-[6px] border-y-transparent border-l-[10px] border-l-white shrink-0 animate-start-play-triangle"
+                            style={{ marginLeft: 2 }}
+                            aria-hidden
+                          />
+                          Start
                         </button>
                       )}
                     </div>
@@ -2094,74 +2206,98 @@ function AppContent() {
                               <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                             </div>
                             <div className="text-text font-bold text-base mb-1">No programme yet</div>
-                            <div className="text-muted-strong text-sm mb-4">Create your first programme and add routines to get started.</div>
-                            <button type="button" onClick={createProgramme} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">Create Programme</button>
-                          </div>
-                          <div className="rounded-[14px] p-4 border border-accent/10 bg-gradient-to-br from-accent/5 to-success/5">
-                            <div className="text-sm font-semibold text-text mb-1">Need help?</div>
-                            <div className="text-[11px] text-muted-strong mb-3">Find a programme that fits your goals</div>
-                            <button type="button" disabled className="w-full py-2.5 rounded-lg bg-card-alt text-muted-strong text-sm font-semibold cursor-not-allowed">Coming Soon</button>
+                            <p className="text-muted-strong text-sm mb-4">Create a programme to get structured workouts and track your progress.</p>
+                            <button type="button" onClick={createProgramme} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">+ Create programme</button>
                           </div>
                         </>
                       )
                     }
+                    const manualProgrammes = programmesWithRoutines.filter((p) => !p.isQoreGenerated)
+                    const qoreProgrammes = programmesWithRoutines.filter((p) => p.isQoreGenerated)
+                    const renderProgrammeCard = (prog) => {
+                      const progRoutines = (prog.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
+                      const isActive = prog.isActive
+                      return (
+                        <div
+                          key={prog.id}
+                          className={`rounded-[14px] p-4 mb-4 border ${isActive ? 'border-[1.5px] border-success/20 bg-success/5' : 'border border-border bg-card'}`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-bold tracking-tight text-accent">{prog.name}</span>
+                                {isActive && <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-success/10 text-success animate-up-next-pulse">Active</span>}
+                              </div>
+                              <div className="text-[11px] text-muted-strong mt-0.5">{progRoutines.length} routines</div>
+                            </div>
+                            <button type="button" onClick={() => setProgrammeMenuProgramme(prog)} className="w-8 h-8 rounded-lg bg-white/[0.03] border border-border-subtle flex items-center justify-center shrink-0" aria-label="Programme options">
+                              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-muted-strong"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
+                            </button>
+                          </div>
+                          {!isActive && (
+                            <button
+                              type="button"
+                              onClick={() => setProgrammeActive(prog.id)}
+                              className="w-full mt-2 py-2 rounded-[10px] border border-success/30 bg-success/8 text-success text-[11px] font-bold uppercase tracking-wide hover:bg-success/12 active:opacity-90 transition-colors"
+                            >
+                              Set as active
+                            </button>
+                          )}
+                          <div className={`flex gap-1.5 ${!isActive ? 'mt-2' : ''}`}>
+                            {progRoutines.map((r) => (
+                              <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => {
+                                  setEditProgrammeName(prog.name ?? '')
+                                  setEditRoutineName(r.name)
+                                  setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })))
+                                  setEditingRoutineId(r.id)
+                                  setEditingRoutineProgrammeId(prog.id)
+                                }}
+                                className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border transition-colors ${
+                                  isActive
+                                    ? 'border-[rgba(91,245,160,0.15)] bg-success/5'
+                                    : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
+                                }`}
+                              >
+                                <div className={`text-[11px] font-semibold truncate ${isActive ? 'text-success' : 'text-muted'}`}>{r.name}</div>
+                                <div className="text-[9px] text-muted-deep mt-0.5">{r.exercises?.length ?? 0} ex</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    }
                     return (
                       <>
-                        <h2 className="text-[13px] font-bold text-muted uppercase tracking-wider mb-3">My Programmes</h2>
-                        {programmesWithRoutines.map((prog) => {
-                          const progRoutines = (prog.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
-                          const isActive = prog.isActive
-                          return (
-                            <div
-                              key={prog.id}
-                              className={`rounded-[14px] p-4 mb-4 border ${isActive ? 'border-[1.5px] border-success/20 bg-success/5' : 'border border-border bg-card'}`}
-                            >
-                              <div className="flex items-start justify-between gap-2 mb-1">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-text font-bold text-[17px]">{prog.name}</span>
-                                    {isActive && <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-success/10 text-success animate-up-next-pulse">Active</span>}
-                                  </div>
-                                  <div className="text-[11px] text-muted-strong mt-0.5">{progRoutines.length} routines</div>
-                                </div>
-                                <button type="button" onClick={() => setProgrammeMenuProgramme(prog)} className="w-8 h-8 rounded-lg bg-white/[0.03] border border-border-subtle flex items-center justify-center shrink-0" aria-label="Programme options">
-                                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-muted-strong"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
-                                </button>
-                              </div>
-                              <div className="flex gap-1.5">
-                                {progRoutines.map((r) => (
-                                  <button
-                                    key={r.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setEditProgrammeName(prog.name ?? '')
-                                      setEditRoutineName(r.name)
-                                      setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })))
-                                      setEditingRoutineId(r.id)
-                                      setEditingRoutineProgrammeId(prog.id)
-                                    }}
-                                    className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border transition-colors ${
-                                      isActive
-                                        ? 'border-[rgba(91,245,160,0.15)] bg-success/5'
-                                        : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
-                                    }`}
-                                  >
-                                    <div className={`text-[11px] font-semibold truncate ${isActive ? 'text-success' : 'text-muted'}`}>{r.name}</div>
-                                    <div className="text-[9px] text-muted-deep mt-0.5">{r.exercises?.length ?? 0} ex</div>
-                                  </button>
-                                ))}
-                              </div>
+                        {manualProgrammes.length > 0 && (
+                          <>
+                            <div role="heading" aria-level={2} className="plan-section-title">
+                              My Programmes
                             </div>
-                          )
-                        })}
+                            {manualProgrammes.map(renderProgrammeCard)}
+                          </>
+                        )}
+                        {qoreProgrammes.length > 0 && (
+                          <>
+                            <div
+                              role="heading"
+                              aria-level={2}
+                              className={
+                                manualProgrammes.length > 0
+                                  ? 'plan-section-title plan-section-title--after-block'
+                                  : 'plan-section-title'
+                              }
+                            >
+                              Qore — built for you
+                            </div>
+                            {qoreProgrammes.map(renderProgrammeCard)}
+                          </>
+                        )}
                         <button type="button" onClick={createProgramme} className="w-full py-3 border border-dashed border-accent/30 rounded-xl bg-transparent text-accent text-[13px] font-semibold mb-4">
-                          + Create Programme
+                          + Create programme
                         </button>
-                        <div className="rounded-[14px] p-4 border border-accent/10 bg-gradient-to-br from-accent/5 to-success/5">
-                          <div className="text-sm font-semibold text-text mb-1">Need help?</div>
-                          <div className="text-[11px] text-muted-strong mb-3">Find a programme that fits your goals</div>
-                          <button type="button" disabled className="w-full py-2.5 rounded-lg bg-card-alt text-muted-strong text-sm font-semibold cursor-not-allowed">Coming Soon</button>
-                        </div>
                       </>
                     )
                   })()}
@@ -2178,9 +2314,14 @@ function AppContent() {
                   <div className="w-9 h-1 bg-handle rounded mx-auto mb-3 shrink-0" />
                   <div className="flex items-center justify-between mb-1 shrink-0">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <h1 className="text-xl font-bold tracking-tight truncate">{workoutName || 'Workout'}</h1>
+                      <span className="sr-only">{workoutName || 'Workout'}</span>
+                      <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0 text-success overflow-visible" aria-hidden>
+                        <circle cx="12" cy="12" r="8.5" className="fill-success animate-wo-clock-fill" />
+                        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+                        <polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
                       <div className="flex items-center gap-2 text-sm font-bold tabular-nums shrink-0">
-                        <span className="flex items-center gap-1.5 text-success"><span className="w-1.5 h-1.5 bg-success rounded-full animate-pulse" />{formatTime(workoutElapsed)}</span>
+                        <span className="text-success">{formatTime(workoutElapsed)}</span>
                         {exercises.some(ex => (ex.sets || []).some(s => !s.done)) && (
                           <span className="text-muted">−{formatTime(getEstimatedSecondsRemaining())}</span>
                         )}
@@ -2191,22 +2332,49 @@ function AppContent() {
                       <button type="button" onClick={finishWorkout} className="text-sm font-bold text-on-accent bg-accent px-3 py-1.5 rounded-lg shadow-accent/25">Finish</button>
                     </div>
                   </div>
-                  {activeRest && showStickyRestBar && (
-                    <div className="flex items-center gap-2 mb-1">
-                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3 h-3 stroke-success">
-                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                      </svg>
-                      <div className="flex-1 h-[6px] rounded-full bg-card-alt overflow-hidden">
+                  {activeRest && showStickyRestBar && (() => {
+                    const progress = restDuration > 0 ? Math.max(0, Math.min(1, restTime / restDuration)) : 0
+                    const barWidthPct = progress * 100
+                    const sidePct = (1 - progress) * 50
+                    return (
+                      <div className="mb-1 w-full">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-success to-success"
-                          style={{ width: `${Math.max(0, Math.min(100, (restTime / (restDuration || 1)) * 100))}%` }}
-                        />
+                          data-sticky-rest="1"
+                          className="flex w-full items-center justify-center gap-1.5 py-0.5 rounded-lg relative min-h-0 pointer-events-none overflow-hidden isolate bg-card-alt/45"
+                          style={{ height: '1.2rem' }}
+                        >
+                          <div
+                            className="absolute top-0 bottom-0 left-1/2 z-0 -translate-x-1/2 rounded-sm transition-all duration-300 ease-out bg-gradient-to-r from-accent to-accent-end"
+                            style={{ width: `${barWidthPct}%`, minWidth: 0 }}
+                          />
+                          <div
+                            className="absolute top-0 bottom-0 right-1/2 z-[1] transition-all duration-300 ease-out"
+                            style={{
+                              width: `${sidePct}%`,
+                              backgroundImage: 'radial-gradient(circle, #fff 0.75px, transparent 0.75px)',
+                              backgroundSize: '4px 1.2rem',
+                              backgroundPosition: '100% center',
+                              opacity: 0.7
+                            }}
+                          />
+                          <div
+                            className="absolute top-0 bottom-0 left-1/2 z-[1] transition-all duration-300 ease-out"
+                            style={{
+                              width: `${sidePct}%`,
+                              backgroundImage: 'radial-gradient(circle, #fff 0.75px, transparent 0.75px)',
+                              backgroundSize: '4px 1.2rem',
+                              backgroundPosition: '0 center',
+                              opacity: 0.7
+                            }}
+                          />
+                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-white relative z-10 shrink-0" aria-hidden>
+                            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                          </svg>
+                          <span className="text-white font-bold text-xs tabular-nums relative z-10 min-w-[28px] text-center">{formatTime(restTime)}</span>
+                        </div>
                       </div>
-                      <span className="text-[11px] font-semibold text-success tabular-nums min-w-[32px] text-right">
-                        {formatTime(restTime)}
-                      </span>
-                    </div>
-                  )}
+                    )
+                  })()}
                 </div>
 
                 {editingTemplate && (
@@ -2527,16 +2695,6 @@ function AppContent() {
             <div className="w-full max-w-md bg-card rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="w-9 h-1 bg-handle rounded mx-auto mb-4" />
               <h2 className="text-text text-base font-bold mb-3">{programmeMenuProgramme.name}</h2>
-              <button type="button" onClick={() => setProgrammeActive(programmeMenuProgramme.id)} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
-                <span className="w-9 h-9 rounded-lg bg-[rgba(91,245,160,0.06)] flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-success"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                </span>
-                <div className="text-left flex-1">
-                  <div className="text-text text-sm font-semibold">Set as Active</div>
-                  <div className="text-muted-strong text-[11px] mt-0.5">Use this programme on Start tab</div>
-                </div>
-                <span className="text-[#333] text-base">›</span>
-              </button>
               <button type="button" onClick={() => openEditProgramme(programmeMenuProgramme.id)} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
                 <span className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                   <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-accent"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -2583,7 +2741,7 @@ function AppContent() {
               <p className="text-muted text-sm mb-5">{programmes.find(p => p.id === showDeleteProgrammeConfirm)?.name} and all its routines will be permanently deleted.</p>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShowDeleteProgrammeConfirm(null)} className="flex-1 py-3 border border-border-strong rounded-xl text-muted text-sm font-semibold">Cancel</button>
-                <button type="button" onClick={() => confirmDeleteProgrammeAction(showDeleteProgrammeConfirm)} className="flex-1 py-3 bg-[#FF5555] rounded-xl text-text text-sm font-bold">Delete</button>
+                <button type="button" onClick={() => { void confirmDeleteProgrammeAction(showDeleteProgrammeConfirm) }} className="flex-1 py-3 bg-[#FF5555] rounded-xl text-text text-sm font-bold">Delete</button>
               </div>
             </div>
           </div>
@@ -2631,12 +2789,25 @@ function AppContent() {
           )
         })()}
 
-        {/* Create Programme modal */}
+        {/* Create Programme flow (Choice → Explainer → Qore or Manual) */}
+        {createProgrammeFlowStep && user?.uid && (
+          <CreateProgrammeFlow
+            step={createProgrammeFlowStep}
+            onStepChange={setCreateProgrammeFlowStep}
+            onManual={openManualCreateProgramme}
+            onClose={() => setCreateProgrammeFlowStep(null)}
+            userId={user.uid}
+            allExercises={allLibraryExercises}
+            saveQoreGeneratedProgramme={saveQoreGeneratedProgramme}
+          />
+        )}
+
+        {/* Create Programme modal (manual flow) */}
         {showCreateProgramme && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setShowCreateProgramme(false)}>
             <div className="w-full max-w-md bg-card rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="w-9 h-1 bg-handle rounded mx-auto mb-4" />
-              <h2 className="text-text text-base font-bold mb-3">Create Programme</h2>
+              <h2 className="text-text text-base font-bold mb-3">Create programme</h2>
               <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mt-3 mb-1.5">Name</label>
               <input type="text" value={createProgrammeName} onChange={e => setCreateProgrammeName(e.target.value)} placeholder="e.g. 2 Split - Push/Pull" onFocus={e => e.target.select()} autoFocus={!createProgrammeName.trim()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent" />
               <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mt-3 mb-1.5">Routines</label>
