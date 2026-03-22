@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAuth } from './AuthContext'
 import {
   auth,
@@ -8,6 +8,44 @@ import {
   deleteAuthUser,
 } from './auth'
 import { deleteUserData, clearAllUserContent } from './deleteUserData'
+import {
+  PLAN_LIMITS,
+  defaultPlanUsage,
+  countCoachProgrammes,
+  countProgressPhotoSlots,
+} from './planUsage'
+
+function UsageMeter({ label, used, cap, unlimited, extraText, hint }) {
+  const capNum = unlimited ? null : cap
+  const pct = capNum != null && capNum > 0 ? Math.min(100, (used / capNum) * 100) : null
+  return (
+    <div className="space-y-1.5">
+      <div className="flex justify-between items-baseline gap-2">
+        <span className="text-xs text-text/85 font-medium leading-snug">{label}</span>
+        <span className="text-xs font-bold text-text tabular-nums shrink-0 text-right">
+          {unlimited ? (
+            <>
+              {used}
+              {extraText ? ` ${extraText}` : ''} · Unlimited
+            </>
+          ) : capNum != null ? (
+            <>
+              {used} / {capNum}
+            </>
+          ) : (
+            <>{used} this month</>
+          )}
+        </span>
+      </div>
+      {pct != null && (
+        <div className="h-1.5 rounded-full bg-card-alt overflow-hidden">
+          <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+        </div>
+      )}
+      {hint ? <p className="text-[10px] text-muted-mid leading-snug">{hint}</p> : null}
+    </div>
+  )
+}
 
 function getInitials(displayName) {
   if (!displayName || typeof displayName !== 'string') return '?'
@@ -24,7 +62,272 @@ function isEmailProvider(user) {
   return user?.providerData?.some((p) => p?.providerId === 'password') ?? false
 }
 
-export default function AccountTab() {
+/** Scroll expanded account section into view (fixed Profile header ~6rem + tabs). */
+function useScrollIntoViewWhen(open, ref) {
+  useEffect(() => {
+    if (!open) return
+    const id = window.requestAnimationFrame(() => {
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [open, ref])
+}
+
+// TODO: Replace with numeric App Store ID when the iOS app is published
+const APP_STORE_APP_ID = 'YOUR_APP_ID'
+
+export function AboutTab({ setShowPrivacy, setShowTerms }) {
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackText, setFeedbackText] = useState('')
+
+  const openRateRepliqe = () => {
+    if (!APP_STORE_APP_ID || APP_STORE_APP_ID === 'YOUR_APP_ID') {
+      console.warn('[REPLIQE] Set APP_STORE_APP_ID in AccountTab.jsx when the App Store listing is live.')
+      window.open('https://apps.apple.com/', '_blank', 'noopener,noreferrer')
+      return
+    }
+    const httpsUrl = `https://apps.apple.com/app/id${APP_STORE_APP_ID}`
+    window.open(`itms-apps://itunes.apple.com/app/id${APP_STORE_APP_ID}`, '_blank', 'noopener,noreferrer')
+    window.setTimeout(() => {
+      window.open(httpsUrl, '_blank', 'noopener,noreferrer')
+    }, 400)
+  }
+
+  const shareRepliqe = async () => {
+    const payload = {
+      title: 'REPLIQE',
+      text: 'Check out REPLIQE — simple fitness tracking with AI coaching.',
+      url: 'https://repliqe.com',
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share(payload)
+      } else {
+        window.open(
+          `mailto:?subject=${encodeURIComponent('Check out REPLIQE')}&body=${encodeURIComponent('https://repliqe.com')}`,
+          '_blank',
+          'noopener,noreferrer'
+        )
+      }
+    } catch {
+      /* user cancelled share sheet */
+    }
+  }
+
+  return (
+    <div className="mt-1 space-y-4">
+      {/* App info */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <div className="text-sm text-muted-mid">
+          <div className="mb-1 font-semibold text-text">REPLIQE v1.7</div>
+          <div>Simple tracking. Real progress.</div>
+        </div>
+      </div>
+
+      {/* Support & feedback */}
+      <div>
+        <div className="text-[10px] font-bold text-muted-strong uppercase tracking-wider px-1 mb-2">Support & feedback</div>
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() =>
+              window.open('mailto:hello@repliqe.com', '_blank', 'noopener,noreferrer')
+            }
+            className="w-full flex items-center justify-between px-4 py-3.5 border-b border-border text-left hover:bg-white/[0.03] transition-colors"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0 text-blue-400">
+                <EnvelopeIcon />
+              </span>
+              <div className="min-w-0">
+                <div className="text-text font-semibold text-sm">Contact us</div>
+                <div className="text-muted-mid text-xs mt-0.5 truncate">hello@repliqe.com</div>
+              </div>
+            </div>
+            <AboutChevronRight />
+          </button>
+          <button
+            type="button"
+            onClick={openRateRepliqe}
+            className="w-full flex items-center justify-between px-4 py-3.5 border-b border-border text-left hover:bg-white/[0.03] transition-colors"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0 text-amber-400">
+                <StarIcon />
+              </span>
+              <div className="min-w-0">
+                <div className="text-text font-semibold text-sm">Rate REPLIQE</div>
+                <div className="text-muted-mid text-xs mt-0.5">Enjoying the app? Let us know</div>
+              </div>
+            </div>
+            <AboutChevronRight />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowFeedback(true)}
+            className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center shrink-0 text-accent">
+                <ChatBubbleIcon />
+              </span>
+              <div className="min-w-0">
+                <div className="text-text font-semibold text-sm">Send feedback</div>
+                <div className="text-muted-mid text-xs mt-0.5">Help us improve REPLIQE</div>
+              </div>
+            </div>
+            <AboutChevronRight />
+          </button>
+        </div>
+      </div>
+
+      {/* Community */}
+      <div>
+        <div className="text-[10px] font-bold text-muted-strong uppercase tracking-wider px-1 mb-2">Community</div>
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() =>
+              window.open('https://instagram.com/repliqeapp', '_blank', 'noopener,noreferrer')
+            }
+            className="w-full flex items-center justify-between px-4 py-3.5 border-b border-border text-left hover:bg-white/[0.03] transition-colors"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-8 h-8 rounded-lg bg-pink-500/15 flex items-center justify-center shrink-0 text-pink-400">
+                <InstagramIcon />
+              </span>
+              <div className="min-w-0">
+                <div className="text-text font-semibold text-sm">Follow on Instagram</div>
+                <div className="text-muted-mid text-xs mt-0.5">@repliqeapp</div>
+              </div>
+            </div>
+            <AboutChevronRight />
+          </button>
+          <button
+            type="button"
+            onClick={() => void shareRepliqe()}
+            className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-8 h-8 rounded-lg bg-success/15 flex items-center justify-center shrink-0 text-success">
+                <ShareIcon />
+              </span>
+              <div className="min-w-0">
+                <div className="text-text font-semibold text-sm">Share REPLIQE</div>
+                <div className="text-muted-mid text-xs mt-0.5">Tell a friend about the app</div>
+              </div>
+            </div>
+            <AboutChevronRight />
+          </button>
+        </div>
+      </div>
+
+      {/* Legal */}
+      <div>
+        <div className="text-[10px] font-bold text-muted-strong uppercase tracking-wider px-1 mb-2">Legal</div>
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowPrivacy?.(true)}
+            className="w-full flex items-center justify-between px-4 py-3.5 border-b border-border text-left hover:bg-white/[0.03] transition-colors"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-8 h-8 rounded-lg bg-card-alt flex items-center justify-center shrink-0 text-muted-strong">
+                <DocumentIcon />
+              </span>
+              <div className="min-w-0">
+                <div className="text-text font-semibold text-sm">Privacy Policy</div>
+              </div>
+            </div>
+            <AboutChevronRight />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowTerms?.(true)}
+            className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-8 h-8 rounded-lg bg-card-alt flex items-center justify-center shrink-0 text-muted-strong">
+                <DocumentIcon />
+              </span>
+              <div className="min-w-0">
+                <div className="text-text font-semibold text-sm">Terms of Service</div>
+              </div>
+            </div>
+            <AboutChevronRight />
+          </button>
+        </div>
+      </div>
+
+      {showFeedback && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center"
+          onClick={() => setShowFeedback(false)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md bg-card rounded-t-3xl p-5 pb-8 border-t border-border shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="feedback-sheet-title"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 id="feedback-sheet-title" className="text-base font-bold text-text">
+                Send feedback
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowFeedback(false)}
+                className="text-muted-mid text-sm font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+            <p className="text-sm text-muted-strong mb-3">
+              What&apos;s on your mind? We read every message.
+            </p>
+            <textarea
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="Your feedback..."
+              rows={4}
+              className="w-full bg-card-alt border-[1.5px] border-border-strong rounded-xl px-4 py-3 text-sm text-text placeholder:text-muted-deep outline-none focus:border-accent transition-colors resize-none mb-4"
+            />
+            <button
+              type="button"
+              disabled={!feedbackText.trim()}
+              onClick={() => {
+                window.open(
+                  `mailto:hello@repliqe.com?subject=${encodeURIComponent('REPLIQE Feedback')}&body=${encodeURIComponent(feedbackText)}`,
+                  '_blank',
+                  'noopener,noreferrer'
+                )
+                setFeedbackText('')
+                setShowFeedback(false)
+              }}
+              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent disabled:opacity-40 disabled:pointer-events-none"
+            >
+              Send feedback
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function AccountTab({
+  userPlan = 'free',
+  setShowPricing,
+  planUsage: planUsageProp,
+  programmes = [],
+  photoSessions = [],
+}) {
+  const planUsage = planUsageProp ?? defaultPlanUsage()
+  const limits = PLAN_LIMITS[userPlan]
+  const coachProgrammeTotal = countCoachProgrammes(programmes)
+  const progressPhotosStored = countProgressPhotoSlots(photoSessions)
   const { user, signOut } = useAuth()
   const displayName = user?.displayName ?? ''
   const email = user?.email ?? ''
@@ -41,6 +344,14 @@ export default function AccountTab() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const changePasswordAnchorRef = useRef(null)
+  const resetConfirmAnchorRef = useRef(null)
+  const deleteConfirmAnchorRef = useRef(null)
+
+  useScrollIntoViewWhen(showChangePassword, changePasswordAnchorRef)
+  useScrollIntoViewWhen(showResetConfirm, resetConfirmAnchorRef)
+  useScrollIntoViewWhen(showDeleteConfirm, deleteConfirmAnchorRef)
 
   const handleLogOut = async () => {
     setError('')
@@ -146,6 +457,137 @@ export default function AccountTab() {
         </div>
       </div>
 
+      {/* Subscription / upgrade */}
+      <div>
+        <div className="text-[10px] font-bold text-muted-strong uppercase tracking-wider px-1 mb-2">Subscription</div>
+        <div className="bg-card border border-border rounded-2xl p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider mb-1">Current plan</p>
+              <p className="text-lg font-bold text-text tracking-tight">
+                {userPlan === 'free' && 'Free'}
+                {userPlan === 'pro' && 'Pro'}
+                {userPlan === 'elite' && 'Elite'}
+              </p>
+              <p className="text-xs text-muted-mid mt-0.5">
+                {userPlan === 'free' &&
+                  'Full tracking, one AI-generated programme, and up to 12 progress photos.'}
+                {userPlan === 'pro' &&
+                  'Higher monthly limits for AI programmes, REPLIQE Coach, and progress photos.'}
+                {userPlan === 'elite' &&
+                  'Top-tier limits for AI programmes and Coach; unlimited progress photo storage.'}
+              </p>
+            </div>
+            <span
+              className={`shrink-0 text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-lg border ${
+                userPlan === 'free'
+                  ? 'border-border-strong text-muted-strong bg-card-alt'
+                  : userPlan === 'pro'
+                    ? 'border-accent/50 text-accent bg-accent/10'
+                    : 'border-success/50 text-success bg-success/10'
+              }`}
+            >
+              {userPlan === 'free' ? 'Free' : userPlan === 'pro' ? 'Pro' : 'Elite'}
+            </span>
+          </div>
+
+          <div className="border-t border-border pt-4 space-y-4">
+            <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider">Plan usage</p>
+            <p className="text-[10px] text-muted-mid -mt-2 mb-1">
+              Monthly counters reset on the 1st of each month (UTC), except lifetime Free limits below.
+            </p>
+
+            {userPlan === 'free' && (
+              <UsageMeter
+                label="AI programmes (Coach)"
+                used={coachProgrammeTotal}
+                cap={limits.aiProgrammes ?? 1}
+                hint="Lifetime limit on Free — upgrade for more AI programmes."
+              />
+            )}
+            {(userPlan === 'pro' || userPlan === 'elite') && (
+              <UsageMeter
+                label="AI programmes saved (this month)"
+                used={planUsage.coachProgrammesSaved}
+                cap={limits.aiProgrammes ?? 0}
+                hint="Each time you save a programme built with REPLIQE Coach."
+              />
+            )}
+
+            {limits.coachMessages != null ? (
+              <UsageMeter
+                label="REPLIQE Coach generations (this month)"
+                used={planUsage.coachGenerations}
+                cap={limits.coachMessages}
+                hint="Each successful Coach build counts as one generation."
+              />
+            ) : (
+              <UsageMeter
+                label="REPLIQE Coach generations (this month)"
+                used={planUsage.coachGenerations}
+                cap={null}
+                unlimited={false}
+                hint="No separate message cap on Free; AI programmes are limited as above."
+              />
+            )}
+
+            {userPlan === 'free' && (
+              <UsageMeter
+                label="Progress photos (total stored)"
+                used={progressPhotosStored}
+                cap={limits.photos ?? 12}
+                hint="Total photo slots across all sessions."
+              />
+            )}
+            {userPlan === 'pro' && (
+              <UsageMeter
+                label="Progress photos added (this month)"
+                used={planUsage.progressPhotosThisPeriod}
+                cap={limits.photos ?? 50}
+                hint="New photo slots you add this month; stored photos stay in your library."
+              />
+            )}
+            {userPlan === 'elite' && (
+              <UsageMeter
+                label="Progress photos added (this month)"
+                used={planUsage.progressPhotosThisPeriod}
+                unlimited
+                extraText="new"
+                hint={`${progressPhotosStored} photos stored in total — no storage cap on Elite.`}
+              />
+            )}
+          </div>
+
+          {userPlan === 'free' && (
+            <button
+              type="button"
+              onClick={() => setShowPricing?.(true)}
+              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25"
+            >
+              Upgrade to Pro
+            </button>
+          )}
+          {userPlan === 'pro' && (
+            <button
+              type="button"
+              onClick={() => setShowPricing?.(true)}
+              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-success text-on-success shadow-lg"
+            >
+              Upgrade to Elite
+            </button>
+          )}
+          {userPlan === 'elite' && (
+            <button
+              type="button"
+              disabled
+              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-success/20 text-success border border-success/40 opacity-90 cursor-not-allowed"
+            >
+              Elite plan active
+            </button>
+          )}
+        </div>
+      </div>
+
       {success && (
         <div className="bg-success/15 border border-success/30 text-success text-sm rounded-xl px-4 py-3">
           {success}
@@ -184,7 +626,10 @@ export default function AccountTab() {
                 <span className="text-muted-strong text-lg">{showChangePassword ? '−' : '+'}</span>
               </button>
               {showChangePassword && (
-                <div className="p-4 border-t border-border flex flex-col gap-3">
+                <div
+                  ref={changePasswordAnchorRef}
+                  className="p-4 border-t border-border flex flex-col gap-3 scroll-mt-36"
+                >
                   <input
                     type="password"
                     placeholder="Current password"
@@ -262,7 +707,10 @@ export default function AccountTab() {
           </button>
 
           {showResetConfirm && (
-            <div className="p-4 border-t border-border flex flex-col gap-3">
+            <div
+              ref={resetConfirmAnchorRef}
+              className="p-4 border-t border-border flex flex-col gap-3 scroll-mt-36"
+            >
               <div className="text-muted-strong text-xs bg-card-alt rounded-xl p-3">
                 This will delete all your programmes, workout history, photos, weight and body logs. You stay logged in and can start fresh as a new user. This cannot be undone.
               </div>
@@ -303,7 +751,10 @@ export default function AccountTab() {
           </button>
 
           {showDeleteConfirm && (
-            <div className="p-4 border-t border-border flex flex-col gap-3">
+            <div
+              ref={deleteConfirmAnchorRef}
+              className="p-4 border-t border-border flex flex-col gap-3 scroll-mt-36"
+            >
               <div className="text-red-400/90 text-xs bg-red-500/10 rounded-xl p-3">
                 This will permanently delete your account and all your data. This cannot be undone.
               </div>
@@ -387,6 +838,72 @@ function TrashIcon() {
       <path d="M13 4l-.867 9.143A1 1 0 0 1 11.138 14H4.862a1 1 0 0 1-.995-.857L3 4" />
       <line x1="6" y1="7" x2="6" y2="11" />
       <line x1="10" y1="7" x2="10" y2="11" />
+    </svg>
+  )
+}
+
+function AboutChevronRight() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-muted-strong shrink-0">
+      <polyline points="5,3 9,7 5,11" />
+    </svg>
+  )
+}
+
+function EnvelopeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+    </svg>
+  )
+}
+
+function StarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  )
+}
+
+function ChatBubbleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
+function InstagramIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
+  )
+}
+
+function ShareIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  )
+}
+
+function DocumentIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
     </svg>
   )
 }

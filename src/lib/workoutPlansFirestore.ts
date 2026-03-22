@@ -56,6 +56,9 @@ function programmesAndRoutinesToPlans(programmes, routines) {
             qoreLevel: prog.qoreLevel ?? null,
             qoreEquipment: prog.qoreEquipment ?? null,
             qoreDaysPerWeek: prog.qoreDaysPerWeek ?? null,
+            qoreSessionLength: prog.qoreSessionLength ?? null,
+            qoreFocusTags: Array.isArray(prog.qoreFocusTags) ? prog.qoreFocusTags : null,
+            qoreFocusNotes: prog.qoreFocusNotes ?? null,
             qoreCreatedAt: prog.qoreCreatedAt ?? null,
           }
         : {}),
@@ -84,6 +87,9 @@ function plansToProgrammesAndRoutines(plans) {
             qoreLevel: p.qoreLevel ?? null,
             qoreEquipment: p.qoreEquipment ?? null,
             qoreDaysPerWeek: p.qoreDaysPerWeek ?? null,
+            qoreSessionLength: p.qoreSessionLength ?? null,
+            qoreFocusTags: Array.isArray(p.qoreFocusTags) ? p.qoreFocusTags : null,
+            qoreFocusNotes: p.qoreFocusNotes ?? null,
             qoreCreatedAt: p.qoreCreatedAt ?? null,
           }
         : {}),
@@ -140,7 +146,7 @@ export async function saveWorkoutPlans(uid, programmes, routines) {
     const isNew = !existingIds.has(plan.id)
     batch.set(ref, { ...rest, days, ...(isNew ? { createdAt: serverTimestamp() } : {}) }, { merge: true })
   }
-  // Remove Firestore docs for programmes no longer in state (manual + Qore deletes must persist)
+  // Remove Firestore docs for programmes no longer in state (manual + REPLIQE Coach deletes must persist)
   for (const d of existing.docs) {
     if (!currentIds.has(d.id)) {
       batch.delete(d.ref)

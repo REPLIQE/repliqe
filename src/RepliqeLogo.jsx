@@ -1,6 +1,6 @@
-export default function RepliqeLogo({ size = 28 }) {
+export default function RepliqeLogo({ size = 28, className = '' }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className="shrink-0">
+    <svg width={size} height={size} viewBox="0 0 100 100" className={['shrink-0', className].filter(Boolean).join(' ')}>
       <rect x="8" y="5" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.9" />
       <rect x="54" y="5" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.9" />
       <rect x="8" y="37" width="38" height="26" rx="8" fill="#7B7BFF" opacity="0.7" />

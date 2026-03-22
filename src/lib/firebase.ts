@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getAnalytics } from 'firebase/analytics'
+import { getFunctions } from 'firebase/functions'
 
 const firebaseConfig = {
   apiKey: 'AIzaSyAEfBbBNArqTnPDk_rG35xcHyohh94SKwc',
@@ -21,3 +22,5 @@ export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
 export const analytics = getAnalytics(app)
+/** Must match Cloud Functions region for `generateCoachProgrammeCallable`. */
+export const functions = getFunctions(app, 'europe-west1')

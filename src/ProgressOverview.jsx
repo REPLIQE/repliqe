@@ -9,10 +9,9 @@ import { loadPhotoSrc } from './PhotosModal'
 import ProgressPhoto from './ProgressPhoto'
 import { TransformCard } from './TransformCard'
 import { useAuth } from './lib/AuthContext'
+import { defaultPlanUsage, photoAtLimit, countProgressPhotoSlots } from './lib/planUsage'
 
 const PHOTO_ANGLES = [{ key: 'front', label: 'Front' }, { key: 'back', label: 'Back' }, { key: 'side', label: 'Side' }]
-
-const TOTAL_FREE_PHOTOS = 12
 
 const RATING_LABELS = ['Terrible', 'Low', 'OK', 'Good', 'Great']
 function getRatingLabel(rating) {
@@ -171,7 +170,11 @@ export default function ProgressOverview({
   onGoToTab,
   onGoToBody,
   allLibraryExercises = [],
+  userPlan = 'free',
+  planUsage: planUsageProp,
+  onProgressPhotoAdded,
 }) {
+  const planUsage = planUsageProp ?? defaultPlanUsage()
   const fmtDate = formatDateForDisplay ?? ((d) => d ?? '')
   const fmt = formatDecimal ?? ((n) => (n != null ? String(n) : '—'))
   const toNum = (v) => { const n = parseDecimal ? parseDecimal(v) : parseFloat(String(v).replace(',', '.')); return Number.isNaN(n) ? 0 : n }
@@ -184,6 +187,11 @@ export default function ProgressOverview({
   const safeBodyFatLog = Array.isArray(bodyFatLog) ? bodyFatLog : []
   const safeMuscleMassLog = Array.isArray(muscleMassLog) ? muscleMassLog : []
   const safePhotoSessions = Array.isArray(photoSessions) ? photoSessions : []
+  const overviewPhotoTotal = countProgressPhotoSlots(safePhotoSessions)
+  const overviewPhotoAtLimit = photoAtLimit(userPlan, overviewPhotoTotal, planUsage)
+  const overviewPhotoBarUsed =
+    userPlan === 'pro' || userPlan === 'elite' ? planUsage.progressPhotosThisPeriod : overviewPhotoTotal
+  const overviewPhotoBarCap = userPlan === 'elite' ? null : userPlan === 'pro' ? 50 : 12
   const sortedPhotoSessions = sortPhotoSessionsByDate(safePhotoSessions)
   const safeMuscleLastWorked = muscleLastWorked && typeof muscleLastWorked === 'object' ? muscleLastWorked : {}
 
@@ -528,12 +536,15 @@ export default function ProgressOverview({
         <PhotosModal
           photoSessions={safePhotoSessions}
           setPhotoSessions={setPhotoSessions}
-          totalPhotos={safePhotoSessions.reduce((sum, s) => sum + [s.front, s.back, s.side].filter(Boolean).length, 0)}
-          atLimit={safePhotoSessions.reduce((sum, s) => sum + [s.front, s.back, s.side].filter(Boolean).length, 0) >= TOTAL_FREE_PHOTOS}
+          totalPhotos={overviewPhotoTotal}
+          atLimit={overviewPhotoAtLimit}
+          progressPhotoBarUsed={overviewPhotoBarUsed}
+          progressPhotoBarCap={overviewPhotoBarCap}
           onClose={() => setShowPhotos(false)}
           weightLog={safeWeightLog}
           muscleMassLog={safeMuscleMassLog}
           unitWeight={unitWeight ?? 'kg'}
+          onProgressPhotoAdded={onProgressPhotoAdded}
         />
       )}
     </div>

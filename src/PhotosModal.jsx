@@ -5,7 +5,6 @@ import ProgressPhotoEditor from './ProgressPhotoEditor'
 import { useAuth } from './lib/AuthContext'
 import { uploadProgressPhoto, getProgressPhotoUrl } from './lib/photoStorage'
 
-const TOTAL_FREE_PHOTOS = 12
 const ANGLES = [
   { key: 'front', label: 'Front' },
   { key: 'back', label: 'Back' },
@@ -183,6 +182,12 @@ export default function PhotosModal({
   formatDateForDisplay,
   openToAdd = false,
   onPhotoSessionCreated,
+  /** Called when a new progress photo slot is filled (counts toward plan quota). */
+  onProgressPhotoAdded,
+  /** Progress bar: used count (total slots on Free, this month on Pro/Elite). */
+  progressPhotoBarUsed,
+  /** Max for bar; null = unlimited (Elite). */
+  progressPhotoBarCap,
 }) {
   const { user } = useAuth()
   const uid = user?.uid ?? null
@@ -198,6 +203,8 @@ export default function PhotosModal({
 
   const canAddPhotos = typeof setPhotoSessions === 'function'
   const isNative = isNativePlatform()
+  const barUsed = progressPhotoBarUsed ?? totalPhotos
+  const barCap = progressPhotoBarCap !== undefined ? progressPhotoBarCap : 12
 
   useEffect(() => {
     initialPhotoSessionsRef.current = JSON.stringify(photoSessions)
@@ -272,6 +279,8 @@ export default function PhotosModal({
       normalized = base64.replace(/^data:image\/\w+;base64,/, '') || base64
     }
     const sessionId = capturedImages._sessionId ?? `ps_${Date.now()}`
+    const existingSession = (photoSessions || []).find((s) => s.id === sessionId)
+    const isNewPhotoSlot = !existingSession?.[angle.key] && !capturedImages[angle.key]
     const filename = `${sessionId}_${angle.key}.jpg`
     try {
       await savePhoto(normalized, filename, uid)
@@ -300,6 +309,7 @@ export default function PhotosModal({
         return [...without, partial]
       })
     }
+    if (isNewPhotoSlot) onProgressPhotoAdded?.()
   }
 
   async function handleCaptureAngle(source) {
@@ -605,6 +615,8 @@ export default function PhotosModal({
           setPhotoSessions={setPhotoSessions}
           totalPhotos={totalPhotos}
           atLimit={atLimit}
+          progressPhotoBarUsed={barUsed}
+          progressPhotoBarCap={barCap}
           weightLog={weightLog}
           muscleMassLog={muscleMassLog}
           unitWeight={unitWeight}
@@ -630,6 +642,8 @@ export function PhotosViewContent({
   setPhotoSessions,
   totalPhotos: totalPhotosProp = 0,
   atLimit = false,
+  progressPhotoBarUsed: progressPhotoBarUsedProp,
+  progressPhotoBarCap: progressPhotoBarCapProp,
   weightLog = [],
   muscleMassLog = [],
   unitWeight = 'kg',
@@ -672,6 +686,9 @@ export function PhotosViewContent({
   const totalPhotos =
     totalPhotosProp ||
     (Array.isArray(photoSessions) ? photoSessions.reduce((s, sess) => s + [sess?.front, sess?.back, sess?.side].filter(Boolean).length, 0) : 0)
+  const barUsed = progressPhotoBarUsedProp ?? totalPhotos
+  const barCap = progressPhotoBarCapProp !== undefined ? progressPhotoBarCapProp : 12
+  const barPct = barCap != null && barCap > 0 ? Math.min(100, (barUsed / barCap) * 100) : 100
 
   useEffect(() => {
     if (!Array.isArray(photoSessions) || !uid) return
@@ -758,7 +775,10 @@ export function PhotosViewContent({
           <button
             onClick={() => {
               if (atLimit) {
-                if (typeof alert !== 'undefined') alert(`You've reached the ${TOTAL_FREE_PHOTOS} photo limit. Delete a session to add more, or unlock unlimited storage.`)
+                if (typeof alert !== 'undefined')
+                  alert(
+                    "You've reached your progress photo limit for your current plan. Delete older photos or upgrade under Profile → Account."
+                  )
                 return
               }
               onOpenAddPhotos?.()
@@ -769,15 +789,10 @@ export function PhotosViewContent({
           </button>
           <div className="flex items-center gap-3 bg-card border border-border rounded-[12px] p-[11px_14px]">
             <span className="text-[10px] text-muted font-semibold whitespace-nowrap">
-              {totalPhotos} / {TOTAL_FREE_PHOTOS}
+              {barUsed} / {barCap == null ? '∞' : barCap}
             </span>
             <div className="flex-1 h-[3px] bg-card-alt rounded-full overflow-hidden">
-              <div
-                className="h-full bg-accent rounded-full"
-                style={{
-                  width: `${Math.min(100, (totalPhotos / TOTAL_FREE_PHOTOS) * 100)}%`,
-                }}
-              />
+              <div className="h-full bg-accent rounded-full" style={{ width: `${barPct}%` }} />
             </div>
             {atLimit && (
               <button

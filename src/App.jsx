@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Component } from 'react'
+import { useState, useEffect, useRef, Component, lazy, Suspense } from 'react'
 import ExerciseCard from './ExerciseCard'
 import ExerciseLibrary from './ExerciseLibraryUI'
 import CreateExerciseModal from './CreateExerciseModal'
@@ -12,16 +12,34 @@ import { getDayMuscles, getDayMusclesSlugs, formatDecimal as formatDecimalUtil, 
 import { formatStoredDateForDisplay, DATE_FORMAT_DDMY, DATE_FORMAT_MMDY } from './dateFormatUtils'
 import { useAuth } from './lib/AuthContext'
 import LoginScreen from './lib/LoginScreen'
-import AccountTab from './lib/AccountTab'
+import AccountTab, { AboutTab } from './lib/AccountTab'
+import { PrivacyPolicy, TermsOfService } from './lib/LegalPages'
 import { fetchWorkoutPlans, saveWorkoutPlans, deleteWorkoutPlan } from './lib/workoutPlansFirestore'
 import { addWorkoutSession, fetchWorkoutSessions, fetchWorkoutSessionsFromServer, updateWorkoutSessionRating, updateWorkoutSessionPhotoSessions } from './lib/workoutSessionsFirestore'
-import { getUserDoc, mergeUserSettings, DEFAULT_SETTINGS } from './lib/userFirestore'
+import { getUserDoc, mergeUserSettings, DEFAULT_SETTINGS, normalizeUserPlan, USER_PLAN_STORAGE_KEY } from './lib/userFirestore'
 import { fetchAppData, updateAppData } from './lib/appDataFirestore'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
 import RecoverySection from './RecoverySection'
 import RepliqeLogo from './RepliqeLogo'
-import ProgressScreen from './ProgressScreen'
-import CreateProgrammeFlow from './CreateProgrammeFlow'
+const ProgressScreen = lazy(() => import('./ProgressScreen'))
+const CoachScreen = lazy(() => import('./CoachScreen'))
+const CreateProgrammeFlow = lazy(() => import('./CreateProgrammeFlow'))
+
+function LazyFallback({ label = 'Loading…' }) {
+  return (
+    <div className="py-16 px-4 text-center text-sm text-muted-strong" aria-busy="true">
+      {label}
+    </div>
+  )
+}
+import PricingSheet from './PricingSheet'
+import {
+  defaultPlanUsage,
+  incrementPlanUsage,
+  mergePlanUsage,
+  syncPlanUsagePeriod,
+} from './lib/planUsage'
+import { invokeCoachGenerate } from './lib/invokeCoachGenerate'
 
 class ProgressErrorBoundary extends Component {
   state = { error: null }
@@ -149,12 +167,139 @@ function relativeTime(dateStr) {
   return dateStr
 }
 
+/** Resolve plan from Firestore user doc or localStorage fallback (mock / offline). */
+function planFromUserData(userData) {
+  const raw =
+    userData?.plan !== undefined && userData?.plan !== null
+      ? userData.plan
+      : (typeof localStorage !== 'undefined' ? localStorage.getItem(USER_PLAN_STORAGE_KEY) : null)
+  return normalizeUserPlan(raw)
+}
+
+function parseHistorySessionDateForCoachTip(w) {
+  const parts = (w?.date || '').split('/')
+  if (parts.length !== 3) return 0
+  return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0])).getTime()
+}
+
+function buildProgrammeSummaryForCoachTip(activeProgramme, routines) {
+  if (!activeProgramme?.routineIds?.length) return null
+  const rList = Array.isArray(routines) ? routines : []
+  return {
+    programmeName: activeProgramme.name,
+    programmeType: activeProgramme.type,
+    days: activeProgramme.routineIds.map((rid) => {
+      const r = rList.find((x) => x.id === rid)
+      return {
+        dayName: r?.name || String(rid),
+        exerciseNames: (r?.exercises || []).slice(0, 14).map((ex) => ex.name || ex.exerciseId).filter(Boolean),
+      }
+    }),
+  }
+}
+
+/** Completed workouts saved to Firestore (excludes demo seed history). Used for Free rest-timer Coach tip. */
+function historySessionsForCoachTip(history) {
+  return (history || []).filter((w) => w.sessionId && !w._demoSeed)
+}
+
+/**
+ * First workouts + active programme layout + today’s session for Free rest-timer tip (programme-first).
+ */
+function buildRestCoachTipContext(history, activeProgramme, routines, workoutName, todaysExercises) {
+  const sessions = historySessionsForCoachTip(history)
+  if (!Array.isArray(sessions) || sessions.length === 0) return null
+  const sortedAsc = [...sessions].sort((a, b) => parseHistorySessionDateForCoachTip(a) - parseHistorySessionDateForCoachTip(b))
+  const firstWorkouts = sortedAsc.slice(0, 6).map((s) => ({
+    date: s.date,
+    name: s.name,
+    templateName: s.templateName,
+    routineId: s.routineId,
+    exerciseNames: (s.exercises || []).slice(0, 12).map((e) => e.name || e.exerciseId).filter(Boolean),
+    exerciseSummaries: (s.exercises || []).slice(0, 8).map((e) => ({
+      name: e.name || e.exerciseId,
+      setCount: Array.isArray(e.sets) ? e.sets.length : 0,
+      lastLoad:
+        Array.isArray(e.sets) && e.sets.length
+          ? e.sets[e.sets.length - 1]?.kg ?? e.sets[e.sets.length - 1]?.reps
+          : undefined,
+    })),
+  }))
+  const programme = buildProgrammeSummaryForCoachTip(activeProgramme, routines)
+  const todaysSession = {
+    workoutName: workoutName || null,
+    exerciseNames: (todaysExercises || []).map((e) => e.name || e.exerciseId).filter(Boolean),
+  }
+  return {
+    programme,
+    firstWorkouts,
+    todaysSession,
+  }
+}
+
 function parseTimeToSeconds(t) {
   if (!t) return 0
   const str = String(t).trim()
   if (str.includes(':')) { const [m, s] = str.split(':'); return (parseInt(m, 10) || 0) * 60 + (parseInt(s, 10) || 0) }
   const n = parseInt(str, 10) || 0
   return n * 60
+}
+
+/** Only fields that belong on a saved template — never copy workout/rest-timer UI keys onto routines. */
+function sanitizeTemplateSetForType(s, type) {
+  const t = type || 'weight_reps'
+  let base
+  switch (t) {
+    case 'bw_reps':
+      base = { kg: s.kg ?? '', reps: s.reps ?? '', bwSign: s.bwSign ?? '+' }
+      break
+    case 'reps_only':
+      base = { reps: s.reps ?? '' }
+      break
+    case 'time_only':
+      base = { time: s.time ?? '' }
+      break
+    case 'distance_time':
+      base = { distance: s.distance ?? '', time: s.time ?? '' }
+      break
+    default:
+      base = { kg: s.kg ?? '', reps: s.reps ?? '' }
+  }
+  if (s.rir != null && s.rir !== '') base.rir = s.rir
+  return base
+}
+
+/** Whitelist in-progress workout exercises for Firestore currentWorkout (no stray coach/UI fields). */
+function sanitizeExerciseForCurrentWorkoutPersist(ex) {
+  if (!ex || typeof ex !== 'object') return ex
+  const sets = Array.isArray(ex.sets)
+    ? ex.sets.map((s) => {
+        if (!s || typeof s !== 'object') return s
+        const o = {}
+        for (const k of [
+          'kg', 'reps', 'time', 'distance', 'bwSign', 'done', 'restTime', 'rir',
+          'initialKg', 'initialReps', 'initialTime', 'initialDistance', 'initialBwSign',
+        ]) {
+          if (k in s) o[k] = s[k]
+        }
+        return o
+      })
+    : ex.sets
+  const out = {
+    name: ex.name,
+    type: ex.type || 'weight_reps',
+    sets,
+    restOverride: ex.restOverride !== undefined ? ex.restOverride : null,
+    rirOverride: ex.rirOverride ?? null,
+    note: ex.note ?? '',
+    muscle: ex.muscle,
+    equipment: ex.equipment,
+    movement: ex.movement,
+    supersetGroupId: ex.supersetGroupId ?? null,
+    supersetRole: ex.supersetRole ?? null,
+  }
+  if (ex.id) out.id = ex.id
+  return out
 }
 
 function App() {
@@ -182,46 +327,6 @@ function AppContent() {
   const [workoutElapsed, setWorkoutElapsed] = useState(0)
   const [exercises, setExercises] = useState([])
   const [history, setHistory] = useState([])
-
-  /** Generer træningsdata for sidste 30 dage: 4 træninger/uge baseret på aktive program. */
-  function getSeedHistory(programmes, routines) {
-    const active = (programmes || []).find((p) => p.isActive)
-    if (!active || !(active.routineIds && active.routineIds.length)) return []
-    const routineIds = active.routineIds
-    const seed = []
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    let routineIndex = 0
-    const dayOfWeekForWorkout = [1, 2, 4, 5]
-    for (let d = 29; d >= 0; d--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - d)
-      const dow = date.getDay()
-      if (!dayOfWeekForWorkout.includes(dow)) continue
-      const routineId = routineIds[routineIndex % routineIds.length]
-      routineIndex += 1
-      const routine = (routines || []).find((r) => r.id === routineId)
-      if (!routine) continue
-      const dateStr = date.toLocaleDateString('en-GB')
-      const exercises = (routine.exercises || []).map((ex) => ({
-        name: ex.exerciseId,
-        sets: (ex.setConfigs || []).map((c) => ({
-          kg: c.targetKg ?? '',
-          reps: c.targetReps ?? '10',
-          done: true,
-        })),
-      }))
-      const duration = 45 * 60 + Math.floor(Math.random() * 15 * 60)
-      seed.push({
-        date: dateStr,
-        name: routine.name,
-        duration,
-        exercises,
-        routineId: routine.id,
-      })
-    }
-    return seed.reverse()
-  }
 
   const [folders, setFolders] = useState([{ name: 'My Templates', open: true, templates: [] }])
   const [defaultRest, setDefaultRest] = useState(DEFAULT_SETTINGS.defaultRest)
@@ -274,7 +379,7 @@ function AppContent() {
   const [routines, setRoutines] = useState([])
   const [programmeMenuProgramme, setProgrammeMenuProgramme] = useState(null)
   const [showCreateProgramme, setShowCreateProgramme] = useState(false)
-  const [createProgrammeFlowStep, setCreateProgrammeFlowStep] = useState(null) // 'entry' | 'explainer' | 'choice' | 'qore'
+  const [createProgrammeFlowStep, setCreateProgrammeFlowStep] = useState(null) // 'entry' | 'explainer' | 'choice' | 'coach'
   const [editingProgrammeId, setEditingProgrammeId] = useState(null)
   const [showCreateRoutine, setShowCreateRoutine] = useState(false)
   const [editingRoutineId, setEditingRoutineId] = useState(null)
@@ -305,6 +410,19 @@ function AppContent() {
   const [measurementsLog, setMeasurementsLog] = useState([])
   const [muscleMassLog, setMuscleMassLog] = useState([])
   const [photoSessions, setPhotoSessions] = useState([])
+  const [userPlan, setUserPlan] = useState('free')
+  const [planUsage, setPlanUsage] = useState(() => defaultPlanUsage())
+  const [showPricing, setShowPricing] = useState(false)
+  const [showPrivacy, setShowPrivacy] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
+  const [coachTipDismissed, setCoachTipDismissed] = useState(
+    () => typeof localStorage !== 'undefined' && localStorage.getItem('coachTipDismissed') === 'true'
+  )
+  const [coachTipShown, setCoachTipShown] = useState(false)
+  const [coachTipExIndex, setCoachTipExIndex] = useState(null)
+  const [coachTipSetIndex, setCoachTipSetIndex] = useState(null)
+  const [currentCoachTip, setCurrentCoachTip] = useState(null)
+  const coachTipRequestIdRef = useRef(0)
   const setThemeAndApply = (t) => {
     setTheme(t)
     document.documentElement.setAttribute('data-theme', t)
@@ -336,6 +454,18 @@ function AppContent() {
   }, [theme, user?.uid])
   useEffect(() => { if (page === 'library') setPage('workout') }, [page])
   useEffect(() => { if (page !== 'profile') setProfileSection(null) }, [page])
+
+  useEffect(() => {
+    function syncLegalHash() {
+      const raw = (window.location.hash || '').replace(/\/$/, '')
+      setShowPrivacy(raw === '#/privacy')
+      setShowTerms(raw === '#/terms')
+    }
+    syncLegalHash()
+    window.addEventListener('hashchange', syncLegalHash)
+    return () => window.removeEventListener('hashchange', syncLegalHash)
+  }, [])
+
   useEffect(() => {
     if (programmes.length === 1 && !programmes[0].isActive) {
       setProgrammes(prev => prev.map(p => ({ ...p, isActive: true })))
@@ -446,6 +576,14 @@ function AppContent() {
         if (appData.muscleMassLog?.length !== undefined) setMuscleMassLog(appData.muscleMassLog || [])
         if (appData.photoSessions?.length !== undefined) setPhotoSessions(appData.photoSessions || [])
         if (appData.muscleLastWorked && Object.keys(appData.muscleLastWorked).length >= 0) setMuscleLastWorked(appData.muscleLastWorked || {})
+        setUserPlan(planFromUserData(userData))
+        syncPlanUsagePeriod(user.uid, userData?.planUsage)
+          .then((u) => {
+            if (!cancelled) setPlanUsage(u)
+          })
+          .catch(() => {
+            if (!cancelled) setPlanUsage(mergePlanUsage(userData?.planUsage))
+          })
       })
       .catch((err) => console.error('load user/appData (profile):', err?.code || err?.message || err))
     return () => { cancelled = true }
@@ -458,7 +596,7 @@ function AppContent() {
     if (!uid) return
     if (currentPage === 'progress') {
       fetchWorkoutSessionsFromServer(uid).then((sessions) => setHistory(sessions)).catch((err) => console.error('fetchWorkoutSessions (visibility/focus):', err?.code || err?.message || err))
-    } else if (currentPage === 'workout') {
+    } else if (currentPage === 'workout' || currentPage === 'coach') {
       fetchWorkoutPlans(uid).then(({ programmes: p, routines: r }) => {
         setProgrammes(Array.isArray(p) ? p : [])
         setRoutines(Array.isArray(r) ? r : [])
@@ -485,6 +623,10 @@ function AppContent() {
         if (appData.muscleMassLog?.length !== undefined) setMuscleMassLog(appData.muscleMassLog || [])
         if (appData.photoSessions?.length !== undefined) setPhotoSessions(appData.photoSessions || [])
         if (appData.muscleLastWorked && Object.keys(appData.muscleLastWorked).length >= 0) setMuscleLastWorked(appData.muscleLastWorked || {})
+        setUserPlan(planFromUserData(userData))
+        syncPlanUsagePeriod(uid, userData?.planUsage)
+          .then(setPlanUsage)
+          .catch(() => setPlanUsage(mergePlanUsage(userData?.planUsage)))
       }).catch(() => {})
     }
   }
@@ -551,9 +693,19 @@ function AppContent() {
         if (appData.muscleMassLog?.length !== undefined) setMuscleMassLog(appData.muscleMassLog || [])
         if (appData.photoSessions?.length !== undefined) setPhotoSessions(appData.photoSessions || [])
         if (appData.muscleLastWorked && Object.keys(appData.muscleLastWorked).length >= 0) setMuscleLastWorked(appData.muscleLastWorked || {})
+        setUserPlan(planFromUserData(userData))
+        syncPlanUsagePeriod(user.uid, userData?.planUsage)
+          .then((u) => {
+            if (!cancelled) setPlanUsage(u)
+          })
+          .catch(() => {
+            if (!cancelled) setPlanUsage(mergePlanUsage(userData?.planUsage))
+          })
         const cw = appData.currentWorkout
         if (cw?.exercises?.length) {
-          const list = (cw.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null }))
+          const list = (cw.exercises || []).map((ex) =>
+            sanitizeExerciseForCurrentWorkoutPersist({ ...ex, id: ex.id ?? crypto.randomUUID() })
+          )
           setExercises(list)
           setWorkoutName(cw.workoutName || '')
           setWorkoutStartTime(cw.workoutStartTime ?? null)
@@ -578,19 +730,16 @@ function AppContent() {
     if (!user?.uid || !appDataLoadedRef.current) return
     const payload =
       workoutActive && (exercises.length > 0 || workoutName)
-        ? { workoutName, workoutStartTime, exercises }
+        ? {
+            workoutName,
+            workoutStartTime,
+            exercises: exercises.map(sanitizeExerciseForCurrentWorkoutPersist),
+          }
         : null
     updateAppData(user.uid, { currentWorkout: payload }).catch((err) =>
       console.error('updateAppData currentWorkout:', err)
     )
   }, [user?.uid, workoutActive, workoutName, workoutStartTime, exercises])
-
-  // Når historik er helt tom efter Firestore-load: fyld med træningsdata for de sidste 30 dage (4 træninger/uge fra aktive program).
-  useEffect(() => {
-    if (!workoutSessionsLoaded || history.length !== 0) return
-    const seed = getSeedHistory(programmes, routines)
-    if (seed.length > 0) setHistory(seed)
-  }, [workoutSessionsLoaded, history.length, programmes, routines])
 
   useEffect(() => {
     if (!user?.uid || !appDataLoadedRef.current) return
@@ -978,11 +1127,27 @@ function AppContent() {
   }
 
   /**
-   * Gem Qore-program + routines (samme state/Firestore-sti som manuelle programmer via saveWorkoutPlans-useEffect).
-   * @param {{ programme: object, routines: object[] }} payload — fra buildProgrammeFromQore
+   * Gem REPLIQE Coach-program + routines (samme state/Firestore-sti som manuelle programmer via saveWorkoutPlans-useEffect).
+   * @param {{ programme: object, routines: object[] }} payload — fra buildProgrammeFromCoach
    * @param {boolean} makeActive — true = "Save & make active"
    */
-  function saveQoreGeneratedProgramme(payload, makeActive) {
+  function handleCoachGenerationSuccess() {
+    const uid = user?.uid
+    if (!uid) return Promise.resolve()
+    return incrementPlanUsage(uid, { coachGenerations: 1 })
+      .then(setPlanUsage)
+      .catch((err) => console.error('planUsage coach generation:', err?.code || err?.message || err))
+  }
+
+  function handleProgressPhotoAdded() {
+    const uid = user?.uid
+    if (!uid) return
+    incrementPlanUsage(uid, { progressPhotos: 1 })
+      .then(setPlanUsage)
+      .catch((err) => console.error('planUsage progress photo:', err?.code || err?.message || err))
+  }
+
+  function saveCoachGeneratedProgramme(payload, makeActive) {
     if (!user?.uid || !payload?.programme || !Array.isArray(payload.routines)) return
     const { programme: progIn, routines: newRoutines } = payload
     const isFirstProgramme = programmes.length === 0
@@ -1003,6 +1168,9 @@ function AppContent() {
     })
     setCreateProgrammeFlowStep(null)
     if (!finalActive && !isFirstProgramme) setShowSetActiveAfterCreate(progIn.id)
+    incrementPlanUsage(user.uid, { coachProgrammesSaved: 1 })
+      .then(setPlanUsage)
+      .catch((err) => console.error('planUsage coach programme saved:', err?.code || err?.message || err))
   }
 
   function openEditProgramme(progId) {
@@ -1237,6 +1405,77 @@ function AppContent() {
     return allLibraryExercises.find(e => e.name === eName) || null
   }
 
+  /** Apply REPLIQE Coach [SUGGESTION] to the active programme (best-effort); persists via saveWorkoutPlans useEffect. */
+  async function handleApplyProgrammeChange(suggestion) {
+    console.log('Programme change applied:', suggestion)
+    if (!suggestion || typeof suggestion !== 'object') return
+    const ap = programmes.find((p) => p.isActive)
+    if (!ap) return
+    const action = suggestion.action || 'general'
+    const details = suggestion.details && typeof suggestion.details === 'object' ? suggestion.details : {}
+    const needle = String(suggestion.exerciseName || details.exerciseName || '').trim().toLowerCase()
+
+    function matchExercise(ex) {
+      if (!needle) return false
+      const exId = String(ex.exerciseId || '').trim().toLowerCase()
+      if (exId === needle || exId.includes(needle)) return true
+      const lib = getExerciseFromLibrary(ex.exerciseId)
+      const libName = (lib?.name || '').trim().toLowerCase()
+      return libName === needle || libName.includes(needle)
+    }
+
+    setRoutines((prev) => {
+      const ids = ap.routineIds || []
+      let changed = false
+      const next = prev.map((r) => {
+        if (!ids.includes(r.id)) return r
+        const exercises = (r.exercises || []).map((ex) => {
+          if (!matchExercise(ex)) return ex
+          if (action === 'swap_exercise') {
+            const newId = details.replaceExerciseId || details.newExerciseId || details.exerciseId
+            if (newId && typeof newId === 'string') {
+              changed = true
+              return { ...ex, exerciseId: newId }
+            }
+            return ex
+          }
+          if (Array.isArray(details.setConfigs)) {
+            changed = true
+            return {
+              ...ex,
+              setConfigs: details.setConfigs.map((s) => ({
+                targetKg: s.targetKg ?? '',
+                targetReps: s.targetReps ?? '8-10',
+              })),
+            }
+          }
+          if (details.sets != null || details.targetReps != null || details.targetKg != null) {
+            changed = true
+            const prevCfgs = ex.setConfigs?.length ? [...ex.setConfigs] : []
+            const nSets =
+              typeof details.sets === 'number' && details.sets > 0
+                ? details.sets
+                : Math.max(1, prevCfgs.length || (typeof ex.sets === 'number' ? ex.sets : 4))
+            const setConfigs = Array.from({ length: nSets }, (_, i) => ({
+              targetKg: details.targetKg != null ? String(details.targetKg) : (prevCfgs[i]?.targetKg ?? ''),
+              targetReps:
+                details.targetReps != null ? String(details.targetReps) : (prevCfgs[i]?.targetReps ?? '8-10'),
+            }))
+            return { ...ex, sets: nSets, setConfigs }
+          }
+          if (details.restOverride != null && details.restOverride !== '') {
+            changed = true
+            const n = Number(details.restOverride)
+            return { ...ex, restOverride: Number.isFinite(n) ? n : ex.restOverride }
+          }
+          return ex
+        })
+        return { ...r, exercises }
+      })
+      return changed ? next : prev
+    })
+  }
+
   function addExercisesFromLibrary(exList) {
     const firstNewIndex = exercises.length
     const newExs = exList.map(ex => {
@@ -1355,6 +1594,89 @@ function AppContent() {
     return globalRirEnabled
   }
 
+  function parseHistorySessionDate(w) {
+    const parts = (w?.date || '').split('/')
+    if (parts.length !== 3) return 0
+    return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0])).getTime()
+  }
+
+  /** Free-plan: AI tip once per session when rest starts — only after 2 completed & saved workouts (3rd WO onwards). */
+  function generateCoachTip(exercise, exIndex, setIndex) {
+    if (userPlan !== 'free') return
+    if (coachTipDismissed) return
+    if (coachTipShown) return
+    const completedSaved = historySessionsForCoachTip(history).length
+    if (completedSaved < 2) return
+    const exerciseKey = exercise?.exerciseId || exercise?.name
+    if (!exerciseKey) return
+
+    setCoachTipShown(true)
+    coachTipRequestIdRef.current += 1
+    const requestId = coachTipRequestIdRef.current
+    setCoachTipExIndex(exIndex)
+    setCoachTipSetIndex(setIndex)
+    setCurrentCoachTip({ loading: true })
+
+    const ctx = buildRestCoachTipContext(history, activeProgramme, routines, workoutName, exercises)
+    if (!ctx) {
+      setCurrentCoachTip({
+        text: `REPLIQE Coach can analyse your programme and training log to suggest structure, volume, and progression. Upgrade to Pro or Elite for full Coach chat.`,
+      })
+      return
+    }
+
+    const prompt = `You are REPLIQE Coach, an expert personal trainer. The user is on the FREE plan and reads this during a rest timer between sets.
+
+Use ONLY the JSON below. Write one coaching tip in 2–4 short sentences (British English).
+
+PRIORITY: programme-level advice — how their split/frequency, day balance, volume, or progression across early sessions could improve. At least half of the tip must be about programme structure, recovery between sessions, or week-to-week progression — not a single exercise.
+
+You may add one short clause about today’s session or the lift they are on only if it supports the programme point. Never invent sessions or exercises not in the data.
+
+End with one short sentence that full REPLIQE Coach on Pro/Elite gives ongoing chat-based guidance.
+
+No markdown, no bullet points, no title line. Plain text only.
+
+DATA (JSON):
+${JSON.stringify(ctx)}`
+
+    invokeCoachGenerate(prompt)
+      .then((raw) => {
+        if (coachTipRequestIdRef.current !== requestId) return
+        const text = String(raw || '')
+          .trim()
+          .replace(/^["'\s]+|["'\s]+$/g, '')
+        if (!text) throw new Error('empty tip')
+        setCurrentCoachTip({ text })
+      })
+      .catch((e) => {
+        console.error('Coach rest tip', e)
+        if (coachTipRequestIdRef.current !== requestId) return
+        setCurrentCoachTip({
+          text: `REPLIQE Coach can analyse your programme and recent training for structure, volume, and progression. Upgrade to Pro or Elite for full Coach chat.`,
+        })
+      })
+  }
+
+  function handleCoachTipYes() {
+    setCurrentCoachTip(null)
+    setCoachTipExIndex(null)
+    setCoachTipSetIndex(null)
+    setShowPricing(true)
+  }
+
+  function handleCoachTipNo() {
+    setCurrentCoachTip(null)
+    setCoachTipExIndex(null)
+    setCoachTipSetIndex(null)
+    setCoachTipDismissed(true)
+    try {
+      localStorage.setItem('coachTipDismissed', 'true')
+    } catch {
+      /* ignore */
+    }
+  }
+
   function startRestAfterSet(exIndex, setIndex, ex) {
     const dur = ex.restOverride !== null && ex.restOverride !== undefined ? ex.restOverride : defaultRest
     if (dur === 0) return
@@ -1363,6 +1685,7 @@ function AppContent() {
     setActiveRest({ exIndex, setIndex })
     setRestTime(dur)
     setRestDuration(dur)
+    generateCoachTip(ex, exIndex, setIndex)
   }
 
   function doneSet(exIndex, setIndex) {
@@ -1600,7 +1923,8 @@ function AppContent() {
       for (const ex of exercises) for (const f of nf) for (const t of f.templates) {
         for (let i = 0; i < t.exercises.length; i++) {
           if (t.exercises[i].name === ex.name) {
-            t.exercises[i].sets = ex.sets.map(s => { const c = { ...s }; delete c.done; delete c.restTime; return c })
+            const typ = ex.type || t.exercises[i].type || 'weight_reps'
+            t.exercises[i].sets = (ex.sets || []).map((s) => sanitizeTemplateSetForType(s, typ))
             t.exercises[i].note = ex.note || ''
           }
         }
@@ -1777,7 +2101,22 @@ function AppContent() {
 
   function saveTemplate() { if (exercises.length === 0) return; setShowSaveModal(true) }
   function confirmSaveTemplate(folderIndex, templateName) {
-    const template = { name: templateName, exercises: exercises.map(ex => ({ id: ex.id ?? crypto.randomUUID(), name: ex.name, type: ex.type || 'weight_reps', sets: ex.sets.map(s => { const c = { ...s }; delete c.done; delete c.restTime; return c }), restOverride: ex.restOverride, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement, supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })) }
+    const template = {
+      name: templateName,
+      exercises: exercises.map((ex) => ({
+        id: ex.id ?? crypto.randomUUID(),
+        name: ex.name,
+        type: ex.type || 'weight_reps',
+        sets: (ex.sets || []).map((s) => sanitizeTemplateSetForType(s, ex.type || 'weight_reps')),
+        restOverride: ex.restOverride,
+        note: ex.note || '',
+        muscle: ex.muscle,
+        equipment: ex.equipment,
+        movement: ex.movement,
+        supersetGroupId: ex.supersetGroupId ?? null,
+        supersetRole: ex.supersetRole ?? null,
+      })),
+    }
     const nf = [...folders]; nf[folderIndex].templates.push(template); setFolders(nf); setShowSaveModal(false)
     confirmFinish(false)
   }
@@ -1794,12 +2133,16 @@ function AppContent() {
     const nf = [...folders]
     nf[folderIndex].templates[templateIndex] = {
       name: workoutName,
-      exercises: exercises.map(ex => ({
-        name: ex.name, type: ex.type || 'weight_reps',
-        sets: ex.sets.map(s => { const c = { ...s }; delete c.done; delete c.restTime; return c }),
-        restOverride: ex.restOverride, note: ex.note || '',
-        muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement
-      }))
+      exercises: exercises.map((ex) => ({
+        name: ex.name,
+        type: ex.type || 'weight_reps',
+        sets: (ex.sets || []).map((s) => sanitizeTemplateSetForType(s, ex.type || 'weight_reps')),
+        restOverride: ex.restOverride,
+        note: ex.note || '',
+        muscle: ex.muscle,
+        equipment: ex.equipment,
+        movement: ex.movement,
+      })),
     }
     setFolders(nf); setExercises([]); setEditingTemplate(null); setWorkoutActive(false); setWorkoutName('')
   }
@@ -1929,14 +2272,33 @@ function AppContent() {
     })
   }
 
+  function closePrivacyLegal() {
+    setShowPrivacy(false)
+    const h = (window.location.hash || '').replace(/\/$/, '')
+    if (h === '#/privacy') {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    }
+  }
+
+  function closeTermsLegal() {
+    setShowTerms(false)
+    const h = (window.location.hash || '').replace(/\/$/, '')
+    if (h === '#/terms') {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    }
+  }
+
   return (
     <>
+      {showPrivacy && <PrivacyPolicy onClose={closePrivacyLegal} />}
+      {showTerms && <TermsOfService onClose={closeTermsLegal} />}
       <div className="min-h-screen bg-page text-text pb-16">
         <div className="px-4 py-6 max-w-md mx-auto">
 
           {/* PROGRESS */}
           {page === 'progress' && (
             <ProgressErrorBoundary>
+              <Suspense fallback={<LazyFallback />}>
               <ProgressScreen
                 history={history ?? []}
                 muscleLastWorked={muscleLastWorked ?? {}}
@@ -1969,7 +2331,11 @@ function AppContent() {
                 photoLinkTargetSessionId={photoLinkTargetSessionId}
                 onClearPhotoLinkTarget={() => setPhotoLinkTargetSessionId(null)}
                 onPhotoSessionLinkedToWorkout={handlePhotoSessionLinkedToWorkout}
+                userPlan={userPlan}
+                planUsage={planUsage}
+                onProgressPhotoAdded={handleProgressPhotoAdded}
               />
+              </Suspense>
             </ProgressErrorBoundary>
           )}
 
@@ -2213,7 +2579,7 @@ function AppContent() {
                       )
                     }
                     const manualProgrammes = programmesWithRoutines.filter((p) => !p.isQoreGenerated)
-                    const qoreProgrammes = programmesWithRoutines.filter((p) => p.isQoreGenerated)
+                    const coachProgrammes = programmesWithRoutines.filter((p) => p.isQoreGenerated)
                     const renderProgrammeCard = (prog) => {
                       const progRoutines = (prog.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
                       const isActive = prog.isActive
@@ -2226,7 +2592,6 @@ function AppContent() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-bold tracking-tight text-accent">{prog.name}</span>
-                                {isActive && <span className="text-[8px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide bg-success/10 text-success animate-up-next-pulse">Active</span>}
                               </div>
                               <div className="text-[11px] text-muted-strong mt-0.5">{progRoutines.length} routines</div>
                             </div>
@@ -2234,7 +2599,14 @@ function AppContent() {
                               <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-muted-strong"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
                             </button>
                           </div>
-                          {!isActive && (
+                          {isActive ? (
+                            <div
+                              className="w-full mt-2 py-2 rounded-[10px] border border-success/30 bg-success/8 flex items-center justify-center pointer-events-none select-none"
+                              aria-label="Active programme"
+                            >
+                              <span className="text-success text-[11px] font-bold uppercase tracking-wide animate-up-next-pulse">Active</span>
+                            </div>
+                          ) : (
                             <button
                               type="button"
                               onClick={() => setProgrammeActive(prog.id)}
@@ -2243,7 +2615,7 @@ function AppContent() {
                               Set as active
                             </button>
                           )}
-                          <div className={`flex gap-1.5 ${!isActive ? 'mt-2' : ''}`}>
+                          <div className="flex gap-1.5 mt-2">
                             {progRoutines.map((r) => (
                               <button
                                 key={r.id}
@@ -2279,7 +2651,7 @@ function AppContent() {
                             {manualProgrammes.map(renderProgrammeCard)}
                           </>
                         )}
-                        {qoreProgrammes.length > 0 && (
+                        {coachProgrammes.length > 0 && (
                           <>
                             <div
                               role="heading"
@@ -2290,9 +2662,9 @@ function AppContent() {
                                   : 'plan-section-title'
                               }
                             >
-                              Qore — built for you
+                              REPLIQE Coach — built for you
                             </div>
-                            {qoreProgrammes.map(renderProgrammeCard)}
+                            {coachProgrammes.map(renderProgrammeCard)}
                           </>
                         )}
                         <button type="button" onClick={createProgramme} className="w-full py-3 border border-dashed border-accent/30 rounded-xl bg-transparent text-accent text-[13px] font-semibold mb-4">
@@ -2464,6 +2836,14 @@ function AppContent() {
                               rirEnabled={isRirActive(exercise, rirEnabled)}
                               globalRirEnabled={rirEnabled}
                               onRirOverride={(exIdx, value) => setExercises(prev => prev.map((e, i) => i === exIdx ? { ...e, rirOverride: value } : e))}
+                              coachTipData={
+                                userPlan === 'free' && !coachTipDismissed && coachTipExIndex === exIndex && currentCoachTip != null
+                                  ? currentCoachTip
+                                  : null
+                              }
+                              coachTipSetIndex={coachTipExIndex === exIndex ? coachTipSetIndex : null}
+                              onCoachTipYes={handleCoachTipYes}
+                              onCoachTipNo={handleCoachTipNo}
                             />
                           ); }}
                         />
@@ -2516,6 +2896,14 @@ function AppContent() {
                         rirEnabled={isRirActive(ex, rirEnabled)}
                         globalRirEnabled={rirEnabled}
                         onRirOverride={(exIdx, value) => setExercises(prev => prev.map((e, i) => i === exIdx ? { ...e, rirOverride: value } : e))}
+                        coachTipData={
+                          userPlan === 'free' && !coachTipDismissed && coachTipExIndex === exIndex && currentCoachTip != null
+                            ? currentCoachTip
+                            : null
+                        }
+                        coachTipSetIndex={coachTipExIndex === exIndex ? coachTipSetIndex : null}
+                        onCoachTipYes={handleCoachTipYes}
+                        onCoachTipNo={handleCoachTipNo}
                       />
                     )
                   });
@@ -2531,6 +2919,21 @@ function AppContent() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* COACH */}
+          {page === 'coach' && (
+            <Suspense fallback={<LazyFallback />}>
+              <CoachScreen
+                userId={user?.uid}
+                userPlan={userPlan}
+                activeProgramme={activeProgramme}
+                allRoutines={routines}
+                workoutSessions={history}
+                onApplyProgrammeChange={handleApplyProgrammeChange}
+                onShowPricing={() => setShowPricing(true)}
+              />
+            </Suspense>
           )}
 
           {/* PROFILE */}
@@ -2565,7 +2968,13 @@ function AppContent() {
               <div className="h-[6rem]" aria-hidden="true" />
 
               {(profileSection || 'account') === 'account' && (
-                <AccountTab />
+                <AccountTab
+                  userPlan={userPlan}
+                  setShowPricing={setShowPricing}
+                  planUsage={planUsage}
+                  programmes={programmes}
+                  photoSessions={photoSessions}
+                />
               )}
 
               {(profileSection || 'account') === 'settings' && (
@@ -2675,14 +3084,7 @@ function AppContent() {
               )}
 
               {(profileSection || 'account') === 'about' && (
-                <div className="mt-1">
-                  <div className="bg-card border border-border rounded-2xl p-5">
-                    <div className="text-sm text-muted-mid">
-                      <div className="mb-1 font-semibold text-text">REPLIQE v1.7</div>
-                      <div>Simple tracking. Real progress.</div>
-                    </div>
-                  </div>
-                </div>
+                <AboutTab setShowPrivacy={setShowPrivacy} setShowTerms={setShowTerms} />
               )}
             </div>
           )}
@@ -2789,16 +3191,35 @@ function AppContent() {
           )
         })()}
 
-        {/* Create Programme flow (Choice → Explainer → Qore or Manual) */}
+        {/* Create Programme flow (Choice → Explainer → REPLIQE Coach or Manual) */}
         {createProgrammeFlowStep && user?.uid && (
-          <CreateProgrammeFlow
-            step={createProgrammeFlowStep}
-            onStepChange={setCreateProgrammeFlowStep}
-            onManual={openManualCreateProgramme}
-            onClose={() => setCreateProgrammeFlowStep(null)}
+          <Suspense
+            fallback={
+              <div className="fixed inset-0 z-30 flex items-center justify-center bg-page/90 text-sm text-muted-strong">
+                Loading…
+              </div>
+            }
+          >
+            <CreateProgrammeFlow
+              step={createProgrammeFlowStep}
+              onStepChange={setCreateProgrammeFlowStep}
+              onManual={openManualCreateProgramme}
+              onClose={() => setCreateProgrammeFlowStep(null)}
+              userId={user.uid}
+              allExercises={allLibraryExercises}
+              saveCoachGeneratedProgramme={saveCoachGeneratedProgramme}
+              onCoachGenerationSuccess={handleCoachGenerationSuccess}
+            />
+          </Suspense>
+        )}
+
+        {showPricing && user?.uid && (
+          <PricingSheet
+            open={showPricing}
+            onClose={() => setShowPricing(false)}
             userId={user.uid}
-            allExercises={allLibraryExercises}
-            saveQoreGeneratedProgramme={saveQoreGeneratedProgramme}
+            userPlan={userPlan}
+            onPlanChange={setUserPlan}
           />
         )}
 
@@ -3291,6 +3712,7 @@ function AppContent() {
         <div className="fixed bottom-0 left-0 right-0 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-2.5 pb-4 flex justify-around max-w-md mx-auto">
           <button onClick={() => setPage('progress')} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-accent' : 'stroke-text'}`}><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-xs font-semibold ${page === 'progress' ? 'text-accent' : 'text-text'}`}>Progress</span></button>
           <button onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-accent' : 'stroke-text'}`}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-xs font-semibold ${page === 'workout' ? 'text-accent' : 'text-text'}`}>Workout</span></button>
+          <button type="button" onClick={() => setPage('coach')} className={`flex flex-col items-center gap-1 ${page === 'coach' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'coach' ? 'text-accent' : 'text-text'}`}><path d="M12 3a6 6 0 0 0 4.5 9.97A5 5 0 0 1 12 21a5 5 0 0 1-4.5-8.03A6 6 0 0 0 12 3z" /></svg><span className={`text-xs font-semibold ${page === 'coach' ? 'text-accent' : 'text-text'}`}>Coach</span></button>
           <button onClick={() => setPage('profile')} className={`flex flex-col items-center gap-1 ${page === 'profile' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'profile' ? 'stroke-accent' : 'stroke-text'}`}><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg><span className={`text-xs font-semibold ${page === 'profile' ? 'text-accent' : 'text-text'}`}>Profile</span></button>
         </div>
       </div>

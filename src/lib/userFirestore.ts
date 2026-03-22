@@ -66,3 +66,23 @@ export async function setHasSeenProgrammeExplainer(uid: string): Promise<void> {
   const ref = doc(db, 'users', uid)
   await updateDoc(ref, { hasSeenProgrammeExplainer: true })
 }
+
+/** Paid subscription tier stored at users/{uid}.plan (top-level field). */
+export type PaidPlan = 'pro' | 'elite'
+export type UserPlan = 'free' | PaidPlan
+
+export const USER_PLAN_STORAGE_KEY = 'repliqe_user_plan'
+
+export function normalizeUserPlan(value: unknown): UserPlan {
+  if (value === 'pro' || value === 'elite') return value
+  return 'free'
+}
+
+/**
+ * Persists plan on the user document (mock or real checkout).
+ * Use `'free'` to downgrade; stored explicitly so Firestore wins over stale localStorage.
+ */
+export async function setUserPlanInFirestore(uid: string, plan: UserPlan): Promise<void> {
+  const ref = doc(db, 'users', uid)
+  await updateDoc(ref, { plan })
+}

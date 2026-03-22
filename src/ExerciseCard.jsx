@@ -37,7 +37,11 @@ function ExerciseCard({
   exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onAddSet, onUpdateSet, onDoneSet, onUndoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote,
   bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, bodyweight, unitWeight, unitDistance, formatDecimal, parseDecimal, libraryEntry,
   supersetRole = null, supersetIsNext = false, supersetNextSetIndex = null, isLinkModeActive = false, isLinkSource = false, isLinkTarget = false, onTapAsTarget, onStartLinkMode, onBreakSuperset,
-  rirEnabled = false, globalRirEnabled = false, onRirOverride = () => {}
+  rirEnabled = false, globalRirEnabled = false, onRirOverride = () => {},
+  coachTipData = null,
+  coachTipSetIndex = null,
+  onCoachTipYes = () => {},
+  onCoachTipNo = () => {},
 }) {
   const fmtNum = formatDecimal ?? ((n) => (n !== '' && n != null ? String(n) : ''))
   const parseNum = parseDecimal ?? ((s) => parseFloat(String(s).replace(',', '.')))
@@ -425,6 +429,58 @@ function ExerciseCard({
                 </div>
               )
             })()}
+
+            {coachTipData && coachTipSetIndex === j && (
+              <div
+                className={`mt-2 p-3 rounded-xl border transition-colors duration-200 ${
+                  coachTipData.loading
+                    ? 'bg-accent/[0.08] border-accent/35 ring-2 ring-accent/20 animate-pulse'
+                    : 'bg-accent/[0.06] border-accent/20'
+                }`}
+                aria-busy={coachTipData.loading ? 'true' : undefined}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="relative flex h-2 w-2 shrink-0">
+                    {coachTipData.loading ? (
+                      <>
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-40" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+                      </>
+                    ) : (
+                      <span className="inline-flex h-2 w-2 rounded-full bg-accent" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold text-accent uppercase tracking-wider">
+                    REPLIQE Coach
+                  </span>
+                </div>
+                {coachTipData.loading ? (
+                  <p className="text-xs text-muted-strong leading-relaxed">
+                    Writing a programme tip from your early sessions…
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-strong leading-relaxed mb-2">{coachTipData.text}</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={onCoachTipYes}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-accent/15 text-accent border border-accent/30"
+                      >
+                        Yes, more tips
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onCoachTipNo}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-card border border-border text-muted"
+                      >
+                        No thanks
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             {supersetRole !== 'A' && hasCompletedRest && (
               <div className="flex items-center justify-center gap-1 py-0.5 my-0.5 relative min-h-[1.2rem] overflow-hidden">

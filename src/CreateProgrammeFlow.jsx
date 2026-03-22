@@ -5,6 +5,7 @@ import { PRIVACY_POLICY_URL } from './lib/legalUrls'
 import { app } from './lib/firebase'
 import { RepliqeLogoBuilding } from './RepliqeLogo'
 import { DEFAULT_EXERCISES } from './exerciseLibrary'
+import { invokeCoachGenerate } from './lib/invokeCoachGenerate'
 
 const primaryCta =
   'w-full py-3.5 sm:py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25 disabled:opacity-50 disabled:pointer-events-none transition-[opacity,transform] active:scale-[0.99]'
@@ -51,7 +52,7 @@ function formatDurationSeconds(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-function parseQoreJson(text) {
+function parseCoachJson(text) {
   const clean = String(text || '')
     .replace(/```json\s*/gi, '')
     .replace(/```/g, '')
@@ -62,13 +63,13 @@ function parseQoreJson(text) {
     const start = clean.indexOf('{')
     const end = clean.lastIndexOf('}')
     if (start >= 0 && end > start) return JSON.parse(clean.slice(start, end + 1))
-    throw new Error('Invalid JSON from Qore')
+    throw new Error('Invalid JSON from REPLIQE Coach')
   }
 }
 
-/** Build app programme + routines from Claude JSON. */
-export function buildProgrammeFromQore(parsed, allExercises, quiz) {
-  const programmeId = `qore_${Date.now()}`
+/** Build app programme + routines from Claude JSON (REPLIQE Coach). */
+export function buildProgrammeFromCoach(parsed, allExercises, quiz) {
+  const programmeId = `coach_${Date.now()}`
   const allowedLib = Array.isArray(allExercises) && allExercises.length ? allExercises : DEFAULT_EXERCISES
   const byNameLower = new Map(allowedLib.map((e) => [e.name.toLowerCase(), e]))
 
@@ -120,11 +121,12 @@ export function buildProgrammeFromQore(parsed, allExercises, quiz) {
   return {
     programme: {
       id: programmeId,
-      name: parsed.programmeName || 'Qore programme',
+      name: parsed.programmeName || 'REPLIQE Coach programme',
       type: 'rotation',
       routineIds,
       isActive: false,
       currentIndex: 0,
+      source: 'coach',
       isQoreGenerated: true,
       rationale: parsed.rationale || '',
       safetyNote: parsed.safetyNote || null,
@@ -132,6 +134,9 @@ export function buildProgrammeFromQore(parsed, allExercises, quiz) {
       qoreLevel: quiz.level,
       qoreEquipment: quiz.equipment,
       qoreDaysPerWeek: quiz.daysPerWeek,
+      qoreSessionLength: quiz.sessionLength ?? null,
+      qoreFocusTags: Array.isArray(quiz.focusTags) && quiz.focusTags.length ? [...quiz.focusTags] : null,
+      qoreFocusNotes: quiz.focusNotes && String(quiz.focusNotes).trim() ? String(quiz.focusNotes).trim() : null,
       qoreCreatedAt: new Date().toISOString(),
     },
     routines,
@@ -151,7 +156,8 @@ function sanitizeParsedProgramme(parsed, validNamesLowerSet) {
   return { ...parsed, routines }
 }
 
-function SheetFrame({ label, title, subtitle, onBack, onClose, children }) {
+function SheetFrame({ label, title, subtitle, onBack, onClose, children, showFlowProgress, flowProgressCurrent }) {
+  const hasProgress = showFlowProgress && typeof flowProgressCurrent === 'number'
   return (
     <div className="fixed inset-0 z-20 flex justify-center bg-page">
       <div className="w-full max-w-md flex flex-col bg-page mx-auto">
@@ -167,30 +173,35 @@ function SheetFrame({ label, title, subtitle, onBack, onClose, children }) {
             </svg>
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 pb-8">
-          {label && <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider mt-4 mb-1">{label}</p>}
-          <h1 className="text-xl font-bold text-text mb-1">{title}</h1>
-          {subtitle && <p className="text-sm text-muted-strong mb-6">{subtitle}</p>}
-          {children}
+        <div className="flex-1 overflow-y-auto pb-8">
+          {hasProgress && <CoachFlowProgressBar current={flowProgressCurrent} total={COACH_FLOW_STEP_COUNT} />}
+          <div className="px-4">
+            {label && (
+              <p className={`text-[10px] font-bold text-muted-strong uppercase tracking-wider mb-1 ${hasProgress ? 'mt-1' : 'mt-4'}`}>{label}</p>
+            )}
+            <h1 className={`text-xl font-bold text-text mb-1 ${hasProgress && !label ? 'mt-1' : ''}`}>{title}</h1>
+            {subtitle && <p className="text-sm text-muted-strong mb-6">{subtitle}</p>}
+            {children}
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-export function CreateProgrammeChoiceScreen({ onQore, onManual, onClose }) {
+export function CreateProgrammeChoiceScreen({ onCoach, onManual, onClose }) {
   return (
     <SheetFrame
       label="NEW PROGRAMME"
       title="How do you want to create it?"
-      subtitle="Build it yourself or let Qore design it based on your goals."
+      subtitle="Build it yourself or let REPLIQE Coach design it based on your goals."
       onBack={onClose}
       onClose={onClose}
     >
       <div className="space-y-3">
         <button
           type="button"
-          onClick={onQore}
+          onClick={onCoach}
           className="w-full rounded-2xl p-4 text-left border-2 border-accent/40 bg-accent/5 flex items-start gap-4 transition-colors hover:border-accent/60 hover:bg-accent/[0.08]"
         >
           <div className="w-12 h-12 rounded-[10px] flex items-center justify-center shrink-0 bg-accent/15 text-accent">
@@ -200,9 +211,9 @@ export function CreateProgrammeChoiceScreen({ onQore, onManual, onClose }) {
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-2 bg-accent/15 text-accent">Qore — AI Personal Trainer</span>
-            <div className="text-base font-bold text-text">Create with Qore</div>
-            <p className="text-xs text-muted-strong mt-0.5">Answer a few questions. Qore builds a programme tailored to your goals, level and equipment.</p>
+            <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-2 bg-accent/15 text-accent">REPLIQE Coach</span>
+            <div className="text-base font-bold text-text">Create with REPLIQE Coach</div>
+            <p className="text-xs text-muted-strong mt-0.5">Answer a few questions. REPLIQE Coach builds a programme tailored to your goals, level and equipment.</p>
           </div>
         </button>
 
@@ -309,51 +320,111 @@ export function CreateProgrammeExplainerScreen({ onGotIt, onSkip, onBack, onClos
   )
 }
 
-const QORE_GOALS = [
+const COACH_GOALS = [
   { id: 'lose_weight', label: 'Lose weight', sub: 'Burn fat and get leaner' },
   { id: 'build_muscle', label: 'Build muscle', sub: 'Add size and strength' },
   { id: 'get_stronger', label: 'Get stronger', sub: 'Focus on heavy lifts and PRs' },
   { id: 'stay_in_shape', label: 'Stay in shape', sub: 'Maintain fitness and energy' },
 ]
-const QORE_EQUIPMENT = [
+const COACH_EQUIPMENT = [
   { id: 'full_gym', label: 'Full gym', sub: 'Barbells, machines, cables' },
   { id: 'dumbbells', label: 'Dumbbells only', sub: 'Free weights at home or gym' },
   { id: 'home_none', label: 'Home — no equipment', sub: 'Bodyweight exercises only' },
   { id: 'bands', label: 'Resistance bands', sub: 'Bands and bodyweight' },
 ]
-const QORE_LEVELS = [
+const COACH_LEVELS = [
   { id: 'beginner', label: 'Beginner', sub: 'Less than 1 year of training' },
   { id: 'intermediate', label: 'Intermediate', sub: '1–3 years of consistent training' },
   { id: 'advanced', label: 'Advanced', sub: '3+ years, knows the basics well' },
 ]
+const COACH_SESSION_LENGTHS = [
+  { id: '30', label: '30 min', sub: 'Short and focused' },
+  { id: '45', label: '45 min', sub: 'Efficient full session' },
+  { id: '60', label: '60 min', sub: 'Standard gym session' },
+  { id: '90', label: '90+ min', sub: 'Extended training' },
+]
 
-export function CreateProgrammeQoreOnboarding({ onComplete, onBack, onClose, allExercises = DEFAULT_EXERCISES }) {
+const QORE_MUSCLE_TAGS = ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Glutes', 'Core']
+
+const QORE_STRUCTURE_TAGS = ['Push / Pull split', 'Upper / Lower split', 'Full body', 'Supersets']
+
+const QORE_PREFERENCE_TAGS = [
+  'More cardio',
+  'Heavy compounds',
+  'Avoid overhead',
+  'Prefer machines',
+  'Free weights',
+  'Include stretching',
+  'Less rest time',
+  'More rest time',
+]
+
+/** Quiz steps 0–5 + consent 6; current === total means all segments filled (e.g. result). Same pattern as PhotosModal capture progress. */
+const COACH_FLOW_STEP_COUNT = 7
+
+function CoachFlowProgressBar({ current, total = COACH_FLOW_STEP_COUNT }) {
+  return (
+    <div className="px-4 pt-4">
+      <div className="flex gap-2 mb-2">
+        {Array.from({ length: total }, (_, i) => {
+          const done = current >= total || i < current
+          const active = current < total && i === current
+          return (
+            <div
+              key={i}
+              className={`flex-1 h-1 rounded-full transition-colors ${done ? 'bg-success' : active ? 'bg-accent' : 'bg-card-alt'}`}
+            />
+          )
+        })}
+      </div>
+      <p className="text-sm text-muted text-center mb-2">
+        {current >= total ? 'Complete' : `Step ${current + 1} of ${total}`}
+      </p>
+    </div>
+  )
+}
+
+export function CreateProgrammeCoachOnboarding({
+  onComplete,
+  onBack,
+  onClose,
+  allExercises = DEFAULT_EXERCISES,
+  onCoachGenerationSuccess,
+}) {
   const [step, setStep] = useState(0)
   const [goal, setGoal] = useState(null)
   const [daysPerWeek, setDaysPerWeek] = useState(null)
+  const [sessionLength, setSessionLength] = useState(null)
   const [equipment, setEquipment] = useState(null)
   const [level, setLevel] = useState(null)
-  const [notes, setNotes] = useState('')
+  const [focusTags, setFocusTags] = useState([])
+  const [focusNotes, setFocusNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [phase, setPhase] = useState('quiz')
-  const [qoreConsentAccepted, setQoreConsentAccepted] = useState(false)
+  const [coachConsentAccepted, setCoachConsentAccepted] = useState(false)
   const [generatedProgramme, setGeneratedProgramme] = useState(null)
   const [saving, setSaving] = useState(false)
 
   const titles = [
     "What's your main goal?",
     'How many days per week?',
+    'How long can you train?',
     'What equipment do you have?',
     "What's your training level?",
-    'Anything we should know?',
+    "Anything you'd like to focus on?",
   ]
   const subtitles = [
     'Your programme will be built around this.',
     'Be realistic — consistency beats intensity.',
+    'This helps REPLIQE Coach plan the right amount of exercises.',
     'Your programme will only use what you have access to.',
     'This determines exercise complexity and volume.',
-    'Optional — injuries, health conditions or preferences. Qore will adapt your programme.',
+    'Optional — select focus areas or add your own preferences.',
   ]
+
+  function toggleTag(tag) {
+    setFocusTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
+  }
 
   async function startBuilding() {
     setLoading(true)
@@ -373,36 +444,96 @@ export function CreateProgrammeQoreOnboarding({ onComplete, onBack, onClose, all
 
       const validNamesLower = new Set(relevantExercises.map((e) => e.name.toLowerCase()))
 
-      const prompt = `You are Qore, an expert AI personal trainer. 
+      const prompt = `You are REPLIQE Coach, an expert AI personal trainer. 
 Build a complete weekly training programme based on these inputs:
 
 Goal: ${goal}
 Days per week: ${daysPerWeek}
+Session length: ${sessionLength === '90' ? '90+' : sessionLength} minutes per session
 Equipment: ${equipment}
 Level: ${level}
-Special notes from user: ${notes || 'None'}
+Focus areas: ${focusTags.length > 0 ? focusTags.join(', ') : 'None selected'}
+Additional notes: ${focusNotes || 'None'}
 
 Available exercises (use ONLY names from this list):
 ${JSON.stringify(relevantExercises)}
 
 Rules:
 - Create exactly ${daysPerWeek} routines (one per training day)
-- Name routines clearly: e.g. "Day 1 – Push", "Day 2 – Pull", "Day 3 – Legs", or "Upper A", "Lower B" etc.
-- Each routine should have 4-7 exercises appropriate for the goal and level
+- Name routines clearly: e.g. "Day 1 – Push", "Day 2 – Pull", 
+  "Day 3 – Legs", or "Upper A", "Lower B" etc.
 - Use progressive structure (compound lifts first, isolation after)
-- For weight_reps exercises: suggest sets (3-4) and reps (e.g. 8-12)
-- For reps_only: suggest sets and reps
-- For time_only: suggest sets and duration in seconds
-- ${notes ? 'IMPORTANT: Adapt programme based on user notes. If health concerns mentioned, avoid relevant exercises and add a safety note.' : ''}
+- NEVER schedule the same primary muscle group on back-to-back days
 - Beginner: simpler movements, 3 sets, higher reps (10-15)
-- Intermediate: moderate complexity, 3-4 sets, 8-12 reps  
+- Intermediate: moderate complexity, 3-4 sets, 8-12 reps
 - Advanced: compound-heavy, 4-5 sets, 5-10 reps
+
+SESSION LENGTH — follow these guidelines:
+- 30 min: max 5 exercises, 3 sets each
+- 45 min: max 6 exercises, 3 sets each
+- 60 min: max 7 exercises, 3-4 sets each
+- 75 min: max 8 exercises, 4 sets each
+- 90+ min: max 9 exercises, 4-5 sets each
+- For get_stronger goal: reduce exercise count by 1-2 due to longer rest periods
+
+GOAL-SPECIFIC RULES:
+- lose_weight: include 1-2 cardio exercises per routine if 
+  equipment allows. Higher reps (12-15), shorter rest.
+- build_muscle: no cardio unless user requested it. 
+  Focus on hypertrophy rep ranges (8-12).
+- get_stronger: prioritise compound barbell/dumbbell movements. 
+  Lower reps (5-8), longer rest.
+- stay_in_shape: balanced mix of compound and isolation. 
+  Moderate reps (10-12).
+
+PROGRAMME STRUCTURE — if user selected structure in focus areas:
+- "Push / Pull split": structure ALL routines strictly as 
+  alternating Push/Pull days. Push = chest, shoulders, triceps. 
+  Pull = back, biceps. Add leg day if daysPerWeek >= 3.
+- "Upper / Lower split": strictly alternate Upper/Lower days.
+- "Full body": EVERY routine must include at least one exercise 
+  for legs, push, pull and core.
+- "Supersets": pair complementary exercises as supersets 
+  where appropriate.
+
+FOCUS AREAS — muscle group tags:
+- If specific muscle groups selected (e.g. Chest, Glutes), 
+  include at least 2 exercises targeting those muscles 
+  per relevant routine day.
+
+REST SECONDS — use this matrix, maximum 120 seconds:
+Compound heavy (squat, deadlift, bench press, overhead press, row):
+  - lose_weight: 90s | build_muscle: 90s | get_stronger: 120s | stay_in_shape: 90s
+
+Compound moderate (dumbbell press, cable row, lat pulldown etc.):
+  - lose_weight: 60s | build_muscle: 75s | get_stronger: 90s | stay_in_shape: 75s
+
+Isolation (curl, lateral raise, extension, fly etc.):
+  - lose_weight: 30s | build_muscle: 60s | get_stronger: 75s | stay_in_shape: 60s
+
+Cardio and bodyweight:
+  - lose_weight: 30s | build_muscle: 45s | stay_in_shape: 45s
+
+PROGRAMME NAME:
+- Must be motivational and specific, e.g. "4-Day Strength Builder",
+  "3-Day Full Body Burn", "Push/Pull Power Programme"
+- Never use generic names like "4 Day Programme"
+
+RATIONALE:
+- Write 3-4 sentences as REPLIQE Coach directly to the user
+- Explain WHY this specific structure suits their goal and level
+- Mention the split type and rep ranges and why they were chosen
+- Be specific, encouraging and expert in tone
+
+${focusTags.length > 0 || focusNotes
+  ? 'IMPORTANT: Adapt programme based on user focus areas and notes. If health concerns mentioned, avoid relevant exercises and add a safety note.'
+  : ''}
 
 Respond ONLY with a valid JSON object, no markdown, no explanation:
 {
-  "programmeName": "string (short, descriptive, e.g. '4-Day Push Pull')",
-  "rationale": "string (2-3 sentences explaining your programme design thinking — written directly to the user as Qore)",
-  "safetyNote": "string or null (only if user mentioned health concerns — recommend seeing a doctor/physio)",
+  "programmeName": "string (short, descriptive, motivational)",
+  "rationale": "string (3-4 sentences written directly to the user as REPLIQE Coach)",
+  "safetyNote": "string or null (only if health concerns mentioned)",
   "routines": [
     {
       "name": "string (e.g. 'Day 1 – Push')",
@@ -412,7 +543,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
           "sets": number,
           "reps": number or null,
           "duration": number or null (seconds, for time_only),
-          "restSeconds": number (60-120 for hypertrophy, 120-180 for strength)
+          "restSeconds": number (follow rest matrix above, max 120)
         }
       ]
     }
@@ -421,35 +552,23 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
 
       const auth = getAuth(app)
       const user = auth.currentUser
-      console.log('Current user before Qore call:', user?.uid, user?.email)
+      console.log('Current user before REPLIQE Coach call:', user?.uid, user?.email)
 
-      const response = await fetch(
-        'https://europe-west1-repliqe-710d2.cloudfunctions.net/generateQoreProgramme',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ prompt }),
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`)
-      }
-
-      const data = await response.json()
-      const text = data.text
-      if (!text) throw new Error('Empty response from Qore')
-      let parsed = parseQoreJson(text)
+      const text = await invokeCoachGenerate(prompt)
+      let parsed = parseCoachJson(text)
       parsed = sanitizeParsedProgramme(parsed, validNamesLower)
       if (!parsed.routines?.length) {
         throw new Error('No valid exercises returned — try again')
       }
       setGeneratedProgramme(parsed)
+      try {
+        await Promise.resolve(onCoachGenerationSuccess?.())
+      } catch (e) {
+        console.warn('onCoachGenerationSuccess:', e)
+      }
       setPhase('result')
     } catch (err) {
-      console.error('Qore generation error:', err)
+      console.error('REPLIQE Coach generation error:', err)
       setPhase('error')
     } finally {
       setLoading(false)
@@ -457,12 +576,12 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
   }
 
   function handleQuizNext() {
-    if (step < 4) setStep((s) => s + 1)
+    if (step < 5) setStep((s) => s + 1)
     else setPhase('consent')
   }
 
   function handleConsentBack() {
-    setQoreConsentAccepted(false)
+    setCoachConsentAccepted(false)
     setPhase('quiz')
   }
 
@@ -470,11 +589,14 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
     if (!generatedProgramme) return
     setSaving(true)
     try {
-      const payload = buildProgrammeFromQore(generatedProgramme, allExercises, {
+      const payload = buildProgrammeFromCoach(generatedProgramme, allExercises, {
         goal,
         level,
         equipment,
         daysPerWeek,
+        sessionLength,
+        focusTags,
+        focusNotes,
       })
       if (makeActive) payload.programme.isActive = true
       onComplete?.(payload, makeActive)
@@ -486,17 +608,25 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
     }
   }
 
-  const canNext = step === 0 ? goal : step === 1 ? daysPerWeek : step === 2 ? equipment : step === 3 ? level : true
+  const canNext =
+    step === 0 ? goal : step === 1 ? daysPerWeek : step === 2 ? sessionLength : step === 3 ? equipment : step === 4 ? level : true
 
   if (loading) {
     return (
-      <SheetFrame title="Qore is building your programme" subtitle="Tailoring it to your goals, level and equipment." onBack={onClose} onClose={onClose}>
+      <SheetFrame
+        title="REPLIQE Coach is building your programme"
+        subtitle="Tailoring it to your goals, level and equipment."
+        onBack={onClose}
+        onClose={onClose}
+        showFlowProgress
+        flowProgressCurrent={6}
+      >
         <div className="flex flex-col items-center justify-center py-12 px-2">
           <div className="mb-8 drop-shadow-[0_0_28px_rgba(123,123,255,0.25)]">
             <RepliqeLogoBuilding size={100} />
           </div>
           <p className="text-muted-strong text-sm text-center animate-pulse">
-            Qore is building your programme<span className="inline-block w-6 text-left">...</span>
+            REPLIQE Coach is building your programme<span className="inline-block w-6 text-left">...</span>
           </p>
         </div>
       </SheetFrame>
@@ -505,7 +635,14 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
 
   if (phase === 'error') {
     return (
-      <SheetFrame title="Something went wrong" subtitle="Qore couldn't build your programme right now." onBack={() => setPhase('consent')} onClose={onClose}>
+      <SheetFrame
+        title="Something went wrong"
+        subtitle="REPLIQE Coach couldn't build your programme right now."
+        onBack={() => setPhase('consent')}
+        onClose={onClose}
+        showFlowProgress
+        flowProgressCurrent={6}
+      >
         <div className="rounded-2xl p-6 border border-border bg-card text-center">
           <p className="text-muted-strong text-sm mb-4">
             This can happen if there's a connection issue. Try again — your answers are saved.
@@ -521,11 +658,13 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
   if (phase === 'result' && generatedProgramme) {
     return (
       <SheetFrame
-        label="QORE"
+        label="REPLIQE COACH"
         title={generatedProgramme.programmeName}
-        subtitle="Here's what Qore built for you."
+        subtitle="Here's what REPLIQE Coach built for you."
         onBack={() => setPhase('consent')}
         onClose={onClose}
+        showFlowProgress
+        flowProgressCurrent={COACH_FLOW_STEP_COUNT}
       >
         <div className="rounded-2xl border border-accent/20 bg-accent/5 p-4 mb-4">
           <div className="flex items-center gap-2 mb-2">
@@ -534,7 +673,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
                 <path d="M12 3a6 6 0 0 0 4.5 9.97A5 5 0 0 1 12 21a5 5 0 0 1-4.5-8.03A6 6 0 0 0 12 3z" />
               </svg>
             </div>
-            <span className="text-xs font-bold text-accent uppercase tracking-wider">Qore's thinking</span>
+            <span className="text-xs font-bold text-accent uppercase tracking-wider">REPLIQE Coach</span>
           </div>
           <p className="text-sm text-text leading-relaxed">{generatedProgramme.rationale}</p>
         </div>
@@ -572,15 +711,17 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
   if (phase === 'consent') {
     return (
       <SheetFrame
-        label="QORE"
+        label="REPLIQE COACH"
         title="Your data & your programme"
-        subtitle="One step before Qore builds your plan."
+        subtitle="One step before REPLIQE Coach builds your plan."
         onBack={handleConsentBack}
         onClose={onClose}
+        showFlowProgress
+        flowProgressCurrent={6}
       >
         <div className="rounded-2xl border border-border bg-card p-4 mb-5">
           <p className="text-sm text-text leading-relaxed">
-            Qore (AI) uses your training data to build your program. Your first program is free.
+            REPLIQE Coach uses AI to design a programme based on your answers. Your training preferences are sent securely to an AI model for processing.
           </p>
           <a
             href={PRIVACY_POLICY_URL}
@@ -598,17 +739,17 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
         <label className="flex items-start gap-3 cursor-pointer mb-6 rounded-xl border border-border bg-card-alt/50 p-3.5">
           <input
             type="checkbox"
-            checked={qoreConsentAccepted}
-            onChange={(e) => setQoreConsentAccepted(e.target.checked)}
+            checked={coachConsentAccepted}
+            onChange={(e) => setCoachConsentAccepted(e.target.checked)}
             className="mt-0.5 h-4 w-4 shrink-0 rounded border-2 border-border-strong bg-card text-accent accent-accent focus:ring-2 focus:ring-accent/30 focus:ring-offset-0"
           />
           <span className="text-sm text-muted-strong leading-snug">
-            I accept the above and confirm I have read the privacy policy. Creating my programme records this acceptance.
+            I understand my preferences will be processed by AI to generate my programme, and confirm I have read the privacy policy.
           </span>
         </label>
 
         <div className="space-y-2">
-          <button type="button" onClick={startBuilding} disabled={!qoreConsentAccepted} className={primaryCta}>
+          <button type="button" onClick={startBuilding} disabled={!coachConsentAccepted} className={primaryCta}>
             + Create programme
           </button>
           <button type="button" onClick={handleConsentBack} className={secondaryGhost}>
@@ -620,11 +761,18 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
   }
 
   return (
-    <SheetFrame title={titles[step]} subtitle={subtitles[step]} onBack={step === 0 ? onBack : () => setStep((s) => s - 1)} onClose={onClose}>
+    <SheetFrame
+      title={titles[step]}
+      subtitle={subtitles[step]}
+      onBack={step === 0 ? onBack : () => setStep((s) => s - 1)}
+      onClose={onClose}
+      showFlowProgress
+      flowProgressCurrent={step}
+    >
       <div className="space-y-4">
         {step === 0 && (
           <div className="space-y-2">
-            {QORE_GOALS.map((g) => (
+            {COACH_GOALS.map((g) => (
               <button
                 key={g.id}
                 type="button"
@@ -653,7 +801,22 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
         )}
         {step === 2 && (
           <div className="space-y-2">
-            {QORE_EQUIPMENT.map((e) => (
+            {COACH_SESSION_LENGTHS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setSessionLength(opt.id)}
+                className={`w-full rounded-[10px] p-3.5 text-left border-2 transition-colors ${sessionLength === opt.id ? 'border-accent/60 bg-accent/10' : 'border-border bg-card hover:border-border-strong'}`}
+              >
+                <div className="font-semibold text-text">{opt.label}</div>
+                <div className="text-xs text-muted-strong mt-0.5">{opt.sub}</div>
+              </button>
+            ))}
+          </div>
+        )}
+        {step === 3 && (
+          <div className="space-y-2">
+            {COACH_EQUIPMENT.map((e) => (
               <button
                 key={e.id}
                 type="button"
@@ -666,9 +829,9 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
             ))}
           </div>
         )}
-        {step === 3 && (
+        {step === 4 && (
           <div className="space-y-2">
-            {QORE_LEVELS.map((l) => (
+            {COACH_LEVELS.map((l) => (
               <button
                 key={l.id}
                 type="button"
@@ -681,16 +844,78 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
             ))}
           </div>
         )}
-        {step === 4 && (
-          <div>
+        {step === 5 && (
+          <div className="space-y-0">
+            <div>
+              <p className="text-[11px] font-bold text-muted-strong uppercase tracking-wider mb-2">Muscle groups</p>
+              <div className="flex flex-wrap gap-2">
+                {QORE_MUSCLE_TAGS.map((tag) => {
+                  const on = focusTags.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      className={`rounded-full px-3.5 py-1.5 text-sm font-semibold border-2 transition-colors ${
+                        on ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border bg-card text-muted hover:border-border-strong'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="border-t border-border my-4" />
+            <div>
+              <p className="text-[11px] font-bold text-muted-strong uppercase tracking-wider mb-2">Programme structure</p>
+              <div className="flex flex-wrap gap-2">
+                {QORE_STRUCTURE_TAGS.map((tag) => {
+                  const on = focusTags.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      className={`rounded-full px-3.5 py-1.5 text-sm font-semibold border-2 transition-colors ${
+                        on ? 'border-success/60 bg-success/10 text-success' : 'border-border bg-card text-muted hover:border-border-strong'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="border-t border-border my-4" />
+            <div>
+              <p className="text-[11px] font-bold text-muted-strong uppercase tracking-wider mb-2">Preferences</p>
+              <div className="flex flex-wrap gap-2">
+                {QORE_PREFERENCE_TAGS.map((tag) => {
+                  const on = focusTags.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      className={`rounded-full px-3.5 py-1.5 text-sm font-semibold border-2 transition-colors ${
+                        on ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border bg-card text-muted hover:border-border-strong'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. bad knees, lower back issues, prefer no overhead pressing..."
-              rows={4}
-              className="w-full bg-card-alt border-[1.5px] border-border-strong rounded-xl px-4 py-3 text-sm text-text placeholder:text-muted-deep outline-none focus:border-accent transition-colors resize-none"
+              value={focusNotes}
+              onChange={(e) => setFocusNotes(e.target.value)}
+              placeholder="Anything else? e.g. avoid pull-ups, want more isolation work..."
+              rows={3}
+              className="w-full mt-4 bg-card-alt border-[1.5px] border-border-strong rounded-xl px-4 py-3 text-sm text-text placeholder:text-muted-deep outline-none focus:border-accent transition-colors resize-none"
             />
-            {hasMedicalKeywords(notes) && (
+            {hasMedicalKeywords(focusNotes) && (
               <div className="flex items-start gap-2.5 mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
                 {warningIcon()}
                 <p className="text-xs text-amber-300 leading-relaxed">
@@ -711,7 +936,16 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
   )
 }
 
-export default function CreateProgrammeFlow({ step, onStepChange, onManual, onClose, userId, saveQoreGeneratedProgramme, allExercises }) {
+export default function CreateProgrammeFlow({
+  step,
+  onStepChange,
+  onManual,
+  onClose,
+  userId,
+  saveCoachGeneratedProgramme,
+  allExercises,
+  onCoachGenerationSuccess,
+}) {
   const [resolvingEntry, setResolvingEntry] = useState(false)
 
   useEffect(() => {
@@ -738,8 +972,8 @@ export default function CreateProgrammeFlow({ step, onStepChange, onManual, onCl
     onStepChange('choice')
   }
 
-  function handleQoreSelected() {
-    onStepChange('qore')
+  function handleCoachSelected() {
+    onStepChange('coach')
   }
 
   if (step === 'entry' && resolvingEntry) {
@@ -757,15 +991,16 @@ export default function CreateProgrammeFlow({ step, onStepChange, onManual, onCl
     return <CreateProgrammeExplainerScreen onGotIt={handleExplainerDone} onSkip={handleExplainerDone} onBack={onClose} onClose={onClose} />
   }
   if (step === 'choice') {
-    return <CreateProgrammeChoiceScreen onQore={handleQoreSelected} onManual={onManual} onClose={onClose} />
+    return <CreateProgrammeChoiceScreen onCoach={handleCoachSelected} onManual={onManual} onClose={onClose} />
   }
-  if (step === 'qore') {
+  if (step === 'coach') {
     return (
-      <CreateProgrammeQoreOnboarding
+      <CreateProgrammeCoachOnboarding
         allExercises={allExercises}
-        onComplete={(payload, makeActive) => saveQoreGeneratedProgramme?.(payload, makeActive)}
+        onComplete={(payload, makeActive) => saveCoachGeneratedProgramme?.(payload, makeActive)}
         onBack={() => onStepChange('choice')}
         onClose={onClose}
+        onCoachGenerationSuccess={onCoachGenerationSuccess}
       />
     )
   }

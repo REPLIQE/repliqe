@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import PhotosModal, { PhotosViewContent } from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
 import { useAuth } from './lib/AuthContext'
+import { defaultPlanUsage, photoAtLimit, countProgressPhotoSlots } from './lib/planUsage'
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 const MEASUREMENTS = [
@@ -12,8 +13,6 @@ const MEASUREMENTS = [
   { key: 'thigh', label: 'Thigh' },
   { key: 'calf', label: 'Calf' },
 ]
-const TOTAL_FREE_PHOTOS = 12
-
 const CM_PER_INCH = 2.54
 
 export default function ProgressBody({
@@ -41,7 +40,11 @@ export default function ProgressBody({
   photoLinkTargetSessionId = null,
   onClearPhotoLinkTarget,
   onPhotoSessionLinkedToWorkout,
+  userPlan = 'free',
+  planUsage: planUsageProp,
+  onProgressPhotoAdded,
 }) {
+  const planUsage = planUsageProp ?? defaultPlanUsage()
   const fmt = formatDecimal ?? ((n, decimals) => (n != null ? (decimals != null ? Number(n).toFixed(decimals) : String(n)) : '—'))
   const parse = parseDecimal ?? ((s) => parseFloat(String(s).replace(',', '.')))
   const [period, setPeriod] = useState('3M')
@@ -85,11 +88,11 @@ export default function ProgressBody({
   const latestBF = safeBodyFatLog.length > 0 ? safeBodyFatLog[safeBodyFatLog.length - 1] : null
   const latestMuscleMass = safeMuscleMassLog.length > 0 ? safeMuscleMassLog[safeMuscleMassLog.length - 1] : null
 
-  const totalPhotos = safePhotoSessions.reduce(
-    (sum, s) => sum + [s.front, s.back, s.side].filter(Boolean).length,
-    0
-  )
-  const atLimit = totalPhotos >= TOTAL_FREE_PHOTOS
+  const totalPhotos = countProgressPhotoSlots(safePhotoSessions)
+  const atLimit = photoAtLimit(userPlan, totalPhotos, planUsage)
+  const progressPhotoBarUsed =
+    userPlan === 'pro' || userPlan === 'elite' ? planUsage.progressPhotosThisPeriod : totalPhotos
+  const progressPhotoBarCap = userPlan === 'elite' ? null : userPlan === 'pro' ? 50 : 12
 
   function filterLog(log) {
     if (period === 'All') return log
@@ -320,6 +323,8 @@ export default function ProgressBody({
           setPhotoSessions={setPhotoSessions}
           totalPhotos={totalPhotos}
           atLimit={atLimit}
+          progressPhotoBarUsed={progressPhotoBarUsed}
+          progressPhotoBarCap={progressPhotoBarCap}
           weightLog={safeWeightLog}
           muscleMassLog={safeMuscleMassLog}
           unitWeight={unitWeight ?? 'kg'}
@@ -329,7 +334,7 @@ export default function ProgressBody({
           onOpenAddPhotos={() => {
             if (atLimit) {
               alert(
-                `You've reached the ${TOTAL_FREE_PHOTOS} photo limit. Delete older sessions to add more, or unlock unlimited storage.`
+                "You've reached your progress photo limit for your current plan. You can delete older photos, upgrade under Profile → Account, or wait until next month if you're on Pro."
               )
               return
             }
@@ -390,6 +395,8 @@ export default function ProgressBody({
           setPhotoSessions={setPhotoSessions}
           totalPhotos={totalPhotos}
           atLimit={atLimit}
+          progressPhotoBarUsed={progressPhotoBarUsed}
+          progressPhotoBarCap={progressPhotoBarCap}
           onClose={() => {
             setShowPhotos(false)
             setOpenPhotosToAdd(false)
@@ -406,6 +413,7 @@ export default function ProgressBody({
               ? (photoSessionId) => onPhotoSessionLinkedToWorkout(photoSessionId, photoLinkTargetSessionId)
               : undefined
           }
+          onProgressPhotoAdded={onProgressPhotoAdded}
         />
       )}
     </div>
