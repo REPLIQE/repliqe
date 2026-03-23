@@ -3209,6 +3209,7 @@ ${JSON.stringify(ctx)}`
               allExercises={allLibraryExercises}
               saveCoachGeneratedProgramme={saveCoachGeneratedProgramme}
               onCoachGenerationSuccess={handleCoachGenerationSuccess}
+              onOpenPrivacyPolicy={() => setShowPrivacy(true)}
             />
           </Suspense>
         )}

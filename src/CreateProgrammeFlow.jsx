@@ -390,6 +390,7 @@ export function CreateProgrammeCoachOnboarding({
   onClose,
   allExercises = DEFAULT_EXERCISES,
   onCoachGenerationSuccess,
+  onOpenPrivacyPolicy,
 }) {
   const [step, setStep] = useState(0)
   const [goal, setGoal] = useState(null)
@@ -723,17 +724,6 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
           <p className="text-sm text-text leading-relaxed">
             REPLIQE Coach uses AI to design a programme based on your answers. Your training preferences are sent securely to an AI model for processing.
           </p>
-          <a
-            href={PRIVACY_POLICY_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 mt-4 text-sm font-semibold text-accent underline underline-offset-2 hover:opacity-90"
-          >
-            Read our privacy policy
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" />
-            </svg>
-          </a>
         </div>
 
         <label className="flex items-start gap-3 cursor-pointer mb-6 rounded-xl border border-border bg-card-alt/50 p-3.5">
@@ -744,7 +734,19 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
             className="mt-0.5 h-4 w-4 shrink-0 rounded border-2 border-border-strong bg-card text-accent accent-accent focus:ring-2 focus:ring-accent/30 focus:ring-offset-0"
           />
           <span className="text-sm text-muted-strong leading-snug">
-            I understand my preferences will be processed by AI to generate my programme, and confirm I have read the privacy policy.
+            I understand my preferences will be processed by AI to generate my programme, and confirm I have read the{' '}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                if (onOpenPrivacyPolicy) onOpenPrivacyPolicy()
+                else window.open(PRIVACY_POLICY_URL, '_blank', 'noopener,noreferrer')
+              }}
+              className="font-semibold text-accent underline underline-offset-2 hover:opacity-90 inline p-0 align-baseline bg-transparent border-0 cursor-pointer"
+            >
+              privacy policy
+            </button>
+            .
           </span>
         </label>
 
@@ -945,6 +947,7 @@ export default function CreateProgrammeFlow({
   saveCoachGeneratedProgramme,
   allExercises,
   onCoachGenerationSuccess,
+  onOpenPrivacyPolicy,
 }) {
   const [resolvingEntry, setResolvingEntry] = useState(false)
 
@@ -1001,6 +1004,7 @@ export default function CreateProgrammeFlow({
         onBack={() => onStepChange('choice')}
         onClose={onClose}
         onCoachGenerationSuccess={onCoachGenerationSuccess}
+        onOpenPrivacyPolicy={onOpenPrivacyPolicy}
       />
     )
   }
