@@ -361,13 +361,13 @@ function ExerciseCard({
         const isNextSet = supersetIsNext && supersetNextSetIndex === j
 
         return (
-          <div key={j}>
-            <div className="relative overflow-hidden rounded-lg mb-1" style={{ isolation: 'isolate' }}>
+          <div key={j} className="mb-1">
+            <div className="relative overflow-hidden rounded-lg" style={{ isolation: 'isolate' }}>
               <button onClick={() => confirmDelete(j)} className="absolute right-0 top-0 bottom-0 w-20 flex items-center justify-center bg-red-500 rounded-r-lg z-0" style={{ backfaceVisibility: 'hidden' }}>
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-white mr-1"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 <span className="text-white text-sm font-bold">Delete</span>
               </button>
-              <div ref={(el) => { rowRefs.current[j] = el }} className={`gap-1.5 items-center bg-card relative z-10 ${isNextSet ? 'ring-2 ring-success/60 rounded-lg' : ''}`} style={{ display: 'grid', ...gridStyle, touchAction: 'pan-y', boxShadow: '2px 0 0 0 var(--bg-card)' }}
+              <div ref={(el) => { rowRefs.current[j] = el }} className={`gap-1.5 items-center relative z-10 bg-card ${isNextSet ? 'ring-2 ring-success/60 rounded-lg' : ''}`} style={{ display: 'grid', ...gridStyle, touchAction: 'pan-y', boxShadow: '2px 0 0 0 var(--bg-card)' }}
                 onTouchStart={(e) => { tapOutside(j); handleTouchStart(e, j) }} onTouchMove={(e) => handleTouchMove(e, j)} onTouchEnd={(e) => handleTouchEnd(e, j)}>
                 <span className="text-sm font-bold text-muted text-center">{j + 1}</span>
                 {hasPrevious && (
@@ -430,6 +430,32 @@ function ExerciseCard({
               )
             })()}
 
+            {supersetRole !== 'A' && hasCompletedRest && (
+              <div className="flex items-center justify-center gap-1 py-0.5 my-0.5 relative min-h-[1.2rem] overflow-hidden">
+                {/* Dots from center to both edges – nedtonet, bliver ligesom tiden */}
+                <div
+                  className="absolute top-0 bottom-0 right-1/2 w-1/2"
+                  style={{
+                    backgroundImage: 'radial-gradient(circle, var(--color-muted-mid) 0.75px, transparent 0.75px)',
+                    backgroundSize: '4px 1.2rem',
+                    backgroundPosition: '0 center',
+                    opacity: 0.6
+                  }}
+                />
+                <div
+                  className="absolute top-0 bottom-0 left-1/2 w-1/2"
+                  style={{
+                    backgroundImage: 'radial-gradient(circle, var(--color-muted-mid) 0.75px, transparent 0.75px)',
+                    backgroundSize: '4px 1.2rem',
+                    backgroundPosition: '0 center',
+                    opacity: 0.6
+                  }}
+                />
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-muted-strong relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span className="text-muted-mid text-xs font-semibold relative z-10">{formatTime(set.restTime)}</span>
+              </div>
+            )}
+
             {coachTipData && coachTipSetIndex === j && (
               <div
                 className={`mt-2 p-3 rounded-xl border transition-colors duration-200 ${
@@ -479,32 +505,6 @@ function ExerciseCard({
                     </div>
                   </>
                 )}
-              </div>
-            )}
-
-            {supersetRole !== 'A' && hasCompletedRest && (
-              <div className="flex items-center justify-center gap-1 py-0.5 my-0.5 relative min-h-[1.2rem] overflow-hidden">
-                {/* Dots from center to both edges – nedtonet, bliver ligesom tiden */}
-                <div
-                  className="absolute top-0 bottom-0 right-1/2 w-1/2"
-                  style={{
-                    backgroundImage: 'radial-gradient(circle, var(--color-muted-mid) 0.75px, transparent 0.75px)',
-                    backgroundSize: '4px 1.2rem',
-                    backgroundPosition: '0 center',
-                    opacity: 0.6
-                  }}
-                />
-                <div
-                  className="absolute top-0 bottom-0 left-1/2 w-1/2"
-                  style={{
-                    backgroundImage: 'radial-gradient(circle, var(--color-muted-mid) 0.75px, transparent 0.75px)',
-                    backgroundSize: '4px 1.2rem',
-                    backgroundPosition: '0 center',
-                    opacity: 0.6
-                  }}
-                />
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-muted-strong relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <span className="text-muted-mid text-xs font-semibold relative z-10">{formatTime(set.restTime)}</span>
               </div>
             )}
           </div>

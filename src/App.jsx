@@ -2288,6 +2288,12 @@ ${JSON.stringify(ctx)}`
     }
   }
 
+  /** Undgå glimt af Start-skærm / "no programme" før Firestore har gendannet currentWorkout og hentet planer. */
+  const workoutBootstrapLoading =
+    page === 'workout' &&
+    !showCompleteScreen &&
+    (!appDataLoaded || (!workoutActive && !workoutPlansLoaded))
+
   return (
     <>
       {showPrivacy && <PrivacyPolicy onClose={closePrivacyLegal} />}
@@ -2361,8 +2367,14 @@ ${JSON.stringify(ctx)}`
             />
           )}
 
+          {page === 'workout' && !showCompleteScreen && workoutBootstrapLoading && (
+            <div className="flex flex-col items-center justify-center min-h-[65vh] px-4" aria-busy="true">
+              <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+
           {/* WORKOUT START SCREEN (also when workout active but sheet closed) */}
-          {page === 'workout' && (!workoutActive || !showActiveWorkoutSheet) && !showCompleteScreen && (
+          {page === 'workout' && (!workoutActive || !showActiveWorkoutSheet) && !showCompleteScreen && !workoutBootstrapLoading && (
             <div>
               <div className="flex items-center gap-3 mb-4"><RepliqeLogo size={28} /><h1 className="text-3xl font-bold tracking-tight">Workout</h1></div>
 
