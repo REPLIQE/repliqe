@@ -8,7 +8,7 @@ export default function SupersetWrapper({ groupId, exerciseA, exerciseB, nextSet
     supersetNextSetIndex: nextSetInfo?.nextIsA === false ? nextSetInfo.nextSetIndex : null
   }
   return (
-    <div id={groupId ? `superset-${groupId}` : undefined} className="superset-wrapper relative mb-2 rounded-r-2xl border-l-4" style={{ borderLeftColor: 'var(--accent-primary)' }}>
+    <div id={groupId ? `superset-${groupId}` : undefined} className="superset-wrapper relative mb-2 rounded-r-2xl border-l-4 min-w-0 w-full" style={{ borderLeftColor: 'var(--accent-primary)' }}>
       <div className="flex items-center gap-1.5 mb-1.5">
         <div
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold uppercase tracking-wide w-fit"

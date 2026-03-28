@@ -208,7 +208,7 @@ function ExerciseCard({
   const displayName = exercise.name ?? exercise.exerciseId ?? ''
   const borderClass = isLinkSource ? 'border-accent/50 bg-card-alt' : isLinkTarget ? 'border-success/40 cursor-pointer' : 'border-border'
   const outerClass = [
-    'bg-card border rounded-2xl p-3.5 mb-2 transition-all duration-200',
+    'bg-card border rounded-2xl p-3.5 mb-2 transition-all duration-200 w-full min-w-0',
     borderClass,
     isLinkModeActive && !isLinkSource && !isLinkTarget ? 'opacity-40 pointer-events-none' : '',
     isLinkTarget ? 'animate-pulse-border' : ''
@@ -324,8 +324,8 @@ function ExerciseCard({
       )}
 
       {exercise.note && !showNoteInput && (
-        <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-card-alt rounded-lg border border-border-strong">
-          <span className="text-sm text-muted italic flex-1">{exercise.note}</span>
+        <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-card-alt rounded-lg border border-border-strong min-w-0">
+          <span className="text-sm text-muted italic flex-1 min-w-0 break-words">{exercise.note}</span>
           <button
             type="button"
             onClick={() => setShowRemoveNoteConfirm(true)}
@@ -338,9 +338,24 @@ function ExerciseCard({
       )}
 
       {showNoteInput && (
-        <div className="mt-2 flex gap-2">
-          <input type="text" placeholder="Add a note..." value={exercise.note || ''} onChange={(e) => onUpdateExerciseNote(exIndex, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setShowNoteInput(false)} autoFocus className="flex-1 bg-card-alt border border-border-strong rounded-lg px-3 py-2 text-base sm:text-sm text-text placeholder-muted-deep outline-none focus:border-accent transition-colors" />
-          <button onClick={() => setShowNoteInput(false)} className="px-3 py-2 bg-accent text-on-accent rounded-lg text-sm font-bold hover:opacity-90 transition-colors">Done</button>
+        <div className="mt-2 w-full min-w-0 flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-2">
+          <input
+            type="text"
+            placeholder="Add a note..."
+            value={exercise.note || ''}
+            onChange={(e) => onUpdateExerciseNote(exIndex, e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && setShowNoteInput(false)}
+            autoFocus
+            enterKeyHint="done"
+            className="w-full min-w-0 sm:flex-1 box-border bg-card-alt border border-border-strong rounded-lg px-3 py-2 text-base sm:text-sm text-text placeholder-muted-deep outline-none focus:border-accent transition-colors"
+          />
+          <button
+            type="button"
+            onClick={() => setShowNoteInput(false)}
+            className="w-full shrink-0 px-3 py-2 bg-accent text-on-accent rounded-lg text-sm font-bold hover:opacity-90 transition-colors sm:w-auto self-end sm:self-auto"
+          >
+            Done
+          </button>
         </div>
       )}
 
