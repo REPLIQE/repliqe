@@ -322,7 +322,16 @@ function ExerciseCard({
       {exercise.note && !showNoteInput && (
         <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-card-alt rounded-lg border border-border-strong">
           <span className="text-sm text-muted italic flex-1">{exercise.note}</span>
-          <button onClick={() => onUpdateExerciseNote(exIndex, '')} className="text-muted-mid hover:text-red-400 transition-colors shrink-0"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('Remove this note?')) onUpdateExerciseNote(exIndex, '')
+            }}
+            className="text-muted-mid hover:text-red-400 transition-colors shrink-0"
+            aria-label="Remove note"
+          >
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
         </div>
       )}
 
