@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import MuscleIcon from './MuscleIcon'
 import { MUSCLE_GROUPS } from './exerciseLibrary'
 
@@ -61,6 +62,7 @@ function ExerciseCard({
   }
   const [showRestPicker, setShowRestPicker] = useState(false)
   const [showNoteInput, setShowNoteInput] = useState(false)
+  const [showRemoveNoteConfirm, setShowRemoveNoteConfirm] = useState(false)
   const [showExerciseMenu, setShowExerciseMenu] = useState(false)
   const [swipedSet, setSwipedSet] = useState(null)
   const touchStartRef = useRef({ x: 0, y: 0 })
@@ -212,6 +214,7 @@ function ExerciseCard({
   ].filter(Boolean).join(' ')
 
   return (
+    <>
     <div className={outerClass} onClick={isLinkTarget ? onTapAsTarget : undefined}>
       <div className="flex justify-between items-start gap-2">
         {isEditing && (
@@ -324,9 +327,7 @@ function ExerciseCard({
           <span className="text-sm text-muted italic flex-1">{exercise.note}</span>
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm('Remove this note?')) onUpdateExerciseNote(exIndex, '')
-            }}
+            onClick={() => setShowRemoveNoteConfirm(true)}
             className="text-muted-mid hover:text-red-400 transition-colors shrink-0"
             aria-label="Remove note"
           >
@@ -522,6 +523,50 @@ function ExerciseCard({
 
       <button onClick={() => onAddSet(exIndex)} className="w-full py-2 mt-2 border border-dashed border-border-strong rounded-lg text-muted-mid text-sm font-semibold hover:border-accent hover:text-accent transition-colors">+ Add set</button>
     </div>
+    {showRemoveNoteConfirm &&
+      typeof document !== 'undefined' &&
+      createPortal(
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[100] px-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="remove-note-title"
+          onClick={() => setShowRemoveNoteConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-card border border-border rounded-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="remove-note-title" className="text-base font-bold text-center mb-2">
+              Remove note?
+            </h2>
+            <p className="text-sm text-muted text-center mb-5">
+              This exercise note will be cleared.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowRemoveNoteConfirm(false)}
+                className="flex-1 py-3 border border-border-strong rounded-xl text-muted text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRemoveNoteConfirm(false)
+                  onUpdateExerciseNote(exIndex, '')
+                }}
+                className="flex-1 py-3 bg-red-500 rounded-xl text-text text-sm font-bold"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 
