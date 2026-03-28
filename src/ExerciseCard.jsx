@@ -172,7 +172,8 @@ function ExerciseCard({
   const headers = getHeaders()
   const doneStyle = 'border-accent/25 bg-accent/5 text-accent'
   const editStyle = 'border-border-strong text-text placeholder-muted-deep focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-primary)] focus:shadow-accent/20'
-  const base = 'w-full min-w-0 bg-card-alt border rounded-lg px-1.5 py-1.5 text-center text-sm font-bold outline-none transition-all'
+  /* text-base på små skærme: iOS zoomer ikke ind ved fokus (<16px giver layout-shift og vandret scroll) */
+  const base = 'w-full min-w-0 bg-card-alt border rounded-lg px-1.5 py-1.5 text-center text-base sm:text-sm font-bold outline-none transition-all'
 
   function renderInputs(set, j) {
     switch (type) {
@@ -338,7 +339,7 @@ function ExerciseCard({
 
       {showNoteInput && (
         <div className="mt-2 flex gap-2">
-          <input type="text" placeholder="Add a note..." value={exercise.note || ''} onChange={(e) => onUpdateExerciseNote(exIndex, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setShowNoteInput(false)} autoFocus className="flex-1 bg-card-alt border border-border-strong rounded-lg px-3 py-2 text-sm text-text placeholder-muted-deep outline-none focus:border-accent transition-colors" />
+          <input type="text" placeholder="Add a note..." value={exercise.note || ''} onChange={(e) => onUpdateExerciseNote(exIndex, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setShowNoteInput(false)} autoFocus className="flex-1 bg-card-alt border border-border-strong rounded-lg px-3 py-2 text-base sm:text-sm text-text placeholder-muted-deep outline-none focus:border-accent transition-colors" />
           <button onClick={() => setShowNoteInput(false)} className="px-3 py-2 bg-accent text-on-accent rounded-lg text-sm font-bold hover:opacity-90 transition-colors">Done</button>
         </div>
       )}
@@ -537,10 +538,10 @@ function ExerciseCard({
             className="w-full max-w-sm bg-card border border-border rounded-2xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="remove-note-title" className="text-base font-bold text-center mb-2">
+            <h2 id="remove-note-title" className="text-base font-bold text-center mb-2 text-text">
               Remove note?
             </h2>
-            <p className="text-sm text-muted text-center mb-5">
+            <p className="text-sm text-muted-strong text-center mb-5">
               This exercise note will be cleared.
             </p>
             <div className="flex gap-3">

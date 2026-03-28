@@ -2298,8 +2298,8 @@ ${JSON.stringify(ctx)}`
     <>
       {showPrivacy && <PrivacyPolicy onClose={closePrivacyLegal} />}
       {showTerms && <TermsOfService onClose={closeTermsLegal} />}
-      <div className="min-h-screen bg-page text-text pb-16">
-        <div className="px-4 py-6 max-w-md mx-auto">
+      <div className="min-h-screen bg-page text-text pb-16 overflow-x-hidden w-full max-w-[100%]">
+        <div className="px-4 py-6 max-w-md mx-auto w-full min-w-0">
 
           {/* PROGRESS */}
           {page === 'progress' && (
@@ -2777,7 +2777,7 @@ ${JSON.stringify(ctx)}`
                   </div>
                 )}
 
-                <div className="overflow-y-auto flex-1 min-h-0 -mx-4 px-4 pt-1" onScroll={handleWorkoutScroll}>
+                <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0 -mx-4 px-4 pt-1 min-w-0" onScroll={handleWorkoutScroll}>
                   {linkMode.active && (
                     <div className="sticky top-0 z-10 -mx-4 px-4 pt-1 pb-2 bg-page">
                       <LinkModeBanner

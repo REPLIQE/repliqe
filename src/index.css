@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+/* Forhindre vandret “gummibånd”/pan når mobil tastatur åbner (iOS) eller indhold er et par px for bredt */
+html {
+  overflow-x: hidden;
+  width: 100%;
+}
+body {
+  overflow-x: hidden;
+  width: 100%;
+  margin: 0;
+}
+#root {
+  overflow-x: hidden;
+  width: 100%;
+  min-height: 100%;
+}
+
 /* ========== Repliqe — Bone Theme Design (data-theme) ========== */
 /* Default: Dark theme */
 :root {
