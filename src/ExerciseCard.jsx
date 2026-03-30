@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
 import MuscleIcon from './MuscleIcon'
 import { MUSCLE_GROUPS } from './exerciseLibrary'
 
@@ -22,6 +23,79 @@ function selectWorkoutFieldOnFocus(e) {
   requestAnimationFrame(run)
 }
 
+/**
+ * Done-state tint behind value fields. Fade-out on undo uses CSS transition reliably; fade-in on done
+ * needs a forced initial paint at opacity 0 (double rAF) or browsers skip the transition.
+ */
+function DoneValueShell({ done, children }) {
+  const [layerOpacity, setLayerOpacity] = useState(0)
+
+  useLayoutEffect(() => {
+    const reduced =
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced) {
+      setLayerOpacity(done ? 1 : 0)
+      return
+    }
+    if (!done) {
+      setLayerOpacity(0)
+      return
+    }
+    setLayerOpacity(0)
+    let innerRaf = 0
+    const outerRaf = requestAnimationFrame(() => {
+      innerRaf = requestAnimationFrame(() => setLayerOpacity(1))
+    })
+    return () => {
+      cancelAnimationFrame(outerRaf)
+      cancelAnimationFrame(innerRaf)
+    }
+  }, [done])
+
+  return (
+    <div className="relative w-full min-w-0 self-center">
+      <div
+        className={[
+          'absolute inset-0 z-[1] rounded-lg pointer-events-none',
+          'bg-success/12 shadow-[inset_0_0_0_1px_rgba(0,229,160,0.2)]',
+          'motion-reduce:transition-none motion-reduce:duration-0',
+          'transition-opacity duration-[1900ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
+        ].join(' ')}
+        style={{ opacity: layerOpacity }}
+        aria-hidden
+      />
+      <div className="relative z-0 min-w-0">{children}</div>
+    </div>
+  )
+}
+
+/**
+ * Rest timer row: gentle height tuck + slow opacity fade so the bar doesn’t pop in loudly.
+ */
+function SmoothRestReveal({ show, children }) {
+  return (
+    <div
+      className={[
+        'grid',
+        'motion-reduce:transition-none motion-reduce:duration-0',
+        'transition-[grid-template-rows] duration-[900ms] ease-out',
+      ].join(' ')}
+      style={{ gridTemplateRows: show ? '1fr' : '0fr' }}
+    >
+      <div
+        className={[
+          'min-h-0 overflow-hidden',
+          'motion-reduce:opacity-100 motion-reduce:transition-none',
+          'transition-[opacity] duration-[1100ms] ease-out',
+          show ? 'opacity-100' : 'opacity-0',
+        ].join(' ')}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function RirBadge({ rir }) {
   if (rir === null || rir === undefined) return null
   return (
@@ -35,7 +109,7 @@ function RirBadge({ rir }) {
 }
 
 function ExerciseCard({
-  exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onAddSet, onUpdateSet, onDoneSet, onUndoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote,
+  exercise, exIndex, isEditing, exerciseCount, onMoveUp, onMoveDown, onRemoveExercise, onReplaceExercise, onAddSet, onUpdateSet, onDoneSet, onUndoneSet, onDeleteSet, onUpdateExerciseRest, onUpdateExerciseNote,
   bestSet, previousSets, activeRest, restTime, restDuration, defaultRest, bodyweight, unitWeight, unitDistance, formatDecimal, parseDecimal, libraryEntry,
   supersetRole = null, supersetIsNext = false, supersetNextSetIndex = null, isLinkModeActive = false, isLinkSource = false, isLinkTarget = false, onTapAsTarget, onStartLinkMode, onBreakSuperset,
   rirEnabled = false, globalRirEnabled = false, onRirOverride = () => {},
@@ -160,8 +234,8 @@ function ExerciseCard({
   function getHeaders() {
     switch (type) {
       case 'weight_reps': return [wLabel, 'Reps']
-      case 'bw_reps': return [`± ${wLabel}`, 'Reps']
-      case 'reps_only': return ['Reps']
+      case 'bw_reps':
+      case 'reps_only': return [`± ${wLabel}`, 'Reps']
       case 'time_only': return ['Time']
       case 'distance_time': return [unitDistance === 'km' ? 'KM' : 'MI', 'Time']
       default: return [wLabel, 'Reps']
@@ -170,36 +244,43 @@ function ExerciseCard({
 
   const gridStyle = { gridTemplateColumns: getGridCols() }
   const headers = getHeaders()
-  const doneStyle = 'border-accent/25 bg-accent/5 text-accent'
+  const doneStyle =
+    'border-success/35 bg-card-alt/90 text-text placeholder-muted-deep focus:border-success focus:shadow-[0_0_0_3px_rgba(0,229,160,0.2)]'
   const editStyle = 'border-border-strong text-text placeholder-muted-deep focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-primary)] focus:shadow-accent/20'
   /* text-base på små skærme: iOS zoomer ikke ind ved fokus (<16px giver layout-shift og vandret scroll) */
   const base = 'w-full min-w-0 bg-card-alt border rounded-lg px-1.5 py-1.5 text-center text-base sm:text-sm font-bold outline-none transition-all'
+  const doneBtnTransition =
+    'transition-all duration-[560ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none motion-reduce:duration-0'
 
   function renderInputs(set, j) {
+    const w = (node) => <DoneValueShell done={set.done}>{node}</DoneValueShell>
     switch (type) {
       case 'weight_reps': return (<>
-        <input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
-        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        {w(<input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)}
+        {w(<input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)}
       </>)
       case 'bw_reps': return (<>
         <div className="flex items-center gap-1.5">
-          <button onClick={() => !set.done && onUpdateSet(exIndex, j, 'bwSign', (set.bwSign || '+') === '+' ? '-' : '+')} disabled={set.done}
-            className={`shrink-0 w-8 h-[34px] rounded-xl border-[1.5px] flex items-center justify-center text-sm font-extrabold transition-all ${set.done ? 'border-accent/25 bg-accent/5' : 'border-border-strong bg-card-alt hover:border-accent active:scale-90'} ${(set.bwSign || '+') === '+' ? 'text-success' : 'text-[#ff6b6b]'}`}>
+          <button
+            type="button"
+            onClick={() => onUpdateSet(exIndex, j, 'bwSign', (set.bwSign || '+') === '+' ? '-' : '+')}
+            className={`shrink-0 w-8 h-[34px] rounded-xl border-[1.5px] flex items-center justify-center text-sm font-extrabold transition-all ${set.done ? 'border-success/30 bg-success/8' : 'border-border-strong bg-card-alt hover:border-accent active:scale-90'} ${(set.bwSign || '+') === '+' ? 'text-success' : 'text-[#ff6b6b]'}`}
+          >
             {(set.bwSign || '+') === '+' ? '+' : '−'}
           </button>
-          <input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} flex-1 ${set.done ? doneStyle : editStyle}`} />
+          {w(<input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} flex-1 ${set.done ? doneStyle : editStyle}`} />)}
         </div>
-        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        {w(<input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)}
       </>)
       case 'reps_only': return (
-        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        w(<input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)
       )
       case 'time_only': return (
-        <input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        w(<input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)
       )
       case 'distance_time': return (<>
-        <input type="text" inputMode="decimal" placeholder={unitDistance} data-ex={exIndex} data-set={j} data-field="distance" value={displayDist(set.distance)} onChange={(e) => onUpdateSet(exIndex, j, 'distance', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
-        <input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} onFocus={selectWorkoutFieldOnFocus} disabled={set.done} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        {w(<input type="text" inputMode="decimal" placeholder={unitDistance} data-ex={exIndex} data-set={j} data-field="distance" value={displayDist(set.distance)} onChange={(e) => onUpdateSet(exIndex, j, 'distance', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)}
+        {w(<input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)}
       </>)
       default: return null
     }
@@ -313,6 +394,21 @@ function ExerciseCard({
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
             {exercise.note ? 'Edit note' : 'Add note'}
           </button>
+          {onReplaceExercise && !isLinkModeActive && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowExerciseMenu(false)
+                onReplaceExercise(exIndex)
+              }}
+              className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong"
+            >
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current">
+                <path d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+              </svg>
+              Replace exercise
+            </button>
+          )}
           <button onClick={() => { setShowExerciseMenu(false); onRemoveExercise(exIndex) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-colors border-t border-border-strong">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             Remove exercise
@@ -324,35 +420,34 @@ function ExerciseCard({
       )}
 
       {exercise.note && !showNoteInput && (
-        <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-card-alt rounded-lg border border-border-strong min-w-0">
-          <span className="text-sm text-muted italic flex-1 min-w-0 break-words">{exercise.note}</span>
+        <div className="flex items-start gap-2 mt-2 px-3 py-2 bg-card-alt rounded-lg border border-border-strong min-w-0">
+          <span className="text-sm text-muted italic flex-1 min-w-0 break-words whitespace-pre-wrap">{exercise.note}</span>
           <button
             type="button"
             onClick={() => setShowRemoveNoteConfirm(true)}
             className="text-muted-mid hover:text-red-400 transition-colors shrink-0"
             aria-label="Remove note"
           >
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            <DeleteTrashGlyph className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
       {showNoteInput && (
-        <div className="mt-2 w-full min-w-0 flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-2">
-          <input
-            type="text"
+        <div className="mt-2 w-full min-w-0 flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2">
+          <textarea
             placeholder="Add a note..."
             value={exercise.note || ''}
             onChange={(e) => onUpdateExerciseNote(exIndex, e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && setShowNoteInput(false)}
+            rows={4}
             autoFocus
-            enterKeyHint="done"
-            className="w-full min-w-0 sm:flex-1 box-border bg-card-alt border border-border-strong rounded-lg px-3 py-2 text-base sm:text-sm text-text placeholder-muted-deep outline-none focus:border-accent transition-colors"
+            enterKeyHint="enter"
+            className="w-full min-w-0 sm:flex-1 box-border bg-card-alt border border-border-strong rounded-lg px-3 py-2 text-base sm:text-sm text-text placeholder-muted-deep outline-none focus:border-accent transition-colors resize-y min-h-[5.5rem] max-h-[40vh]"
           />
           <button
             type="button"
             onClick={() => setShowNoteInput(false)}
-            className="w-full shrink-0 px-3 py-2 bg-accent text-on-accent rounded-lg text-sm font-bold hover:opacity-90 transition-colors sm:w-auto self-end sm:self-auto"
+            className="w-full shrink-0 px-3 py-2 bg-accent text-on-accent rounded-lg text-sm font-bold hover:opacity-90 transition-colors sm:w-auto self-end sm:self-stretch sm:min-w-[4.5rem]"
           >
             Done
           </button>
@@ -379,7 +474,7 @@ function ExerciseCard({
         <span></span>
       </div>
 
-      {exercise.sets.map((set, j) => {
+      {(exercise.sets ?? []).map((set, j) => {
         const isActiveRest = activeRest && activeRest.exIndex === exIndex && activeRest.setIndex === j
         const hasCompletedRest = set.done && set.restTime && !isActiveRest
         const prevSet = previousSets && previousSets[j]
@@ -390,7 +485,7 @@ function ExerciseCard({
           <div key={j} className="mb-1">
             <div className="relative overflow-hidden rounded-lg" style={{ isolation: 'isolate' }}>
               <button onClick={() => confirmDelete(j)} className="absolute right-0 top-0 bottom-0 w-20 flex items-center justify-center bg-red-500 rounded-r-lg z-0" style={{ backfaceVisibility: 'hidden' }}>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-white mr-1"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <DeleteTrashGlyph className="w-4 h-4 text-white mr-1 shrink-0" />
                 <span className="text-white text-sm font-bold">Delete</span>
               </button>
               <div ref={(el) => { rowRefs.current[j] = el }} className={`gap-1.5 items-center relative z-10 bg-card ${isNextSet ? 'ring-2 ring-success/60 rounded-lg' : ''}`} style={{ display: 'grid', ...gridStyle, touchAction: 'pan-y', boxShadow: '2px 0 0 0 var(--bg-card)' }}
@@ -409,78 +504,85 @@ function ExerciseCard({
                   </div>
                 )}
                 {set.done ? (
-                  <button onClick={() => onUndoneSet(exIndex, j)} className="w-7 h-7 bg-success rounded-md flex items-center justify-center mx-auto hover:bg-success/80 transition-colors active:scale-90"><svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-3.5 h-3.5 stroke-page"><polyline points="20 6 9 17 4 12" /></svg></button>
+                  <button
+                    type="button"
+                    onClick={() => onUndoneSet(exIndex, j)}
+                    className={`w-7 h-7 bg-success rounded-md flex items-center justify-center mx-auto hover:bg-success/80 active:scale-90 ${doneBtnTransition}`}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-3.5 h-3.5 stroke-page transition-opacity duration-300" aria-hidden><polyline points="20 6 9 17 4 12" /></svg>
+                  </button>
                 ) : (
-                  <button onClick={() => onDoneSet(exIndex, j)} className={`w-7 h-7 border-2 rounded-md flex items-center justify-center mx-auto transition-colors active:scale-90 ${isNextSet ? 'border-success bg-success/10 ring-2 ring-success/50 animate-up-next-pulse' : 'border-border-strong hover:border-success'}`}>
-                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className={`w-3.5 h-3.5 ${isNextSet ? 'stroke-success' : 'stroke-muted-strong'}`}><polyline points="20 6 9 17 4 12" /></svg>
+                  <button
+                    type="button"
+                    onClick={() => onDoneSet(exIndex, j)}
+                    className={`w-7 h-7 border-2 rounded-md flex items-center justify-center mx-auto active:scale-90 ${doneBtnTransition} ${isNextSet ? 'border-success bg-success/10 ring-2 ring-success/50 animate-up-next-pulse' : 'border-border-strong hover:border-success'}`}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className={`w-3.5 h-3.5 transition-colors duration-300 ${isNextSet ? 'stroke-success' : 'stroke-muted-strong'}`} aria-hidden><polyline points="20 6 9 17 4 12" /></svg>
                   </button>
                 )}
               </div>
             </div>
 
-            {supersetRole !== 'A' && isActiveRest && (() => {
-              const progress = restDuration > 0 ? Math.max(0, Math.min(1, restTime / restDuration)) : 0
-              const barWidthPct = progress * 100
-              const sidePct = (1 - progress) * 50 // each side grows from 0% to 50% as bar shrinks
-              return (
-                <div data-rest-active="1" className="flex items-center justify-center gap-1.5 py-0.5 my-0.5 rounded-lg relative min-h-0 pointer-events-none overflow-hidden isolate" style={{ height: '1.2rem' }}>
-                  {/* Center bar first (under dots) so venstre/højre prikker begge ligger synligt som animationen vokser */}
+            <SmoothRestReveal show={supersetRole !== 'A' && (isActiveRest || hasCompletedRest)}>
+              {isActiveRest ? (() => {
+                const progress = restDuration > 0 ? Math.max(0, Math.min(1, restTime / restDuration)) : 0
+                const barWidthPct = progress * 100
+                const sidePct = (1 - progress) * 50
+                return (
+                  <div data-rest-active="1" className="flex items-center justify-center gap-1.5 py-0.5 my-0.5 rounded-lg relative min-h-0 pointer-events-none overflow-hidden isolate" style={{ height: '1.2rem' }}>
+                    <div
+                      className="absolute top-0 bottom-0 left-1/2 z-0 -translate-x-1/2 rounded-sm transition-[width] duration-300 ease-out bg-gradient-to-r from-accent to-accent-end"
+                      style={{ width: `${barWidthPct}%`, minWidth: 0 }}
+                    />
+                    <div
+                      className="absolute top-0 bottom-0 right-1/2 z-[1] transition-[width] duration-500 ease-out"
+                      style={{
+                        width: `${sidePct}%`,
+                        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.85) 0.75px, transparent 0.75px)',
+                        backgroundSize: '4px 1.2rem',
+                        backgroundPosition: '100% center',
+                        opacity: 0.45
+                      }}
+                    />
+                    <div
+                      className="absolute top-0 bottom-0 left-1/2 z-[1] transition-[width] duration-500 ease-out"
+                      style={{
+                        width: `${sidePct}%`,
+                        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.85) 0.75px, transparent 0.75px)',
+                        backgroundSize: '4px 1.2rem',
+                        backgroundPosition: '0 center',
+                        opacity: 0.45
+                      }}
+                    />
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-white/90 relative z-10 shrink-0 transition-opacity duration-700" aria-hidden><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span className="text-white/95 font-bold text-xs tabular-nums relative z-10 min-w-[28px] text-center transition-opacity duration-700">{formatTime(restTime)}</span>
+                  </div>
+                )
+              })() : hasCompletedRest ? (
+                <div className="flex items-center justify-center gap-1 py-0.5 my-0.5 relative min-h-[1.2rem] overflow-hidden">
                   <div
-                    className="absolute top-0 bottom-0 left-1/2 z-0 -translate-x-1/2 rounded-sm transition-all duration-300 ease-out bg-gradient-to-r from-accent to-accent-end"
-                    style={{ width: `${barWidthPct}%`, minWidth: 0 }}
-                  />
-                  {/* Dots – hvid mens rest kører; samme z så begge sider matcher højre */}
-                  <div
-                    className="absolute top-0 bottom-0 right-1/2 z-[1] transition-all duration-300 ease-out"
+                    className="absolute top-0 bottom-0 right-1/2 w-1/2"
                     style={{
-                      width: `${sidePct}%`,
-                      backgroundImage: 'radial-gradient(circle, #fff 0.75px, transparent 0.75px)',
-                      backgroundSize: '4px 1.2rem',
-                      backgroundPosition: '100% center',
-                      opacity: 0.7
-                    }}
-                  />
-                  <div
-                    className="absolute top-0 bottom-0 left-1/2 z-[1] transition-all duration-300 ease-out"
-                    style={{
-                      width: `${sidePct}%`,
-                      backgroundImage: 'radial-gradient(circle, #fff 0.75px, transparent 0.75px)',
+                      backgroundImage: 'radial-gradient(circle, var(--color-muted-mid) 0.75px, transparent 0.75px)',
                       backgroundSize: '4px 1.2rem',
                       backgroundPosition: '0 center',
-                      opacity: 0.7
+                      opacity: 0.6
                     }}
                   />
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-white relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                  <span className="text-white font-bold text-xs tabular-nums relative z-10 min-w-[28px] text-center">{formatTime(restTime)}</span>
+                  <div
+                    className="absolute top-0 bottom-0 left-1/2 w-1/2"
+                    style={{
+                      backgroundImage: 'radial-gradient(circle, var(--color-muted-mid) 0.75px, transparent 0.75px)',
+                      backgroundSize: '4px 1.2rem',
+                      backgroundPosition: '0 center',
+                      opacity: 0.6
+                    }}
+                  />
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-muted-strong relative z-10 shrink-0" aria-hidden><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span className="text-muted-mid text-xs font-semibold relative z-10">{formatTime(set.restTime)}</span>
                 </div>
-              )
-            })()}
-
-            {supersetRole !== 'A' && hasCompletedRest && (
-              <div className="flex items-center justify-center gap-1 py-0.5 my-0.5 relative min-h-[1.2rem] overflow-hidden">
-                {/* Dots from center to both edges – nedtonet, bliver ligesom tiden */}
-                <div
-                  className="absolute top-0 bottom-0 right-1/2 w-1/2"
-                  style={{
-                    backgroundImage: 'radial-gradient(circle, var(--color-muted-mid) 0.75px, transparent 0.75px)',
-                    backgroundSize: '4px 1.2rem',
-                    backgroundPosition: '0 center',
-                    opacity: 0.6
-                  }}
-                />
-                <div
-                  className="absolute top-0 bottom-0 left-1/2 w-1/2"
-                  style={{
-                    backgroundImage: 'radial-gradient(circle, var(--color-muted-mid) 0.75px, transparent 0.75px)',
-                    backgroundSize: '4px 1.2rem',
-                    backgroundPosition: '0 center',
-                    opacity: 0.6
-                  }}
-                />
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-muted-strong relative z-10 shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <span className="text-muted-mid text-xs font-semibold relative z-10">{formatTime(set.restTime)}</span>
-              </div>
-            )}
+              ) : null}
+            </SmoothRestReveal>
 
             {coachTipData && coachTipSetIndex === j && (
               <div
@@ -543,22 +645,21 @@ function ExerciseCard({
       typeof document !== 'undefined' &&
       createPortal(
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[100] px-6"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] px-6"
           role="dialog"
           aria-modal="true"
           aria-labelledby="remove-note-title"
           onClick={() => setShowRemoveNoteConfirm(false)}
         >
           <div
-            className="w-full max-w-sm bg-card border border-border rounded-2xl p-6"
+            className="w-full max-w-sm bg-card rounded-[18px] p-7 text-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="remove-note-title" className="text-base font-bold text-center mb-2 text-text">
+            <DeleteTrashBadge />
+            <h2 id="remove-note-title" className="text-text text-lg font-bold mb-2">
               Remove note?
             </h2>
-            <p className="text-sm text-muted-strong text-center mb-5">
-              This exercise note will be cleared.
-            </p>
+            <p className="text-muted text-sm mb-5">This exercise note will be permanently cleared.</p>
             <div className="flex gap-3">
               <button
                 type="button"
@@ -573,9 +674,10 @@ function ExerciseCard({
                   setShowRemoveNoteConfirm(false)
                   onUpdateExerciseNote(exIndex, '')
                 }}
-                className="flex-1 py-3 bg-red-500 rounded-xl text-text text-sm font-bold"
+                className="flex-1 py-3 bg-[#FF5555] rounded-xl text-text text-sm font-bold inline-flex items-center justify-center gap-2"
               >
-                Remove
+                <DeleteTrashGlyph className="w-4 h-4 shrink-0" />
+                Delete
               </button>
             </div>
           </div>

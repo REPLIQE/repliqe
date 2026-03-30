@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, Component, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo, useRef, Component, lazy, Suspense } from 'react'
 import ExerciseCard from './ExerciseCard'
 import ExerciseLibrary from './ExerciseLibraryUI'
 import CreateExerciseModal from './CreateExerciseModal'
+import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
 import MuscleIcon from './MuscleIcon'
 import { useSuperset } from './useSuperset'
 import SupersetWrapper from './SupersetWrapper'
@@ -21,6 +22,8 @@ import { fetchAppData, updateAppData } from './lib/appDataFirestore'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
 import RecoverySection from './RecoverySection'
 import RepliqeLogo from './RepliqeLogo'
+import ProgressPhoto from './ProgressPhoto'
+import { loadPhotoSrc } from './PhotosModal'
 const ProgressScreen = lazy(() => import('./ProgressScreen'))
 const CoachScreen = lazy(() => import('./CoachScreen'))
 const CreateProgrammeFlow = lazy(() => import('./CreateProgrammeFlow'))
@@ -74,6 +77,39 @@ class ProgressErrorBoundary extends Component {
 
 const REST_PRESETS = [0, 30, 60, 90, 120, 180]
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+/** Index ranges in routine editor flat list: one block = ét trin (én øvelse eller superset A+B ved siden af hinanden). */
+function getRoutineEditorOrderBlocks(flat) {
+  if (!flat || flat.length === 0) return []
+  const blocks = []
+  const n = flat.length
+  let i = 0
+  while (i < n) {
+    const ex = flat[i]
+    if (ex.supersetGroupId) {
+      const next = flat[i + 1]
+      if (next && next.supersetGroupId === ex.supersetGroupId) {
+        blocks.push([i, i + 1])
+        i += 2
+        continue
+      }
+    }
+    blocks.push([i])
+    i += 1
+  }
+  return blocks
+}
+
+function swapRoutineEditorBlocks(flat, blockIndex, direction) {
+  if (!flat || flat.length === 0) return flat
+  const blocks = getRoutineEditorOrderBlocks(flat)
+  const j = blockIndex + direction
+  if (j < 0 || j >= blocks.length) return flat
+  const nextBlocks = [...blocks]
+  ;[nextBlocks[blockIndex], nextBlocks[j]] = [nextBlocks[j], nextBlocks[blockIndex]]
+  const order = nextBlocks.flat()
+  return order.map((idx) => flat[idx])
+}
 
 // Default programme for testing: 2 Split Push/Pull (Day 1 Push 8×4, Day 2 Pull 8×4). Each exercise has fixed kg/reps (same for all sets).
 function getDefault2SplitProgramme() {
@@ -284,7 +320,7 @@ function sanitizeExerciseForCurrentWorkoutPersist(ex) {
         }
         return o
       })
-    : ex.sets
+    : []
   const out = {
     name: ex.name,
     type: ex.type || 'weight_reps',
@@ -338,6 +374,10 @@ function AppContent() {
   const [decimalSeparator, setDecimalSeparator] = useState(DEFAULT_SETTINGS.decimalSeparator)
   const [dateFormat, setDateFormat] = useState(DEFAULT_SETTINGS.dateFormat)
   const [showAddExercise, setShowAddExercise] = useState(false)
+  /** Når sat: ExerciseLibrary er i replace-mode for aktiv workout / skabelon. */
+  const [exerciseLibraryReplaceIndex, setExerciseLibraryReplaceIndex] = useState(null)
+  /** Når sat: routine editor — vælg øvelse fra bibliotek for at erstatte denne rækkes exerciseId. */
+  const [routineReplaceExerciseId, setRoutineReplaceExerciseId] = useState(null)
   const [showCreateExercise, setShowCreateExercise] = useState(false)
   const [editingCustomExercise, setEditingCustomExercise] = useState(null)
   const [customExercises, setCustomExercises] = useState([])
@@ -386,6 +426,8 @@ function AppContent() {
   const [editingRoutineProgrammeId, setEditingRoutineProgrammeId] = useState(null)
   const [showExercisePickerForRoutine, setShowExercisePickerForRoutine] = useState(false)
   const [showDeleteProgrammeConfirm, setShowDeleteProgrammeConfirm] = useState(null)
+  /** { progId, rtnId, name } når bruger vil slette en rutine fra Edit Programme. */
+  const [editProgrammeRoutinePendingDelete, setEditProgrammeRoutinePendingDelete] = useState(null)
   const [showSetActiveAfterCreate, setShowSetActiveAfterCreate] = useState(null)
   const [showSetActiveAfterEditProgramme, setShowSetActiveAfterEditProgramme] = useState(null)
   const [dragRoutine, setDragRoutine] = useState(null) // { rtnId, progId }
@@ -394,12 +436,18 @@ function AppContent() {
   const [showActiveWorkoutSheet, setShowActiveWorkoutSheet] = useState(false)
   const [createProgrammeName, setCreateProgrammeName] = useState('')
   const [createProgrammeRoutines, setCreateProgrammeRoutines] = useState([])
+  /** Show create-programme validation / empty-routines hint only after Save is pressed (not by default). */
+  const [createProgrammeTriedSave, setCreateProgrammeTriedSave] = useState(false)
+  const [createProgrammeConfirmEmptyRoutines, setCreateProgrammeConfirmEmptyRoutines] = useState(false)
   const [editProgrammeName, setEditProgrammeName] = useState('')
   const [editRoutineName, setEditRoutineName] = useState('')
   const [editRoutineExercises, setEditRoutineExercises] = useState([])
   const [routineEditorRestForIndex, setRoutineEditorRestForIndex] = useState(null)
   const [routineEditorNoteForIndex, setRoutineEditorNoteForIndex] = useState(null)
   const [routineEditorSupersetMenuForId, setRoutineEditorSupersetMenuForId] = useState(null)
+  /** Routine editor: validation / empty-routine hint only after Save (not by default). */
+  const [routineEditorTriedSave, setRoutineEditorTriedSave] = useState(false)
+  const [routineEditorConfirmEmptyExercises, setRoutineEditorConfirmEmptyExercises] = useState(false)
   const [focusNewExerciseAt, setFocusNewExerciseAt] = useState(null)
   const [focusWorkoutFirstFieldAt, setFocusWorkoutFirstFieldAt] = useState(null) // exIndex to focus first set first field after adding
   const [rirEnabled, setRirEnabled] = useState(DEFAULT_SETTINGS.rirEnabled)
@@ -761,6 +809,28 @@ function AppContent() {
     }
   }, [editingProgrammeId])
 
+  useEffect(() => {
+    if (showCreateProgramme) {
+      setCreateProgrammeTriedSave(false)
+      setCreateProgrammeConfirmEmptyRoutines(false)
+    }
+  }, [showCreateProgramme])
+
+  useEffect(() => {
+    if (createProgrammeRoutines.length > 0) setCreateProgrammeConfirmEmptyRoutines(false)
+  }, [createProgrammeRoutines.length])
+
+  useEffect(() => {
+    if (showCreateRoutine || editingRoutineId) {
+      setRoutineEditorTriedSave(false)
+      setRoutineEditorConfirmEmptyExercises(false)
+    }
+  }, [showCreateRoutine, editingRoutineId])
+
+  useEffect(() => {
+    if (editRoutineExercises.length > 0) setRoutineEditorConfirmEmptyExercises(false)
+  }, [editRoutineExercises.length])
+
   // Workout restore from Firestore currentWorkout is done in the user+appData load effect above.
 
   useEffect(() => {
@@ -901,11 +971,12 @@ function AppContent() {
     currentRoutineIdRef.current = null
     startedFromEmptyRef.current = type === 'empty'
     if (type === 'template') {
-      setWorkoutName(data.name)
+      if (!data || !Array.isArray(data.exercises)) return
+      setWorkoutName(data.name || '')
       setExercises(data.exercises.map(ex => ({
         name: ex.name,
         type: ex.type || 'weight_reps',
-        sets: ex.sets.map(s => ({
+        sets: (ex.sets || []).map(s => ({
           ...s,
           done: false,
           initialKg: s.kg,
@@ -921,15 +992,17 @@ function AppContent() {
         movement: ex.movement
       })))
     } else if (type === 'routine') {
+      if (!data || data.id == null) return
       currentRoutineIdRef.current = data.id
-      setWorkoutName(data.name)
+      setWorkoutName(data.name || '')
       setExercises(routineToWorkoutExercises(data))
     } else if (type === 'last') {
+      if (!data || !Array.isArray(data.exercises)) return
       setWorkoutName(data.name || data.date)
       setExercises(data.exercises.map(ex => ({
         name: ex.name,
         type: ex.type || 'weight_reps',
-        sets: ex.sets.map(s => ({
+        sets: (ex.sets || []).map(s => ({
           ...s,
           done: false,
           initialKg: s.kg,
@@ -945,7 +1018,9 @@ function AppContent() {
         movement: ex.movement
       })))
     } else if (type === 'empty') {
-      setWorkoutName(data.name)
+      const nm = typeof data?.name === 'string' ? data.name.trim() : ''
+      if (!nm) return
+      setWorkoutName(nm)
       setExercises([])
     }
     setWorkoutActive(true); setWorkoutStartTime(now); setWorkoutElapsed(0)
@@ -1020,7 +1095,10 @@ function AppContent() {
   }
 
   function getSetConfigs(ex) {
-    if (ex.setConfigs?.length) return ex.setConfigs.map(s => ({ targetReps: s.targetReps ?? '8-10', targetKg: s.targetKg ?? '' }))
+    if (Array.isArray(ex.setConfigs)) {
+      if (ex.setConfigs.length === 0) return []
+      return ex.setConfigs.map((s) => ({ targetReps: s.targetReps ?? '8-10', targetKg: s.targetKg ?? '' }))
+    }
     const n = typeof ex.sets === 'number' ? Math.max(1, ex.sets) : 4
     return Array.from({ length: n }, () => ({ targetReps: ex.targetReps || '8-10', targetKg: '' }))
   }
@@ -1219,16 +1297,22 @@ function AppContent() {
   }
 
   function saveRoutineEdits(rtnId, name, exercises) {
-    const normalized = (exercises || []).map(ex => ({
+    const normalized = (exercises || []).map((ex) => {
+      const libT = getExerciseFromLibrary(ex.exerciseId)?.type || 'weight_reps'
+      return {
       id: ex.id ?? crypto.randomUUID(),
       exerciseId: ex.exerciseId,
-      setConfigs: getSetConfigs(ex).map(s => ({ targetReps: String(s.targetReps ?? '') || '8-10', targetKg: String(s.targetKg ?? '') ?? '' })),
+      setConfigs: getSetConfigs(ex).map((s) => ({
+        targetReps: String(s.targetReps ?? '') || '8-10',
+        targetKg: libT === 'reps_only' ? '' : (String(s.targetKg ?? '') ?? ''),
+      })),
       restOverride: ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null,
       rirOverride: ex.rirOverride ?? null,
       note: ex.note ?? '',
       supersetGroupId: ex.supersetGroupId ?? null,
       supersetRole: ex.supersetRole ?? null
-    }))
+    }
+    })
     setRoutines(prev => prev.map(r => r.id === rtnId ? { ...r, name, exercises: normalized } : r))
     setEditingRoutineId(null)
     setEditingRoutineProgrammeId(null)
@@ -1313,7 +1397,11 @@ function AppContent() {
   function getPRValue(set, type) {
     switch (type) {
       case 'weight_reps': { const kg = toNum(set.kg); const r = Number(set.reps||0); return kg > 0 && r > 0 ? kg * r : null }
-      case 'bw_reps': { const r = Number(set.reps||0); const sign = (set.bwSign || '+') === '+' ? 1 : -1; return r > 0 ? (bodyweight + sign * toNum(set.kg)) * r : null }
+      case 'bw_reps': {
+        const r = Number(set.reps||0)
+        const sign = (set.bwSign || '+') === '+' ? 1 : -1
+        return r > 0 ? (bodyweight + sign * toNum(set.kg)) * r : null
+      }
       case 'reps_only': { const r = Number(set.reps||0); return r > 0 ? r : null }
       case 'time_only': { const t = parseTimeToSeconds(set.time); return t > 0 ? t : null }
       case 'distance_time': { const d = Number(set.distance||0); return d > 0 ? d : null }
@@ -1477,6 +1565,35 @@ function AppContent() {
   }
 
   function addExercisesFromLibrary(exList) {
+    if (exerciseLibraryReplaceIndex != null) {
+      const idx = exerciseLibraryReplaceIndex
+      setExerciseLibraryReplaceIndex(null)
+      setShowAddExercise(false)
+      if (!exList?.length) return
+      const libEx = exList[0]
+      setExercises((prev) => {
+        const old = prev[idx]
+        if (!old) return prev
+        const type = libEx.type || 'weight_reps'
+        const n = Math.max(1, (old.sets || []).length)
+        const sets = Array.from({ length: n }, () => emptySetForType(type))
+        return prev.map((e, i) =>
+          i !== idx
+            ? e
+            : {
+                ...e,
+                name: libEx.name,
+                type,
+                muscle: libEx.muscle,
+                equipment: libEx.equipment,
+                movement: libEx.movement,
+                sets,
+              }
+        )
+      })
+      setFocusWorkoutFirstFieldAt(idx)
+      return
+    }
     const firstNewIndex = exercises.length
     const newExs = exList.map(ex => {
       const type = ex.type || 'weight_reps'
@@ -1490,6 +1607,17 @@ function AppContent() {
     setExercises([...exercises, ...newExs])
     setFocusWorkoutFirstFieldAt(firstNewIndex)
     setShowAddExercise(false)
+  }
+
+  function openReplaceExerciseFromWorkout(exIndex) {
+    cancelLinkMode()
+    if (activeRest?.exIndex === exIndex) {
+      setActiveRest(null)
+      setRestTime(0)
+      restStartRef.current = null
+    }
+    setExerciseLibraryReplaceIndex(exIndex)
+    setShowAddExercise(true)
   }
 
   function saveCustomExercise(ex) {
@@ -1550,7 +1678,10 @@ function AppContent() {
   }
 
   function addSet(index) {
-    const n = [...exercises]; const ex = n[index]; const sets = ex.sets
+    const n = [...exercises]
+    const ex = n[index]
+    if (!ex.sets) ex.sets = []
+    const sets = ex.sets
     const lastSet = sets[sets.length - 1]
     const type = ex.type || 'weight_reps'
     const newSet = lastSet ? copySet(lastSet, type) : emptySetForType(type)
@@ -1575,7 +1706,14 @@ function AppContent() {
     }, 50)
   }
 
-  function deleteSet(exIndex, setIndex) { const n = [...exercises]; n[exIndex].sets.splice(setIndex, 1); if (n[exIndex].sets.length === 0) n.splice(exIndex, 1); setExercises(n) }
+  function deleteSet(exIndex, setIndex) {
+    const n = [...exercises]
+    const sets = n[exIndex]?.sets || []
+    sets.splice(setIndex, 1)
+    n[exIndex] = { ...n[exIndex], sets: [...sets] }
+    if (sets.length === 0) n.splice(exIndex, 1)
+    setExercises(n)
+  }
   function updateSet(exIndex, setIndex, field, value) {
     let stored = value
     if (field === 'kg' || field === 'distance') {
@@ -1584,7 +1722,8 @@ function AppContent() {
     }
     setExercises(prev => prev.map((e, ei) => {
       if (ei !== exIndex) return e
-      return { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, [field]: stored } : s) }
+      const sList = e.sets || []
+      return { ...e, sets: sList.map((s, si) => si === setIndex ? { ...s, [field]: stored } : s) }
     }))
   }
 
@@ -1627,11 +1766,13 @@ function AppContent() {
 
     const prompt = `You are REPLIQE Coach, an expert personal trainer. The user is on the FREE plan and reads this during a rest timer between sets.
 
-Use ONLY the JSON below. Write one coaching tip in 2–4 short sentences (British English).
+Use ONLY the JSON below (CONTEXT). Write one coaching tip in 2–4 short sentences (British English).
+
+Do not address injury, pain, illness, or any medical topic — this is training education only; if such issues appear in the data, keep the tip generic and programme-focused.
 
 PRIORITY: programme-level advice — how their split/frequency, day balance, volume, or progression across early sessions could improve. At least half of the tip must be about programme structure, recovery between sessions, or week-to-week progression — not a single exercise.
 
-You may add one short clause about today’s session or the lift they are on only if it supports the programme point. Never invent sessions or exercises not in the data.
+You may add one short clause about today’s session or the lift they are on only if it supports the programme point. In the JSON, \`firstWorkouts\` are the only past logged sessions you may reference; \`programme\` and \`todaysSession\` are plan/current session labels — do not claim they completed workouts that are not in \`firstWorkouts\`. Never invent sessions, exercises, PRs, or loads not present in the data.
 
 End with one short sentence that full REPLIQE Coach on Pro/Elite gives ongoing chat-based guidance.
 
@@ -1690,7 +1831,7 @@ ${JSON.stringify(ctx)}`
 
   function doneSet(exIndex, setIndex) {
     const ex = exercises[exIndex]
-    const set = ex.sets[setIndex]
+    const set = ex?.sets?.[setIndex]
     if (!set || !isSetComplete(set, ex.type || 'weight_reps')) return
     if (navigator.vibrate) navigator.vibrate(30)
     const prevRest = activeRest
@@ -1703,18 +1844,21 @@ ${JSON.stringify(ctx)}`
       restStartRef.current = null
       updatedExercises = exercises.map((e, ei) => {
         let next = e
+        const restSets = e.sets || []
         if (ei === prevRest.exIndex) {
-          next = { ...e, sets: e.sets.map((s, si) => si !== prevRest.setIndex ? s : { ...s, restTime: elapsed }) }
+          next = { ...e, sets: restSets.map((s, si) => si !== prevRest.setIndex ? s : { ...s, restTime: elapsed }) }
         }
         if (ei === exIndex) {
-          next = { ...next, sets: next.sets.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
+          const sList = next.sets || []
+          next = { ...next, sets: sList.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
         }
         return next
       })
     } else {
       updatedExercises = exercises.map((e, ei) => {
         if (ei !== exIndex) return e
-        return { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
+        const sList = e.sets || []
+        return { ...e, sets: sList.map((s, si) => si === setIndex ? { ...s, done: true } : s) }
       })
     }
     setExercises(updatedExercises)
@@ -1741,7 +1885,7 @@ ${JSON.stringify(ctx)}`
   function handleRirSelect(rir) {
     const { exIndex, setIndex } = pendingRir
     setExercises(prev => prev.map((e, ei) =>
-      ei === exIndex ? { ...e, sets: e.sets.map((s, si) => si === setIndex ? { ...s, rir } : s) } : e
+      ei === exIndex ? { ...e, sets: (e.sets || []).map((s, si) => si === setIndex ? { ...s, rir } : s) } : e
     ))
     const ex = exercises[exIndex]
     setPendingRir(null)
@@ -1758,7 +1902,8 @@ ${JSON.stringify(ctx)}`
   function undoneSet(exIndex, setIndex) {
     const n = exercises.map((e, ei) => {
       if (ei !== exIndex) return e
-      return { ...e, sets: e.sets.map((s, si) => {
+      const sList = e.sets || []
+      return { ...e, sets: sList.map((s, si) => {
         if (si !== setIndex) return s
         const { restTime: _, rir: __, ...rest } = s
         return { ...rest, done: false }
@@ -1796,10 +1941,11 @@ ${JSON.stringify(ctx)}`
   function isGroupComplete(group) {
     if (group.type === 'exercise') {
       const ex = group.exercise
-      const allDone = ex.sets.every(s => s.done)
+      const sets = ex.sets || []
+      const allDone = sets.every(s => s.done)
       if (!allDone) return false
       const exIndex = exercises.indexOf(ex)
-      const lastSetIndex = ex.sets.length - 1
+      const lastSetIndex = sets.length - 1
       const restActive = activeRest && activeRest.exIndex === exIndex && activeRest.setIndex === lastSetIndex
       return !restActive
     }
@@ -1821,10 +1967,13 @@ ${JSON.stringify(ctx)}`
       if (group.type === 'exercise') {
         const ex = group.exercise
         const exIndex = exercises.indexOf(ex)
-        const setIdx = ex.sets.findIndex(s => !s.done)
+        const setIdx = (ex.sets || []).findIndex(s => !s.done)
         if (setIdx < 0) continue
+        const prevEx = exIndex > 0 ? exercises[exIndex - 1] : null
+        const prevLen = (prevEx?.sets || []).length
+        const prevLastSetIdx = prevLen > 0 ? prevLen - 1 : -1
         const restOk = setIdx === 0
-          ? (exIndex === 0 || !(activeRest && activeRest.exIndex === exIndex - 1 && activeRest.setIndex === exercises[exIndex - 1].sets.length - 1))
+          ? (exIndex === 0 || !(activeRest && activeRest.exIndex === exIndex - 1 && activeRest.setIndex === prevLastSetIdx))
           : !(activeRest && activeRest.exIndex === exIndex && activeRest.setIndex === setIdx - 1)
         if (restOk) return { exIndex, setIndex: setIdx }
       } else {
@@ -1906,16 +2055,22 @@ ${JSON.stringify(ctx)}`
     const workout = { date: new Date().toLocaleDateString('en-GB'), name: workoutName, templateName: templateName || undefined, duration, exercises: JSON.parse(JSON.stringify(exercises)), routineId }
 
     if (routineId && updateRoutineOrTemplate) {
-      const newExercises = exercises.map(ex => ({
+      const newExercises = exercises.map(ex => {
+        const libT = getExerciseFromLibrary(ex.name)?.type || 'weight_reps'
+        return {
         id: ex.id ?? crypto.randomUUID(),
         exerciseId: ex.name,
-        setConfigs: (ex.sets || []).map(s => ({ targetReps: String(s.reps ?? '') || '8-10', targetKg: String(s.kg ?? '') ?? '' })),
+        setConfigs: (ex.sets || []).map(s => ({
+          targetReps: String(s.reps ?? '') || '8-10',
+          targetKg: libT === 'reps_only' ? '' : (String(s.kg ?? '') ?? ''),
+        })),
         restOverride: ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null,
         rirOverride: ex.rirOverride ?? null,
         note: ex.note ?? '',
         supersetGroupId: ex.supersetGroupId ?? null,
         supersetRole: ex.supersetRole ?? null
-      }))
+      }
+      })
       setRoutines(prev => prev.map(r => r.id !== routineId ? r : { ...r, exercises: newExercises }))
     }
     if (!routineId && updateRoutineOrTemplate) {
@@ -2019,10 +2174,14 @@ ${JSON.stringify(ctx)}`
   function confirmSaveAsRoutine(option, routineName) {
     const converted = exercises.map(ex => {
       const sets = ex.sets && ex.sets.length ? ex.sets : [{ reps: '8-10', kg: '' }]
+      const libT = getExerciseFromLibrary(ex.name)?.type || 'weight_reps'
       return {
         id: ex.id ?? crypto.randomUUID(),
         exerciseId: ex.name,
-        setConfigs: sets.map(s => ({ targetReps: String(s.reps ?? '') || '8-10', targetKg: String(s.kg ?? '') ?? '' })),
+        setConfigs: sets.map(s => ({
+          targetReps: String(s.reps ?? '') || '8-10',
+          targetKg: libT === 'reps_only' ? '' : (String(s.kg ?? '') ?? ''),
+        })),
         restOverride: ex.restOverride !== undefined ? ex.restOverride : null,
         rirOverride: ex.rirOverride ?? null,
         note: ex.note ?? '',
@@ -2123,7 +2282,7 @@ ${JSON.stringify(ctx)}`
 
   function editTemplate(fi, ti) {
     const t = folders[fi].templates[ti]
-    setExercises(t.exercises.map(ex => ({ id: ex.id ?? crypto.randomUUID(), name: ex.name, type: ex.type || 'weight_reps', sets: ex.sets.map(s => ({ ...s, done: false })), restOverride: ex.restOverride !== undefined ? ex.restOverride : null, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement, supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })))
+    setExercises(t.exercises.map(ex => ({ id: ex.id ?? crypto.randomUUID(), name: ex.name, type: ex.type || 'weight_reps', sets: (ex.sets || []).map(s => ({ ...s, done: false })), restOverride: ex.restOverride !== undefined ? ex.restOverride : null, note: ex.note || '', muscle: ex.muscle, equipment: ex.equipment, movement: ex.movement, supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })))
     setEditingTemplate({ folderIndex: fi, templateIndex: ti }); setWorkoutActive(true); setWorkoutName(t.name)
   }
 
@@ -2352,6 +2511,8 @@ ${JSON.stringify(ctx)}`
               rating={completeScreenRating}
               onRatingChange={setCompleteScreenRating}
               onDone={dismissCompleteScreen}
+              recentWorkout={history[0] ?? null}
+              photoSessions={photoSessions ?? []}
                 onProgressPhoto={() => {
                   const targetSid = history.find(
                     (h) => h?.sessionId && !(Array.isArray(h.photoSessionIds) && h.photoSessionIds.length > 0)
@@ -2424,14 +2585,7 @@ ${JSON.stringify(ctx)}`
                   )
                 }
                 const activeProgramme = programmes.find(p => p.isActive) || null
-                const activeHasNoRealRoutines = activeProgramme ? (() => {
-                  const nextRtnId = getNextRoutine(activeProgramme, history)
-                  const nextRtn = nextRtnId ? routines.find(r => r.id === nextRtnId) : null
-                  const exCount = nextRtn?.exercises?.length ?? 0
-                  const setCount = nextRtn?.exercises?.reduce((s, e) => s + getSetConfigs(e).length, 0) ?? 0
-                  return !nextRtn || (exCount === 0 && setCount === 0)
-                })() : true
-                const showAsNoProgramme = !activeProgramme || activeHasNoRealRoutines
+                const showAsNoProgramme = !activeProgramme
 
                 if (showAsNoProgramme) {
                   return (
@@ -2471,6 +2625,14 @@ ${JSON.stringify(ctx)}`
                 return (
                   <>
                     <h2 className="text-sm font-bold tracking-tight mb-3 text-accent">{activeProgramme.name}</h2>
+                    {routineIds.length === 0 ? (
+                      <div className="rounded-xl border border-border-strong bg-card-alt/80 p-4 mb-4 text-sm text-muted-strong">
+                        <p className="mb-3">This programme has no routines yet. Add one under Plan — the programme is already saved.</p>
+                        <button type="button" onClick={() => setWorkoutTab('plan')} className="w-full py-2.5 rounded-xl border border-accent/40 bg-accent/10 text-accent text-sm font-bold">
+                          Open Plan
+                        </button>
+                      </div>
+                    ) : null}
                     <div className="flex gap-1.5 mb-1">
                       {routineIds.map((rtnId) => {
                         const rtn = routines.find(r => r.id === rtnId)
@@ -2570,13 +2732,8 @@ ${JSON.stringify(ctx)}`
               {workoutTab === 'plan' && (
                 <div className="plan-tab">
                   {(() => {
-                    const programmesWithRoutines = programmes
-                      .filter((prog) => {
-                        const progRoutines = (prog.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
-                        return progRoutines.some(r => (r.exercises?.length ?? 0) > 0)
-                      })
-                      .sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0))
-                    if (programmesWithRoutines.length === 0) {
+                    const sortedProgrammes = [...programmes].sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0))
+                    if (sortedProgrammes.length === 0) {
                       return (
                         <>
                           <div className="rounded-2xl border border-border bg-card p-6 text-center mb-4">
@@ -2590,8 +2747,8 @@ ${JSON.stringify(ctx)}`
                         </>
                       )
                     }
-                    const manualProgrammes = programmesWithRoutines.filter((p) => !p.isQoreGenerated)
-                    const coachProgrammes = programmesWithRoutines.filter((p) => p.isQoreGenerated)
+                    const manualProgrammes = sortedProgrammes.filter((p) => !p.isQoreGenerated)
+                    const coachProgrammes = sortedProgrammes.filter((p) => p.isQoreGenerated)
                     const renderProgrammeCard = (prog) => {
                       const progRoutines = (prog.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
                       const isActive = prog.isActive
@@ -2601,32 +2758,34 @@ ${JSON.stringify(ctx)}`
                           className={`rounded-[14px] p-4 mb-4 border ${isActive ? 'border-[1.5px] border-success/20 bg-success/5' : 'border border-border bg-card'}`}
                         >
                           <div className="flex items-start justify-between gap-2 mb-1">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-bold tracking-tight text-accent">{prog.name}</span>
+                            <div className="flex-1 min-w-0 pr-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-sm font-bold tracking-tight text-accent truncate">{prog.name}</span>
                               </div>
                               <div className="text-[11px] text-muted-strong mt-0.5">{progRoutines.length} routines</div>
                             </div>
-                            <button type="button" onClick={() => setProgrammeMenuProgramme(prog)} className="w-8 h-8 rounded-lg bg-white/[0.03] border border-border-subtle flex items-center justify-center shrink-0" aria-label="Programme options">
-                              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-muted-strong"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
-                            </button>
-                          </div>
-                          {isActive ? (
-                            <div
-                              className="w-full mt-2 py-2 rounded-[10px] border border-success/30 bg-success/8 flex items-center justify-center pointer-events-none select-none"
-                              aria-label="Active programme"
-                            >
-                              <span className="text-success text-[11px] font-bold uppercase tracking-wide animate-up-next-pulse">Active</span>
+                            <div className="flex items-center gap-1 shrink-0 self-center">
+                              {isActive ? (
+                                <span
+                                  className="inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-success/35 bg-success/10 text-success text-[9px] font-bold uppercase tracking-wide leading-none animate-up-next-pulse min-h-[32px]"
+                                  aria-label="Active programme"
+                                >
+                                  Active
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setProgrammeActive(prog.id)}
+                                  className="inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-success/35 bg-success/8 text-success text-[9px] font-bold uppercase tracking-wide leading-none hover:bg-success/12 active:opacity-90 transition-colors whitespace-nowrap min-h-[32px]"
+                                >
+                                  Set active
+                                </button>
+                              )}
+                              <button type="button" onClick={() => setProgrammeMenuProgramme(prog)} className="w-8 h-8 rounded-lg bg-white/[0.03] border border-border-subtle flex items-center justify-center shrink-0" aria-label="Programme options">
+                                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-muted-strong"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
+                              </button>
                             </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setProgrammeActive(prog.id)}
-                              className="w-full mt-2 py-2 rounded-[10px] border border-success/30 bg-success/8 text-success text-[11px] font-bold uppercase tracking-wide hover:bg-success/12 active:opacity-90 transition-colors"
-                            >
-                              Set as active
-                            </button>
-                          )}
+                          </div>
                           <div className="flex gap-1.5 mt-2">
                             {progRoutines.map((r) => (
                               <button
@@ -2721,40 +2880,40 @@ ${JSON.stringify(ctx)}`
                     const barWidthPct = progress * 100
                     const sidePct = (1 - progress) * 50
                     return (
-                      <div className="mb-1 w-full">
+                      <div className="mb-1 w-full rest-timer-fade-in">
                         <div
                           data-sticky-rest="1"
-                          className="flex w-full items-center justify-center gap-1.5 py-0.5 rounded-lg relative min-h-0 pointer-events-none overflow-hidden isolate bg-card-alt/45"
+                          className="flex w-full items-center justify-center gap-1.5 py-0.5 rounded-lg relative min-h-0 pointer-events-none overflow-hidden isolate bg-card-alt/35"
                           style={{ height: '1.2rem' }}
                         >
                           <div
-                            className="absolute top-0 bottom-0 left-1/2 z-0 -translate-x-1/2 rounded-sm transition-all duration-300 ease-out bg-gradient-to-r from-accent to-accent-end"
+                            className="absolute top-0 bottom-0 left-1/2 z-0 -translate-x-1/2 rounded-sm transition-[width] duration-500 ease-out bg-gradient-to-r from-accent/75 to-accent-end/75"
                             style={{ width: `${barWidthPct}%`, minWidth: 0 }}
                           />
                           <div
-                            className="absolute top-0 bottom-0 right-1/2 z-[1] transition-all duration-300 ease-out"
+                            className="absolute top-0 bottom-0 right-1/2 z-[1] transition-[width] duration-500 ease-out"
                             style={{
                               width: `${sidePct}%`,
-                              backgroundImage: 'radial-gradient(circle, #fff 0.75px, transparent 0.75px)',
+                              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.85) 0.75px, transparent 0.75px)',
                               backgroundSize: '4px 1.2rem',
                               backgroundPosition: '100% center',
-                              opacity: 0.7
+                              opacity: 0.45
                             }}
                           />
                           <div
-                            className="absolute top-0 bottom-0 left-1/2 z-[1] transition-all duration-300 ease-out"
+                            className="absolute top-0 bottom-0 left-1/2 z-[1] transition-[width] duration-500 ease-out"
                             style={{
                               width: `${sidePct}%`,
-                              backgroundImage: 'radial-gradient(circle, #fff 0.75px, transparent 0.75px)',
+                              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.85) 0.75px, transparent 0.75px)',
                               backgroundSize: '4px 1.2rem',
                               backgroundPosition: '0 center',
-                              opacity: 0.7
+                              opacity: 0.45
                             }}
                           />
-                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-white relative z-10 shrink-0" aria-hidden>
+                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-2.5 h-2.5 stroke-white/90 relative z-10 shrink-0" aria-hidden>
                             <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                           </svg>
-                          <span className="text-white font-bold text-xs tabular-nums relative z-10 min-w-[28px] text-center">{formatTime(restTime)}</span>
+                          <span className="text-white/95 font-bold text-xs tabular-nums relative z-10 min-w-[28px] text-center">{formatTime(restTime)}</span>
                         </div>
                       </div>
                     )
@@ -2826,6 +2985,7 @@ ${JSON.stringify(ctx)}`
                               onMoveUp={moveExerciseUp}
                               onMoveDown={moveExerciseDown}
                               onRemoveExercise={removeExercise}
+                              onReplaceExercise={openReplaceExerciseFromWorkout}
                               onAddSet={addSet}
                               onUpdateSet={updateSet}
                               onDoneSet={doneSet}
@@ -2865,7 +3025,7 @@ ${JSON.stringify(ctx)}`
                     const exIndex = exercises.indexOf(ex)
                     const isSource = linkMode.sourceId === ex.id
                     const isTarget = linkMode.active && !isSource && !ex.supersetGroupId
-                    const nextSetIndexStandalone = ex.sets.findIndex(s => !s.done)
+                    const nextSetIndexStandalone = (ex.sets || []).findIndex(s => !s.done)
                     const showNextFocusStandalone = globalNext && globalNext.exIndex === exIndex && globalNext.setIndex === nextSetIndexStandalone
                     return (
                       <ExerciseCard
@@ -2886,6 +3046,7 @@ ${JSON.stringify(ctx)}`
                         onMoveUp={moveExerciseUp}
                         onMoveDown={moveExerciseDown}
                         onRemoveExercise={removeExercise}
+                        onReplaceExercise={openReplaceExerciseFromWorkout}
                         onAddSet={addSet}
                         onUpdateSet={updateSet}
                         onDoneSet={doneSet}
@@ -2921,7 +3082,7 @@ ${JSON.stringify(ctx)}`
                   });
                   })()}
 
-                  <button onClick={() => setShowAddExercise(true)} className="w-full py-3 mb-4 border border-dashed border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/8 hover:border-success transition-colors">+ Add exercise</button>
+                  <button type="button" onClick={() => { setExerciseLibraryReplaceIndex(null); setShowAddExercise(true) }} className="w-full py-3 mb-4 border border-dashed border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/8 hover:border-success transition-colors">+ Add exercise</button>
 
                   {exercises.length > 0 && !editingTemplate && (
                     <div className="flex flex-col gap-3 mt-2 mb-8">
@@ -3130,8 +3291,8 @@ ${JSON.stringify(ctx)}`
                 <span className="text-[#333] text-base">›</span>
               </button>
               <button type="button" onClick={() => { setShowDeleteProgrammeConfirm(programmeMenuProgramme.id); setProgrammeMenuProgramme(null) }} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
-                <span className="w-9 h-9 rounded-lg bg-[rgba(255,85,85,0.06)] flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#FF5555" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span className="w-9 h-9 rounded-lg bg-[rgba(255,85,85,0.06)] flex items-center justify-center shrink-0 text-[#FF5555]">
+                  <DeleteTrashGlyph className="w-4 h-4" />
                 </span>
                 <div className="text-left flex-1">
                   <div className="text-red-400 text-sm font-semibold">Delete Programme</div>
@@ -3148,14 +3309,48 @@ ${JSON.stringify(ctx)}`
         {showDeleteProgrammeConfirm && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
             <div className="w-full max-w-sm bg-card rounded-[18px] p-7 text-center">
-              <div className="w-12 h-12 rounded-full bg-[rgba(255,85,85,0.1)] flex items-center justify-center mx-auto mb-4">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#FF5555" strokeWidth="2" strokeLinecap="round" className="w-6 h-6"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-              </div>
+              <DeleteTrashBadge />
               <h2 className="text-text text-lg font-bold mb-2">Delete Programme?</h2>
               <p className="text-muted text-sm mb-5">{programmes.find(p => p.id === showDeleteProgrammeConfirm)?.name} and all its routines will be permanently deleted.</p>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShowDeleteProgrammeConfirm(null)} className="flex-1 py-3 border border-border-strong rounded-xl text-muted text-sm font-semibold">Cancel</button>
-                <button type="button" onClick={() => { void confirmDeleteProgrammeAction(showDeleteProgrammeConfirm) }} className="flex-1 py-3 bg-[#FF5555] rounded-xl text-text text-sm font-bold">Delete</button>
+                <button type="button" onClick={() => { void confirmDeleteProgrammeAction(showDeleteProgrammeConfirm) }} className="flex-1 py-3 bg-[#FF5555] rounded-xl text-text text-sm font-bold inline-flex items-center justify-center gap-2">
+                  <DeleteTrashGlyph className="w-4 h-4 shrink-0" />
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {editProgrammeRoutinePendingDelete && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center px-6" aria-modal="true">
+            <div className="w-full max-w-sm bg-card rounded-[18px] p-7 text-center border border-border-strong">
+              <DeleteTrashBadge />
+              <h2 className="text-text text-lg font-bold mb-2">Delete routine?</h2>
+              <p className="text-muted text-sm mb-5">
+                <span className="font-semibold text-text">{editProgrammeRoutinePendingDelete.name}</span> will be removed from this programme and deleted. This cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditProgrammeRoutinePendingDelete(null)}
+                  className="flex-1 py-3 border border-border-strong rounded-xl text-muted text-sm font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { progId, rtnId } = editProgrammeRoutinePendingDelete
+                    setEditProgrammeRoutinePendingDelete(null)
+                    removeRoutineFromProgramme(progId, rtnId)
+                  }}
+                  className="flex-1 py-3 bg-[#FF5555] rounded-xl text-text text-sm font-bold inline-flex items-center justify-center gap-2"
+                >
+                  <DeleteTrashGlyph className="w-4 h-4 shrink-0" />
+                  Delete
+                </button>
               </div>
             </div>
           </div>
@@ -3238,7 +3433,7 @@ ${JSON.stringify(ctx)}`
 
         {/* Create Programme modal (manual flow) */}
         {showCreateProgramme && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setShowCreateProgramme(false)}>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => { setShowCreateProgramme(false); setCreateProgrammeTriedSave(false); setCreateProgrammeConfirmEmptyRoutines(false) }}>
             <div className="w-full max-w-md bg-card rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="w-9 h-1 bg-handle rounded mx-auto mb-4" />
               <h2 className="text-text text-base font-bold mb-3">Create programme</h2>
@@ -3253,9 +3448,38 @@ ${JSON.stringify(ctx)}`
                 </div>
               ))}
               <button type="button" onClick={() => { setEditingRoutineProgrammeId(null); setEditingRoutineId(null); setEditRoutineName(''); setEditRoutineExercises([]); setShowCreateRoutine(true); setShowCreateProgramme(false) }} className="w-full py-3 border border-dashed border-border-strong rounded-xl text-accent text-sm font-semibold mb-4">+ Add Routine</button>
-              {!createProgrammeName.trim() && <p className="text-accent text-sm font-medium mb-2">Enter a programme name to save.</p>}
-              <button type="button" onClick={() => { saveNewProgramme(createProgrammeName, 'rotation', null, createProgrammeRoutines); setCreateProgrammeRoutines([]) }} disabled={!createProgrammeName.trim()} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold disabled:opacity-50 disabled:pointer-events-none">Save Programme</button>
-              <button type="button" onClick={() => { setShowCreateProgramme(false); setCreateProgrammeRoutines([]) }} className="w-full py-3 mt-2 text-muted-strong text-xs font-semibold">Cancel</button>
+              {createProgrammeTriedSave && !createProgrammeName.trim() && (
+                <p className="text-accent text-sm font-medium mb-2">Enter a programme name to save.</p>
+              )}
+              {createProgrammeTriedSave && createProgrammeName.trim() && createProgrammeRoutines.length === 0 && (
+                <p className="text-[11px] text-amber-400/90 mb-2 leading-snug">
+                  {createProgrammeConfirmEmptyRoutines
+                    ? 'Tap Save programme again to confirm. You can add routines and exercises later under Plan.'
+                    : 'This programme has no routines yet. Tap Save again for the next step — or add routines above.'}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!createProgrammeName.trim()) {
+                    setCreateProgrammeTriedSave(true)
+                    return
+                  }
+                  if (createProgrammeRoutines.length === 0 && !createProgrammeConfirmEmptyRoutines) {
+                    setCreateProgrammeTriedSave(true)
+                    setCreateProgrammeConfirmEmptyRoutines(true)
+                    return
+                  }
+                  saveNewProgramme(createProgrammeName, 'rotation', null, createProgrammeRoutines)
+                  setCreateProgrammeRoutines([])
+                  setCreateProgrammeTriedSave(false)
+                  setCreateProgrammeConfirmEmptyRoutines(false)
+                }}
+                className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold"
+              >
+                Save Programme
+              </button>
+              <button type="button" onClick={() => { setShowCreateProgramme(false); setCreateProgrammeRoutines([]); setCreateProgrammeTriedSave(false); setCreateProgrammeConfirmEmptyRoutines(false) }} className="w-full py-3 mt-2 text-muted-strong text-xs font-semibold">Cancel</button>
             </div>
           </div>
         )}
@@ -3264,7 +3488,12 @@ ${JSON.stringify(ctx)}`
         {editingProgrammeId && (() => {
           const prog = programmes.find(p => p.id === editingProgrammeId)
           const progRoutines = (prog?.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
-          const closeEditProgramme = () => { setEditingProgrammeId(null); setDragRoutine(null); setDragOverTarget(null) }
+          const closeEditProgramme = () => {
+            setEditingProgrammeId(null)
+            setDragRoutine(null)
+            setDragOverTarget(null)
+            setEditProgrammeRoutinePendingDelete(null)
+          }
           return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={closeEditProgramme}>
               <div className="w-full max-w-md bg-card rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -3308,7 +3537,14 @@ ${JSON.stringify(ctx)}`
                         </button>
                         <button type="button" onClick={() => { setEditProgrammeName(prog?.name ?? ''); setEditRoutineName(r.name); setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null }))); setEditingRoutineId(r.id); setEditingRoutineProgrammeId(editingProgrammeId); setEditingProgrammeId(null) }} className="text-accent text-xs font-semibold px-1.5 py-0.5">Edit</button>
                         <button type="button" onClick={() => copyRoutine(r.id, editingProgrammeId)} className="text-muted text-xs font-semibold px-1.5 py-0.5 hover:text-text" title="Copy routine">Copy</button>
-                        <button type="button" onClick={() => removeRoutineFromProgramme(editingProgrammeId, r.id)} className="text-[rgba(255,85,85,0.5)] p-1 hover:text-red-400">✕</button>
+                        <button
+                          type="button"
+                          onClick={() => setEditProgrammeRoutinePendingDelete({ progId: editingProgrammeId, rtnId: r.id, name: r.name })}
+                          className="text-[rgba(255,85,85,0.5)] p-1 hover:text-red-400"
+                          aria-label={`Delete routine ${r.name}`}
+                        >
+                          ✕
+                        </button>
                       </div>
                     </div>
                   )
@@ -3361,6 +3597,42 @@ ${JSON.stringify(ctx)}`
           const name = isEdit ? editRoutineName : (showCreateRoutine ? editRoutineName : '')
           const exs = isEdit ? editRoutineExercises : (showCreateRoutine ? editRoutineExercises : [])
           const programmeId = editingRoutineProgrammeId
+          const routineBlockCount = getRoutineEditorOrderBlocks(editRoutineExercises).length
+          const reorderRoutineBlock = (blockIndex, direction) => {
+            setEditRoutineExercises((prev) => swapRoutineEditorBlocks(prev, blockIndex, direction))
+            setRoutineEditorSupersetMenuForId(null)
+            setRoutineEditorRestForIndex(null)
+            setRoutineEditorNoteForIndex(null)
+          }
+          const RoutineReorderButtons = ({ blockIndex }) => {
+            const reorderLocked = routineLinkMode.active
+            return (
+              <div className="flex flex-col gap-0.5 shrink-0 self-start pt-1">
+                <button
+                  type="button"
+                  disabled={reorderLocked || blockIndex <= 0}
+                  onClick={() => reorderRoutineBlock(blockIndex, -1)}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-border-strong bg-card-alt text-muted-strong hover:text-text hover:border-accent/40 disabled:opacity-35 disabled:pointer-events-none transition-colors"
+                  aria-label="Move block up"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 stroke-current">
+                    <polyline points="18 15 12 9 6 15" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  disabled={reorderLocked || blockIndex >= routineBlockCount - 1}
+                  onClick={() => reorderRoutineBlock(blockIndex, 1)}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-border-strong bg-card-alt text-muted-strong hover:text-text hover:border-accent/40 disabled:opacity-35 disabled:pointer-events-none transition-colors"
+                  aria-label="Move block down"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 stroke-current">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              </div>
+            )
+          }
           const closeRoutineEditor = () => {
             const progId = editingRoutineProgrammeId
             setShowCreateRoutine(false)
@@ -3368,7 +3640,10 @@ ${JSON.stringify(ctx)}`
             setEditingRoutineProgrammeId(null)
             setRoutineEditorRestForIndex(null)
             setRoutineEditorNoteForIndex(null)
+            setRoutineEditorTriedSave(false)
+            setRoutineEditorConfirmEmptyExercises(false)
             setFocusNewExerciseAt(null)
+            setRoutineReplaceExerciseId(null)
             if (progId) {
               setEditingProgrammeId(progId)
               setEditProgrammeName(programmes.find(p => p.id === progId)?.name || '')
@@ -3394,17 +3669,20 @@ ${JSON.stringify(ctx)}`
                       <LinkModeBanner sourceName={editRoutineExercises.find(e => e.id === routineLinkMode.sourceId)?.exerciseId ?? ''} onCancel={routineCancelLinkMode} />
                     </div>
                   )}
-                  {getRoutineGrouped().map(group => {
+                  {getRoutineGrouped().map((group, groupIndex) => {
                     const renderRoutineRow = (ex, supersetRole, isLinkSource, isLinkTarget, onTapAsTarget, onStartLinkMode, onBreakSuperset) => {
                       const i = editRoutineExercises.indexOf(ex)
                       const setConfigs = getSetConfigs(ex)
                       const lib = getExerciseFromLibrary(ex.exerciseId)
+                      const exType = lib?.type || 'weight_reps'
+                      const routineRepsOnly = exType === 'reps_only'
                       const restOverride = ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null
                       const currentRestSec = restOverride !== null ? restOverride : defaultRest
                       const note = ex.note ?? ''
                       const updateSetConfigs = (newConfigs) => {
-                        const next = newConfigs.length < 1 ? [{ targetReps: '8-10', targetKg: '' }] : newConfigs
-                        setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, setConfigs: next }))
+                        setEditRoutineExercises((prev) =>
+                          prev.map((e, j) => (j !== i ? e : { ...e, setConfigs: Array.isArray(newConfigs) ? newConfigs : [] }))
+                        )
                       }
                       const updateSetAt = (setIdx, field, value) => {
                         let stored = value
@@ -3416,7 +3694,10 @@ ${JSON.stringify(ctx)}`
                       }
                       const addSet = () => {
                         const last = setConfigs[setConfigs.length - 1]
-                        updateSetConfigs([...setConfigs, { targetReps: last?.targetReps ?? '8-10', targetKg: last?.targetKg ?? '' }])
+                        updateSetConfigs([...setConfigs, {
+                          targetReps: last?.targetReps ?? '8-10',
+                          targetKg: routineRepsOnly ? '' : (last?.targetKg ?? ''),
+                        }])
                       }
                       const removeSetAt = (setIdx) => updateSetConfigs(setConfigs.filter((_, si) => si !== setIdx))
                       const setRest = (val) => { setEditRoutineExercises(prev => prev.map((e, j) => j !== i ? e : { ...e, restOverride: val })); setRoutineEditorRestForIndex(null) }
@@ -3462,8 +3743,24 @@ ${JSON.stringify(ctx)}`
                                       <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                       {note ? 'Edit note' : 'Add note'}
                                     </button>
+                                    {!routineLinkMode.active && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setRoutineReplaceExerciseId(ex.id)
+                                          setRoutineEditorSupersetMenuForId(null)
+                                          setShowExercisePickerForRoutine(true)
+                                        }}
+                                        className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong"
+                                      >
+                                        <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current">
+                                          <path d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                        </svg>
+                                        Replace exercise
+                                      </button>
+                                    )}
                                     <button type="button" onClick={() => { removeEx(); setRoutineEditorSupersetMenuForId(null) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-colors border-t border-border-strong">
-                                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                      <DeleteTrashGlyph className="w-4 h-4 shrink-0" />
                                       Remove exercise
                                     </button>
                                     <button type="button" onClick={() => setRoutineEditorSupersetMenuForId(null)} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-muted-mid hover:bg-white/5 transition-colors border-t border-border-strong">
@@ -3479,14 +3776,14 @@ ${JSON.stringify(ctx)}`
                             {currentRestSec === 0 ? 'None' : formatTime(currentRestSec)}
                           </div>
                         {routineEditorNoteForIndex === i && (
-                          <div className="mt-2 flex gap-2 mb-2">
-                            <input type="text" placeholder="Add a note..." value={note} onChange={(e) => updateNote(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setRoutineEditorNoteForIndex(null)} autoFocus className="flex-1 bg-card-alt border border-border-strong rounded-lg px-3 py-2 text-sm text-text placeholder-muted-deep outline-none focus:border-accent" />
-                            <button type="button" onClick={() => setRoutineEditorNoteForIndex(null)} className="px-3 py-2 bg-accent text-on-accent rounded-lg text-sm font-bold">Done</button>
+                          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-start mb-2">
+                            <textarea placeholder="Add a note..." value={note} onChange={(e) => updateNote(e.target.value)} rows={4} autoFocus className="flex-1 min-w-0 min-h-[5.5rem] max-h-[40vh] resize-y bg-card-alt border border-border-strong rounded-lg px-3 py-2 text-sm text-text placeholder-muted-deep outline-none focus:border-accent" />
+                            <button type="button" onClick={() => setRoutineEditorNoteForIndex(null)} className="px-3 py-2 bg-accent text-on-accent rounded-lg text-sm font-bold shrink-0 self-end sm:self-stretch sm:min-w-[4.5rem]">Done</button>
                           </div>
                         )}
                         {note && routineEditorNoteForIndex !== i && (
-                          <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-card-alt rounded-lg border border-border-strong">
-                            <span className="text-sm text-muted italic flex-1">{note}</span>
+                          <div className="flex items-start gap-2 mb-2 px-3 py-2 bg-card-alt rounded-lg border border-border-strong">
+                            <span className="text-sm text-muted italic flex-1 min-w-0 break-words whitespace-pre-wrap">{note}</span>
                             <button type="button" onClick={() => updateNote('')} className="text-muted-mid hover:text-red-400 shrink-0">✕</button>
                           </div>
                         )}
@@ -3499,50 +3796,108 @@ ${JSON.stringify(ctx)}`
                             </div>
                           </div>
                         )}
-                        <div className="gap-1.5 mt-2 mb-1 grid items-center" style={{ gridTemplateColumns: '28px 1fr 1fr 30px' }}>
-                          <span className="text-xs font-bold text-muted-strong uppercase text-center">Set</span>
-                          <span className="text-xs font-bold text-muted-strong uppercase text-center">{unitWeight}</span>
-                          <span className="text-xs font-bold text-muted-strong uppercase text-center">Reps</span>
-                          <span />
-                        </div>
-                        {setConfigs.map((setCfg, setIdx) => (
-                          <div key={setIdx} className="gap-1.5 grid items-center mb-1" style={{ gridTemplateColumns: '28px 1fr 1fr 30px' }}>
-                            <span className="text-sm font-bold text-muted text-center">{setIdx + 1}</span>
-                            <input ref={i === focusNewExerciseAt && setIdx === 0 ? routineEditorFirstInputRef : undefined} type="text" inputMode="decimal" value={setCfg.targetKg !== '' && setCfg.targetKg != null ? formatDecimal(setCfg.targetKg) : ''} onChange={e => updateSetAt(setIdx, 'targetKg', e.target.value)} placeholder={unitWeight} onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-card-alt border border-border-strong px-1.5 py-1.5 text-center text-text text-sm font-bold outline-none focus:border-accent" />
-                            <input type="number" inputMode="numeric" value={setCfg.targetReps ?? ''} onChange={e => updateSetAt(setIdx, 'targetReps', e.target.value)} placeholder="reps" onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-card-alt border border-border-strong px-1.5 py-1.5 text-center text-text text-sm font-bold outline-none focus:border-accent" />
-                            {setConfigs.length > 1 ? <button type="button" onClick={() => removeSetAt(setIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-strong hover:text-red-400 hover:bg-red-500/10 shrink-0" aria-label="Delete set">✕</button> : <span className="w-7 shrink-0" />}
-                          </div>
-                        ))}
+                        {routineRepsOnly ? (
+                          <>
+                            <div className="gap-1.5 mt-2 mb-1 grid items-center" style={{ gridTemplateColumns: '28px 1fr 30px' }}>
+                              <span className="text-xs font-bold text-muted-strong uppercase text-center">Set</span>
+                              <span className="text-xs font-bold text-muted-strong uppercase text-center">Reps</span>
+                              <span />
+                            </div>
+                            {setConfigs.map((setCfg, setIdx) => (
+                              <div key={setIdx} className="gap-1.5 grid items-center mb-1" style={{ gridTemplateColumns: '28px 1fr 30px' }}>
+                                <span className="text-sm font-bold text-muted text-center">{setIdx + 1}</span>
+                                <input ref={i === focusNewExerciseAt && setIdx === 0 ? routineEditorFirstInputRef : undefined} type="number" inputMode="numeric" value={setCfg.targetReps ?? ''} onChange={e => updateSetAt(setIdx, 'targetReps', e.target.value)} placeholder="reps" onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-card-alt border border-border-strong px-1.5 py-1.5 text-center text-text text-sm font-bold outline-none focus:border-accent" />
+                                {setConfigs.length > 0 ? (
+                                  <button type="button" onClick={() => removeSetAt(setIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-strong hover:text-red-400 hover:bg-red-500/10 shrink-0" aria-label="Delete set">
+                                    ✕
+                                  </button>
+                                ) : null}
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <>
+                            <div className="gap-1.5 mt-2 mb-1 grid items-center" style={{ gridTemplateColumns: '28px 1fr 1fr 30px' }}>
+                              <span className="text-xs font-bold text-muted-strong uppercase text-center">Set</span>
+                              <span className="text-xs font-bold text-muted-strong uppercase text-center">{unitWeight}</span>
+                              <span className="text-xs font-bold text-muted-strong uppercase text-center">Reps</span>
+                              <span />
+                            </div>
+                            {setConfigs.map((setCfg, setIdx) => (
+                              <div key={setIdx} className="gap-1.5 grid items-center mb-1" style={{ gridTemplateColumns: '28px 1fr 1fr 30px' }}>
+                                <span className="text-sm font-bold text-muted text-center">{setIdx + 1}</span>
+                                <input ref={i === focusNewExerciseAt && setIdx === 0 ? routineEditorFirstInputRef : undefined} type="text" inputMode="decimal" value={setCfg.targetKg !== '' && setCfg.targetKg != null ? formatDecimal(setCfg.targetKg) : ''} onChange={e => updateSetAt(setIdx, 'targetKg', e.target.value)} placeholder={unitWeight} onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-card-alt border border-border-strong px-1.5 py-1.5 text-center text-text text-sm font-bold outline-none focus:border-accent" />
+                                <input type="number" inputMode="numeric" value={setCfg.targetReps ?? ''} onChange={e => updateSetAt(setIdx, 'targetReps', e.target.value)} placeholder="reps" onFocus={e => e.target.select()} className="w-full min-w-0 h-8 rounded-lg bg-card-alt border border-border-strong px-1.5 py-1.5 text-center text-text text-sm font-bold outline-none focus:border-accent" />
+                                {setConfigs.length > 0 ? (
+                                  <button type="button" onClick={() => removeSetAt(setIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-strong hover:text-red-400 hover:bg-red-500/10 shrink-0" aria-label="Delete set">
+                                    ✕
+                                  </button>
+                                ) : null}
+                              </div>
+                            ))}
+                          </>
+                        )}
                         <button type="button" onClick={addSet} className="w-full py-2 mt-2 border border-dashed border-border-strong rounded-lg text-muted-mid text-sm font-semibold hover:border-accent hover:text-accent">+ Add set</button>
                       </div>
                     )
                     }
                     if (group.type === 'superset') {
                       return (
-                        <SupersetWrapper
-                          key={group.groupId}
-                          groupId={group.groupId}
-                          exerciseA={group.a}
-                          exerciseB={group.b}
-                          onBreak={() => routineBreakSuperset(group.groupId)}
-                          renderCard={(exercise, role) => renderRoutineRow(exercise, role, false, false, undefined, () => routineStartLinkMode(exercise.id), () => routineBreakSuperset(exercise.supersetGroupId))}
-                        />
+                        <div key={group.groupId} className="flex gap-1.5 items-start min-w-0">
+                          <RoutineReorderButtons blockIndex={groupIndex} />
+                          <div className="flex-1 min-w-0">
+                            <SupersetWrapper
+                              groupId={group.groupId}
+                              exerciseA={group.a}
+                              exerciseB={group.b}
+                              onBreak={() => routineBreakSuperset(group.groupId)}
+                              renderCard={(exercise, role) => renderRoutineRow(exercise, role, false, false, undefined, () => routineStartLinkMode(exercise.id), () => routineBreakSuperset(exercise.supersetGroupId))}
+                            />
+                          </div>
+                        </div>
                       )
                     }
                     const ex = group.exercise
                     const isSource = routineLinkMode.sourceId === ex.id
                     const isTarget = routineLinkMode.active && !isSource && !ex.supersetGroupId
-                    return renderRoutineRow(ex, null, isSource, isTarget, isTarget ? () => routineConfirmSuperset(ex.id, (groupId) => { setTimeout(() => document.getElementById('superset-' + groupId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150) }) : undefined, () => routineStartLinkMode(ex.id), () => routineBreakSuperset(ex.supersetGroupId))
+                    return (
+                      <div key={ex.id} className="flex gap-1.5 items-start min-w-0">
+                        <RoutineReorderButtons blockIndex={groupIndex} />
+                        <div className="flex-1 min-w-0">
+                          {renderRoutineRow(ex, null, isSource, isTarget, isTarget ? () => routineConfirmSuperset(ex.id, (groupId) => { setTimeout(() => document.getElementById('superset-' + groupId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150) }) : undefined, () => routineStartLinkMode(ex.id), () => routineBreakSuperset(ex.supersetGroupId))}
+                        </div>
+                      </div>
+                    )
                   })}
-                  <button type="button" onClick={() => setShowExercisePickerForRoutine(true)} className="w-full py-3 border border-dashed border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/8 hover:border-success mb-2">+ Add exercise</button>
+                  <button type="button" onClick={() => { setRoutineReplaceExerciseId(null); setShowExercisePickerForRoutine(true) }} className="w-full py-3 border border-dashed border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/8 hover:border-success mb-2">+ Add exercise</button>
                 </div>
                 <div className="shrink-0 pt-3 space-y-2">
-                  {!isEdit && !editRoutineName.trim() && <p className="text-accent text-sm font-medium">Enter a routine name to save.</p>}
+                  {routineEditorTriedSave && !editRoutineName.trim() && (
+                    <p className="text-accent text-sm font-medium">Enter a routine name to save.</p>
+                  )}
+                  {routineEditorTriedSave && editRoutineName.trim() && exs.length === 0 && (
+                    <p className="text-[11px] text-amber-400/90 leading-snug">
+                      {routineEditorConfirmEmptyExercises
+                        ? 'Tap Save again to confirm. You can add exercises later under Plan.'
+                        : 'This routine has no exercises yet. Tap Save again for the next step — or add exercises above.'}
+                    </p>
+                  )}
                   <button type="button" onClick={() => {
+                    if (!editRoutineName.trim()) {
+                      setRoutineEditorTriedSave(true)
+                      return
+                    }
+                    if (exs.length === 0 && !routineEditorConfirmEmptyExercises) {
+                      setRoutineEditorTriedSave(true)
+                      setRoutineEditorConfirmEmptyExercises(true)
+                      return
+                    }
                     if (isEdit) { saveRoutineEdits(editingRoutineId, editRoutineName, editRoutineExercises); closeRoutineEditor() }
                     else if (programmeId) { addRoutineToProgramme(programmeId, { name: editRoutineName, exercises: editRoutineExercises }); setProgrammes(prev => prev.map(p => p.id === programmeId ? { ...p, name: (editProgrammeName.trim() || p.name) } : p)); setShowCreateRoutine(false); setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineProgrammeId(null); setEditingProgrammeId(programmeId); setEditProgrammeName(programmes.find(p => p.id === programmeId)?.name || ''); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
                     else { setCreateProgrammeRoutines(prev => [...prev, { name: editRoutineName, exercises: editRoutineExercises }]); setShowCreateRoutine(false); setShowCreateProgramme(true); setEditRoutineName(''); setEditRoutineExercises([]); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
-                  }} disabled={!isEdit && !editRoutineName.trim()} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold disabled:opacity-50 disabled:pointer-events-none">Save</button>
+                    setRoutineEditorTriedSave(false)
+                    setRoutineEditorConfirmEmptyExercises(false)
+                  }} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold">Save</button>
                   <button type="button" onClick={closeRoutineEditor} className="w-full py-3 text-muted-strong text-xs font-semibold">Cancel</button>
                 </div>
               </div>
@@ -3556,14 +3911,40 @@ ${JSON.stringify(ctx)}`
             <ExerciseLibrary
               allExercises={allLibraryExercises}
               mode="modal"
+              replaceMode={!!routineReplaceExerciseId}
               onAdd={(exList) => {
+                if (routineReplaceExerciseId) {
+                  if (!exList?.length) return
+                  const first = exList[0]
+                  const rid = routineReplaceExerciseId
+                  setRoutineReplaceExerciseId(null)
+                  setShowExercisePickerForRoutine(false)
+                  setEditRoutineExercises((prev) =>
+                    prev.map((e) =>
+                      e.id === rid
+                        ? {
+                            ...e,
+                            exerciseId: first.name,
+                            setConfigs: Array.from({ length: Math.max(1, (e.setConfigs || []).length) }, () => ({
+                              targetKg: '',
+                              targetReps: '',
+                            })),
+                          }
+                        : e
+                    )
+                  )
+                  return
+                }
                 const newExs = exList.map(e => ({ id: crypto.randomUUID(), exerciseId: e.name, setConfigs: [{ targetReps: '', targetKg: '' }], restOverride: null, rirOverride: null, note: '', supersetGroupId: null, supersetRole: null }))
                 const startIndex = editRoutineExercises.length
                 setEditRoutineExercises(prev => [...(prev || []), ...newExs])
                 setFocusNewExerciseAt(startIndex)
                 setShowExercisePickerForRoutine(false)
               }}
-              onClose={() => setShowExercisePickerForRoutine(false)}
+              onClose={() => {
+                setShowExercisePickerForRoutine(false)
+                setRoutineReplaceExerciseId(null)
+              }}
               onCreateCustom={() => { setEditingCustomExercise(null); setShowCreateExercise(true) }}
             />
           </div>
@@ -3574,8 +3955,12 @@ ${JSON.stringify(ctx)}`
           <ExerciseLibrary
             allExercises={allLibraryExercises}
             mode="modal"
+            replaceMode={exerciseLibraryReplaceIndex != null}
             onAdd={addExercisesFromLibrary}
-            onClose={() => setShowAddExercise(false)}
+            onClose={() => {
+              setShowAddExercise(false)
+              setExerciseLibraryReplaceIndex(null)
+            }}
             onCreateCustom={() => { setEditingCustomExercise(null); setShowCreateExercise(true) }}
           />
         )}
@@ -3669,11 +4054,14 @@ ${JSON.stringify(ctx)}`
         {deletingFolder !== null && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-6">
             <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-6">
-              <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-red-400"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div></div>
+              <DeleteTrashBadge />
               <h2 className="text-base font-bold text-center mb-2">Delete "{folders[deletingFolder]?.name}"?</h2>
               <p className="text-sm text-muted text-center mb-1">This folder contains <span className="font-bold text-text">{folders[deletingFolder]?.templates.length} template{folders[deletingFolder]?.templates.length !== 1 ? 's' : ''}</span>.</p>
               <p className="text-sm text-muted-mid text-center mb-5">Templates will be moved to "{folders.find((_, i) => i !== deletingFolder)?.name}".</p>
-              <button onClick={confirmDeleteFolder} className="w-full py-3 bg-red-500 rounded-xl font-bold text-sm mb-2">Delete folder</button>
+              <button type="button" onClick={confirmDeleteFolder} className="w-full py-3 bg-red-500 rounded-xl font-bold text-sm mb-2 text-white inline-flex items-center justify-center gap-2">
+                <DeleteTrashGlyph className="w-4 h-4 text-white shrink-0" />
+                Delete folder
+              </button>
               <button onClick={() => setDeletingFolder(null)} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
             </div>
           </div>
@@ -3682,10 +4070,13 @@ ${JSON.stringify(ctx)}`
         {deletingTemplate && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-6">
             <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-6">
-              <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-red-400"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div></div>
+              <DeleteTrashBadge />
               <h2 className="text-base font-bold text-center mb-2">Delete template?</h2>
               <p className="text-sm text-muted text-center mb-5">"{folders[deletingTemplate.fi]?.templates[deletingTemplate.ti]?.name}" will be permanently deleted.</p>
-              <button onClick={confirmDeleteTemplate} className="w-full py-3 bg-red-500 rounded-xl font-bold text-sm mb-2">Delete template</button>
+              <button type="button" onClick={confirmDeleteTemplate} className="w-full py-3 bg-red-500 rounded-xl font-bold text-sm mb-2 text-white inline-flex items-center justify-center gap-2">
+                <DeleteTrashGlyph className="w-4 h-4 text-white shrink-0" />
+                Delete template
+              </button>
               <button onClick={() => setDeletingTemplate(null)} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
             </div>
           </div>
@@ -3733,7 +4124,26 @@ ${JSON.stringify(ctx)}`
   )
 }
 
-function WorkoutCompleteScreen({ data, rating, onRatingChange, onDone, onProgressPhoto, formatDuration, unitWeight, formatDecimal }) {
+const WORKOUT_COMPLETE_PHOTO_ANGLES = [
+  { key: 'front', label: 'Front' },
+  { key: 'back', label: 'Back' },
+  { key: 'side', label: 'Side' },
+]
+
+function WorkoutCompleteScreen({
+  data,
+  rating,
+  onRatingChange,
+  onDone,
+  onProgressPhoto,
+  formatDuration,
+  unitWeight,
+  formatDecimal,
+  recentWorkout = null,
+  photoSessions = [],
+}) {
+  const { user } = useAuth()
+  const uid = user?.uid ?? null
   const { name, templateName, duration, setCount, volume, exerciseCount = 0, newPRs, progression } = data
   const minutes = Math.floor(duration / 60)
   const lastVolume = progression?.prevVolume ?? 0
@@ -3745,11 +4155,54 @@ function WorkoutCompleteScreen({ data, rating, onRatingChange, onDone, onProgres
   const volumeDiff = progression ? (volume ?? 0) - lastVolume : 0
   const durationDiff = progression ? minutes - lastMinutes : 0
 
+  const linkedPhotoSession = useMemo(() => {
+    const ids = recentWorkout?.photoSessionIds
+    if (!Array.isArray(ids) || ids.length === 0) return null
+    return (photoSessions || []).find((s) => s.id === ids[0]) ?? null
+  }, [recentWorkout, photoSessions])
+
+  const [previewSrcs, setPreviewSrcs] = useState({ front: null, back: null, side: null })
+  useEffect(() => {
+    if (!linkedPhotoSession || !uid) {
+      setPreviewSrcs({ front: null, back: null, side: null })
+      return
+    }
+    let cancelled = false
+    Promise.all(
+      WORKOUT_COMPLETE_PHOTO_ANGLES.map(async ({ key }) => {
+        const fn = linkedPhotoSession[key]
+        if (!fn) return { key, src: null }
+        try {
+          const src = await loadPhotoSrc(fn, uid)
+          return { key, src: src || null }
+        } catch {
+          return { key, src: null }
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) return
+      const next = { front: null, back: null, side: null }
+      results.forEach(({ key, src }) => {
+        next[key] = src
+      })
+      setPreviewSrcs(next)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [linkedPhotoSession, uid])
+
+  const hasLinkedProgressPhotos = Boolean(linkedPhotoSession)
+  const hasAnyProgressPhotoFile = Boolean(
+    linkedPhotoSession &&
+      (linkedPhotoSession.front || linkedPhotoSession.back || linkedPhotoSession.side),
+  )
+
   return (
     <div>
-      {/* Header: workout name + bouncy green checkmark */}
+      {/* Header: workout name (same scale/colour as programme title on start card) + checkmark */}
       <div className="flex items-center justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-text">{name}</h1>
+        <h1 className="text-sm font-bold tracking-tight text-accent">{name}</h1>
         <div className="w-10 h-10 rounded-full bg-success flex items-center justify-center shrink-0 animate-bounce">
           <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 stroke-white"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
@@ -3828,9 +4281,74 @@ function WorkoutCompleteScreen({ data, rating, onRatingChange, onDone, onProgres
         )}
       </div>
 
+      {/* Progress photo */}
+      <div className="mb-4">
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-muted-mid shrink-0" aria-hidden><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <span className="text-xs font-bold text-muted-mid uppercase tracking-wider">Progress photo</span>
+        </div>
+        <button
+          type="button"
+          onClick={onProgressPhoto}
+          aria-label={
+            hasLinkedProgressPhotos
+              ? 'Progress photos for this workout. Tap to add or change.'
+              : 'Take progress photos or upload from library'
+          }
+          className={`w-full flex flex-col items-center gap-2.5 py-4 px-3 rounded-xl border bg-card hover:border-accent/50 hover:bg-accent/5 transition-colors ${
+            hasLinkedProgressPhotos ? 'border-accent/25 border-solid' : 'border-dashed border-border-strong'
+          }`}
+        >
+          <div className="w-full grid grid-cols-3 gap-1.5">
+            {WORKOUT_COMPLETE_PHOTO_ANGLES.map(({ key, label }) => {
+              const filename = linkedPhotoSession?.[key] ?? null
+              const src = previewSrcs[key]
+              const loading = Boolean(filename && !src)
+              return (
+                <div key={key} className="flex flex-col items-center gap-1 min-w-0">
+                  <ProgressPhoto
+                    src={src}
+                    crop={linkedPhotoSession?.crops?.[key]}
+                    className="rounded-lg border border-border-strong w-full"
+                  >
+                    {loading ? (
+                      <div
+                        className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin opacity-70"
+                        aria-hidden
+                      />
+                    ) : (
+                      <span className="text-muted-deep/80 text-lg leading-none font-light" aria-hidden>
+                        —
+                      </span>
+                    )}
+                  </ProgressPhoto>
+                  <span className="text-[8px] font-bold text-muted uppercase tracking-wide truncate max-w-full text-center">
+                    {label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <span
+            className={`text-[11px] font-semibold text-center leading-snug max-w-[280px] ${
+              hasAnyProgressPhotoFile ? 'text-accent' : 'text-muted-strong'
+            }`}
+          >
+            {hasLinkedProgressPhotos
+              ? 'Progress photos saved · tap to add or change'
+              : 'Take a new photo or upload one from your library'}
+          </span>
+        </button>
+      </div>
+
       {/* How was your motivation? – number + label per option */}
       <div className="mb-4">
-        <div className="text-xs font-bold text-muted-mid uppercase tracking-wider mb-2">How was your motivation?</div>
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-muted-mid shrink-0" aria-hidden>
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+          <span className="text-xs font-bold text-muted-mid uppercase tracking-wider">How was your motivation?</span>
+        </div>
         <div className="flex gap-1.5">
           {[1, 2, 3, 4, 5].map((n) => (
             <button
@@ -3844,16 +4362,6 @@ function WorkoutCompleteScreen({ data, rating, onRatingChange, onDone, onProgres
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Progress photo */}
-      <div className="mb-4">
-        <button type="button" onClick={onProgressPhoto} className="w-full flex flex-col items-center gap-2 py-4 rounded-xl border border-border bg-card hover:border-accent/40 hover:bg-accent/5 transition-colors">
-          <div className="w-10 h-10 rounded-full bg-card-alt border border-border flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 stroke-text"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          </div>
-          <span className="text-sm font-bold text-text">Progress photo</span>
-        </button>
       </div>
 
       {/* Done */}
@@ -3899,6 +4407,7 @@ function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutin
   const [selectedProgId, setSelectedProgId] = useState(programmes[0]?.id || null)
   const [newProgrammeName, setNewProgrammeName] = useState('')
   const [routineName, setRoutineName] = useState(defaultRoutineName || '')
+  const [saveAttempted, setSaveAttempted] = useState(false)
   const newProgrammeInputRef = useRef(null)
   const canSave = routineName.trim() && (mode === 'existing' ? selectedProgId : newProgrammeName.trim())
 
@@ -3910,8 +4419,15 @@ function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutin
     el.select()
   }, [mode])
 
+  useEffect(() => {
+    if (canSave) setSaveAttempted(false)
+  }, [canSave])
+
   function handleSave() {
-    if (!canSave) return
+    if (!canSave) {
+      setSaveAttempted(true)
+      return
+    }
     if (mode === 'existing') onSave({ type: 'existing', progId: selectedProgId }, routineName.trim())
     else onSave({ type: 'new', programmeName: newProgrammeName.trim() }, routineName.trim())
   }
@@ -3959,12 +4475,12 @@ function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutin
           <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Routine name</div>
           <input type="text" placeholder="e.g. Day 1 - Pull" value={routineName} onChange={(e) => setRoutineName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && handleSave()} className="w-full bg-card-alt border border-border-strong rounded-xl px-4 py-3 text-text placeholder-muted-deep outline-none focus:border-accent transition-colors" />
         </div>
-        {!canSave && (
+        {saveAttempted && !canSave && (
           <p className="text-accent text-sm font-medium mb-3">
             {mode === 'existing' ? 'Enter a routine name to save.' : 'Enter programme name and routine name to save.'}
           </p>
         )}
-        <button onClick={handleSave} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${canSave ? 'bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25' : 'bg-card-alt text-muted-strong'}`} disabled={!canSave}>Save routine</button>
+        <button onClick={handleSave} className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${canSave ? 'bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25' : 'bg-card-alt text-muted-strong'}`}>Save routine</button>
         <button type="button" onClick={onCancel} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
       </div>
     </div>

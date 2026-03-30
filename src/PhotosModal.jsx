@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
-import { getOldestMiddleNewestSessions } from './progressUtils'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
+import { getOldestMiddleNewestSessions, sortPhotoSessionsByDate } from './progressUtils'
+import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
 import ProgressPhoto from './ProgressPhoto'
 import ProgressPhotoEditor from './ProgressPhotoEditor'
 import { useAuth } from './lib/AuthContext'
@@ -35,22 +36,6 @@ function dateInputToEnGB(value) {
   if (parts.length !== 3) return getTodayEnGB()
   const [y, m, d] = parts
   return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`
-}
-
-/** Sort key for ordering: createdAt (ms) if set, else start-of-day from date. Time not shown in UI. */
-function getSessionSortKey(session) {
-  if (session?.createdAt != null && typeof session.createdAt === 'number') return session.createdAt
-  const parts = (session?.date || '').split('/')
-  if (parts.length !== 3) return 0
-  const [d, m, y] = parts
-  const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10))
-  return date.getTime()
-}
-
-/** Sort sessions by date + time (newest first). Uses createdAt when present for same-day order. */
-function sortSessionsByDate(sessions) {
-  if (!Array.isArray(sessions) || sessions.length === 0) return []
-  return [...sessions].sort((a, b) => getSessionSortKey(b) - getSessionSortKey(a))
 }
 
 function isNativePlatform() {
@@ -200,6 +185,12 @@ export default function PhotosModal({
   const inputLibraryRef = useRef(null)
   const dateInputRef = useRef(null)
   const initialPhotoSessionsRef = useRef(null)
+  /** Angles that already triggered onProgressPhotoAdded this capture (retake does not re-add). */
+  const progressQuotaAnglesRef = useRef(new Set())
+  const [captureCropEditorAngle, setCaptureCropEditorAngle] = useState(null)
+  const [captureAnglePendingDelete, setCaptureAnglePendingDelete] = useState(null)
+  /** Which angle's photo the user tapped to show crop/delete options (capture flow only). */
+  const [captureAngleActionSheet, setCaptureAngleActionSheet] = useState(null)
 
   const canAddPhotos = typeof setPhotoSessions === 'function'
   const isNative = isNativePlatform()
@@ -229,12 +220,16 @@ export default function PhotosModal({
     load()
   }, [uid, capturedImages.front, capturedImages.back, capturedImages.side])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (openToAdd && canAddPhotos && !atLimit) {
+      progressQuotaAnglesRef.current = new Set()
       setCapturing(true)
       setCaptureStep(0)
       setCapturedImages({})
       setCaptureSessionDate(getTodayEnGB())
+      setCaptureCropEditorAngle(null)
+      setCaptureAnglePendingDelete(null)
+      setCaptureAngleActionSheet(null)
     }
   }, [openToAdd, canAddPhotos, atLimit])
 
@@ -279,8 +274,6 @@ export default function PhotosModal({
       normalized = base64.replace(/^data:image\/\w+;base64,/, '') || base64
     }
     const sessionId = capturedImages._sessionId ?? `ps_${Date.now()}`
-    const existingSession = (photoSessions || []).find((s) => s.id === sessionId)
-    const isNewPhotoSlot = !existingSession?.[angle.key] && !capturedImages[angle.key]
     const filename = `${sessionId}_${angle.key}.jpg`
     try {
       await savePhoto(normalized, filename, uid)
@@ -294,22 +287,25 @@ export default function PhotosModal({
     setCaptureStep((prev) => prev + 1)
     // Persist session immediately so photo shows even if user leaves before clicking Done
     if (typeof setPhotoSessions === 'function') {
-      const today = new Date().toLocaleDateString('en-GB')
       setPhotoSessions((prev) => {
         const existing = (prev || []).find((s) => s.id === sessionId)
         const partial = {
           id: sessionId,
-          date: today,
+          date: existing?.date ?? captureSessionDate,
           front: updated.front ?? null,
           back: updated.back ?? null,
           side: updated.side ?? null,
           createdAt: existing?.createdAt ?? Date.now(),
+          crops: existing?.crops ? { ...existing.crops } : {},
         }
         const without = (prev || []).filter((s) => s.id !== sessionId)
         return [...without, partial]
       })
     }
-    if (isNewPhotoSlot) onProgressPhotoAdded?.()
+    if (!progressQuotaAnglesRef.current.has(angle.key)) {
+      progressQuotaAnglesRef.current.add(angle.key)
+      onProgressPhotoAdded?.()
+    }
   }
 
   async function handleCaptureAngle(source) {
@@ -343,11 +339,63 @@ export default function PhotosModal({
     setCaptureStep((prev) => prev + 1)
   }
 
+  /** Clear one angle and jump to its step so the user can shoot again — does not free plan quota (same slot). */
+  function prepareRetakeCapturedAngle(angleKey) {
+    const sessionId = capturedImages._sessionId
+    if (!sessionId) return
+    setCaptureCropEditorAngle((prev) => (prev === angleKey ? null : prev))
+    setCaptureAngleActionSheet((prev) => (prev === angleKey ? null : prev))
+    const nextCaptured = { ...capturedImages }
+    delete nextCaptured[angleKey]
+    setCapturedImages(nextCaptured)
+    if (typeof setPhotoSessions === 'function') {
+      setPhotoSessions((prev) =>
+        (prev || []).map((s) => {
+          if (s.id !== sessionId) return s
+          const nextCrops = { ...(s.crops || {}) }
+          delete nextCrops[angleKey]
+          return { ...s, [angleKey]: null, crops: nextCrops }
+        })
+      )
+    }
+    setCaptureStep(ANGLES.findIndex((a) => a.key === angleKey))
+  }
+
+  function removeCapturedAngle(angleKey) {
+    const sessionId = capturedImages._sessionId
+    if (!sessionId) return
+    progressQuotaAnglesRef.current.delete(angleKey)
+    setCaptureCropEditorAngle((prev) => (prev === angleKey ? null : prev))
+    setCaptureAngleActionSheet((prev) => (prev === angleKey ? null : prev))
+    const nextCaptured = { ...capturedImages }
+    delete nextCaptured[angleKey]
+    setCapturedImages(nextCaptured)
+    if (typeof setPhotoSessions === 'function') {
+      setPhotoSessions((prev) =>
+        (prev || []).map((s) => {
+          if (s.id !== sessionId) return s
+          const nextCrops = { ...(s.crops || {}) }
+          delete nextCrops[angleKey]
+          return { ...s, [angleKey]: null, crops: nextCrops }
+        })
+      )
+    }
+    const allFilled = ANGLES.every(({ key }) => nextCaptured[key])
+    if (!allFilled) {
+      const firstEmpty = ANGLES.findIndex(({ key }) => !nextCaptured[key])
+      setCaptureStep(firstEmpty >= 0 ? firstEmpty : 0)
+    }
+  }
+
   function finishCapture() {
     const { _sessionId, ...angles } = capturedImages
     const sessionId = _sessionId ?? `ps_${Date.now()}`
     setPhotoSessions((prev) => {
       const existing = (prev || []).find((s) => s.id === sessionId)
+      const cleanedCrops = { ...(existing?.crops || {}) }
+      ANGLES.forEach(({ key }) => {
+        if (!angles[key]) delete cleanedCrops[key]
+      })
       const newSession = {
         id: sessionId,
         date: captureSessionDate,
@@ -355,6 +403,7 @@ export default function PhotosModal({
         back: angles.back ?? null,
         side: angles.side ?? null,
         createdAt: existing?.createdAt ?? Date.now(),
+        ...(Object.keys(cleanedCrops).length ? { crops: cleanedCrops } : {}),
       }
       const without = (prev || []).filter((s) => s.id !== sessionId)
       return [...without, newSession]
@@ -369,9 +418,164 @@ export default function PhotosModal({
   if (showCaptureUI) {
     const currentAngle = ANGLES[captureStep]
     const isDone = captureStep >= ANGLES.length
+    const captureSessionPartial = (photoSessions || []).find((s) => s.id === capturedImages._sessionId)
+
+    const captureAngleSlot = (key, label) => {
+      const has = !!capturedImages[key]
+      const thumbReady = !!(has && captureThumbSrcs[key])
+      const idx = ANGLES.findIndex((a) => a.key === key)
+      const isActiveStep = !isDone && idx === captureStep
+      return (
+        <div key={key} className="flex flex-col items-center gap-1.5">
+          <ProgressPhoto
+            src={has ? captureThumbSrcs[key] : null}
+            crop={captureSessionPartial?.crops?.[key]}
+            className={`w-[64px] rounded-xl border-2 shrink-0 ring-offset-2 ring-offset-page ${
+              isActiveStep ? 'border-accent ring-2 ring-accent/40' : 'border-border'
+            } ${
+              thumbReady || !has
+                ? 'cursor-pointer active:opacity-90'
+                : has && !thumbReady
+                  ? 'opacity-80'
+                  : ''
+            } ${captureAngleActionSheet === key ? 'ring-2 ring-accent' : ''}`}
+            onClick={() => {
+              if (thumbReady) setCaptureAngleActionSheet(key)
+              else setCaptureStep(idx)
+            }}
+          >
+            <span className="text-[11px] font-semibold text-muted">{label}</span>
+          </ProgressPhoto>
+          <span
+            className={`text-[11px] font-bold ${isActiveStep ? 'text-accent' : 'text-muted'}`}
+          >
+            {label}
+          </span>
+        </div>
+      )
+    }
+
+    const captureCropEditor =
+      captureCropEditorAngle &&
+      capturedImages._sessionId &&
+      captureThumbSrcs[captureCropEditorAngle] && (
+        <ProgressPhotoEditor
+          src={captureThumbSrcs[captureCropEditorAngle]}
+          initialCrop={captureSessionPartial?.crops?.[captureCropEditorAngle]}
+          onSave={(crop) => {
+            const sid = capturedImages._sessionId
+            if (!sid || typeof setPhotoSessions !== 'function') return
+            setPhotoSessions((prev) =>
+              (prev || []).map((s) =>
+                s.id === sid ? { ...s, crops: { ...(s.crops || {}), [captureCropEditorAngle]: crop } } : s
+              )
+            )
+          }}
+          onClose={() => setCaptureCropEditorAngle(null)}
+        />
+      )
+
+    const sheetAngleMeta = captureAngleActionSheet
+      ? ANGLES.find((a) => a.key === captureAngleActionSheet)
+      : null
+    const capturePhotoActionSheet = captureAngleActionSheet && sheetAngleMeta && (
+      <div
+        className="fixed inset-0 z-[108] flex items-end justify-center sm:items-center sm:p-4"
+        aria-modal="true"
+      >
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+          aria-label="Close"
+          onClick={() => setCaptureAngleActionSheet(null)}
+        />
+        <div className="relative w-full max-w-md rounded-t-[20px] sm:rounded-[20px] bg-page border border-border border-b-0 sm:border-b shadow-xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          <div className="text-[17px] font-extrabold text-text text-center mb-5">{sheetAngleMeta.label} photo</div>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              className="w-full py-3.5 rounded-xl text-[15px] font-bold bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/20"
+              onClick={() => {
+                const k = captureAngleActionSheet
+                setCaptureAngleActionSheet(null)
+                setCaptureCropEditorAngle(k)
+              }}
+            >
+              Adjust crop
+            </button>
+            <button
+              type="button"
+              className="w-full py-3.5 rounded-xl text-[15px] font-bold border border-border-strong bg-card-alt text-text"
+              onClick={() => {
+                const k = captureAngleActionSheet
+                setCaptureAngleActionSheet(null)
+                prepareRetakeCapturedAngle(k)
+              }}
+            >
+              Take new photo
+            </button>
+            <button
+              type="button"
+              className="w-full py-3.5 rounded-xl text-[15px] font-bold border-2 border-red-500/40 text-red-500 bg-red-500/[0.06]"
+              onClick={() => {
+                const k = captureAngleActionSheet
+                setCaptureAngleActionSheet(null)
+                setCaptureAnglePendingDelete(k)
+              }}
+            >
+              Delete photo
+            </button>
+            <button
+              type="button"
+              className="w-full py-3 rounded-xl text-[15px] font-semibold text-muted border border-border-strong bg-card-alt"
+              onClick={() => setCaptureAngleActionSheet(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+
+    const captureAngleDeleteModal = captureAnglePendingDelete && (
+      <div
+        className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 z-[110]"
+        aria-modal="true"
+      >
+        <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-xl relative z-[111]">
+          <DeleteTrashBadge />
+          <div className="text-[15px] font-bold text-text mb-1 text-center">Remove photo?</div>
+          <div className="text-[13px] text-muted mb-5 text-center">
+            {ANGLES.find((a) => a.key === captureAnglePendingDelete)?.label ?? 'This'} shot will be cleared. You can add
+            it again later.
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setCaptureAnglePendingDelete(null)}
+              className="flex-1 py-3 rounded-xl text-[13px] font-bold border border-border-strong bg-card-alt text-text"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                removeCapturedAngle(captureAnglePendingDelete)
+                setCaptureAnglePendingDelete(null)
+              }}
+              className="flex-1 py-3 rounded-xl text-[13px] font-bold bg-red-500/90 text-white hover:bg-red-500 inline-flex items-center justify-center gap-2"
+            >
+              <DeleteTrashGlyph className="w-4 h-4 text-white" />
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
+    )
 
     if (isDone) {
       return (
+        <>
         <div className="fixed inset-0 z-50 flex justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-[4px]" aria-hidden />
           <div className="relative w-full max-w-md h-full flex flex-col items-center justify-center px-6 bg-page">
@@ -385,20 +589,7 @@ export default function PhotosModal({
             {Object.values(capturedImages).filter((v) => v && v !== capturedImages._sessionId).length} photos taken
           </p>
           <div className="flex gap-3 w-full max-w-sm mb-6 justify-center">
-            {ANGLES.map(({ key, label }) => (
-              <div key={key} className="flex flex-col items-center gap-1">
-                <div className="w-[56px] aspect-[0.72] rounded-xl border-2 border-border overflow-hidden bg-card-alt shrink-0">
-                  {captureThumbSrcs[key] ? (
-                    <img src={captureThumbSrcs[key]} alt={label} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-[10px] font-semibold text-muted">{label}</span>
-                    </div>
-                  )}
-                </div>
-                <span className="text-[9px] font-bold text-muted">{label}</span>
-              </div>
-            ))}
+            {ANGLES.map(({ key, label }) => captureAngleSlot(key, label))}
           </div>
           <div className="w-full max-w-sm mb-6">
             <input
@@ -446,22 +637,42 @@ export default function PhotosModal({
           </button>
           </div>
         </div>
+        {capturePhotoActionSheet}
+        {captureCropEditor}
+        {captureAngleDeleteModal}
+        </>
       )
     }
 
     return (
+      <>
       <div className="fixed inset-0 z-50 flex justify-center">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-[4px]" aria-hidden />
         <div className="relative w-full max-w-md h-full flex flex-col bg-page">
         <div className="flex gap-2 px-6 pt-12 pb-2">
-          {ANGLES.map((a, i) => (
-            <div
-              key={a.key}
-              className={`flex-1 h-1 rounded-full ${
-                i < captureStep ? 'bg-success' : i === captureStep ? 'bg-accent' : 'bg-card-alt'
-              }`}
-            />
-          ))}
+          {ANGLES.map((a, i) => {
+            const done = i < captureStep
+            const current = i === captureStep
+            const canGoBack = done
+            return (
+              <button
+                key={a.key}
+                type="button"
+                disabled={!canGoBack}
+                title={canGoBack ? `Back to ${a.label}` : current ? `${a.label} (current)` : a.label}
+                onClick={() => canGoBack && setCaptureStep(i)}
+                className={`flex-1 min-h-[44px] min-w-0 py-3 -my-2 flex items-center justify-center rounded-lg transition-opacity ${
+                  canGoBack ? 'cursor-pointer opacity-100 hover:opacity-90' : 'cursor-default opacity-100'
+                } ${current && !isDone ? 'ring-1 ring-accent/30 rounded-2xl' : ''}`}
+              >
+                <span
+                  className={`block w-full h-1.5 rounded-full ${
+                    done ? 'bg-success' : current ? 'bg-accent' : 'bg-card-alt'
+                  }`}
+                />
+              </button>
+            )
+          })}
         </div>
         <div className="px-6 pb-3">
           <input
@@ -501,31 +712,11 @@ export default function PhotosModal({
             </div>
           </button>
         </div>
-        {(capturedImages.front || capturedImages.back || capturedImages.side) && (
-          <div className="px-6 pb-3">
-            <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-2">Uploaded</div>
-            <div className="flex gap-2 justify-center">
-              {ANGLES.map(({ key, label }) => (
-                <div key={key} className="flex flex-col items-center gap-1">
-                  <div className="w-[56px] aspect-[0.72] rounded-xl border-2 border-border overflow-hidden bg-card-alt shrink-0">
-                    {captureThumbSrcs[key] ? (
-                      <img
-                        src={captureThumbSrcs[key]}
-                        alt={label}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-[10px] font-semibold text-muted">{label}</span>
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[9px] font-bold text-muted">{label}</span>
-                </div>
-              ))}
-            </div>
+        <div className="px-6 pb-3">
+          <div className="flex gap-2 justify-center">
+            {ANGLES.map(({ key, label }) => captureAngleSlot(key, label))}
           </div>
-        )}
+        </div>
         <div className="flex-1 flex flex-col items-center justify-center px-6">
           <div className="text-text text-2xl font-extrabold mb-1">{currentAngle.label}</div>
           <div className="text-muted text-sm mb-8">
@@ -586,6 +777,9 @@ export default function PhotosModal({
           </button>
           <button
             onClick={() => {
+              setCaptureCropEditorAngle(null)
+              setCaptureAnglePendingDelete(null)
+              setCaptureAngleActionSheet(null)
               if (openToAdd) {
                 onClose()
               } else {
@@ -601,6 +795,10 @@ export default function PhotosModal({
         </div>
         </div>
       </div>
+        {capturePhotoActionSheet}
+        {captureCropEditor}
+        {captureAngleDeleteModal}
+      </>
     )
   }
 
@@ -625,6 +823,10 @@ export default function PhotosModal({
           onClose={onClose}
           hasChanges={hasChanges}
           onOpenAddPhotos={() => {
+            progressQuotaAnglesRef.current = new Set()
+            setCaptureCropEditorAngle(null)
+            setCaptureAnglePendingDelete(null)
+            setCaptureAngleActionSheet(null)
             setCapturing(true)
             setCaptureStep(0)
             setCapturedImages({})
@@ -659,21 +861,51 @@ export function PhotosViewContent({
   const padX = inline ? 'px-0' : 'px-5'
   const fmtDate = formatDateForDisplay ?? ((d) => d ?? '')
   const [view, setView] = useState('timeline')
-  const sortedSessionsForCompare = sortSessionsByDate(photoSessions || [])
+  const sortedSessionsForCompare = sortPhotoSessionsByDate(photoSessions || [])
   const defaultOldest = sortedSessionsForCompare.length > 0 ? sortedSessionsForCompare[sortedSessionsForCompare.length - 1] : null
   const defaultNewest = sortedSessionsForCompare.length > 0 ? sortedSessionsForCompare[0] : null
   const [compareA, setCompareA] = useState(() => defaultOldest?.id ?? null)
   const [compareB, setCompareB] = useState(() => (sortedSessionsForCompare.length > 1 ? defaultNewest?.id : null))
   const [compareAngle, setCompareAngle] = useState('front')
 
+  const compareARef = useRef(compareA)
+  const compareBRef = useRef(compareB)
+  compareARef.current = compareA
+  compareBRef.current = compareB
+
+  const photoSessionIdsKey = useMemo(
+    () =>
+      (photoSessions || [])
+        .map((s) => s?.id)
+        .filter(Boolean)
+        .sort()
+        .join('|'),
+    [photoSessions],
+  )
+
   useEffect(() => {
-    const sorted = sortSessionsByDate(photoSessions || [])
-    if (sorted.length < 2) return
+    const sorted = sortPhotoSessionsByDate(photoSessions || [])
+    if (sorted.length < 2) {
+      setCompareA(sorted.length === 1 ? sorted[0].id : null)
+      setCompareB(null)
+      return
+    }
     const oldest = sorted[sorted.length - 1]
     const newest = sorted[0]
-    setCompareA((prev) => (prev == null ? oldest.id : prev))
-    setCompareB((prev) => (prev == null ? newest.id : prev))
-  }, [photoSessions?.length])
+    const ids = new Set(sorted.map((s) => s.id))
+    const prevA = compareARef.current
+    const prevB = compareBRef.current
+    const invalid =
+      prevA == null ||
+      prevB == null ||
+      !ids.has(prevA) ||
+      !ids.has(prevB) ||
+      prevA === prevB
+    if (invalid) {
+      setCompareA(oldest.id)
+      setCompareB(newest.id)
+    }
+  }, [photoSessionIdsKey])
   const [comparePickerOpen, setComparePickerOpen] = useState(null)
   const [showAllSessions, setShowAllSessions] = useState(false)
   const [editingDateSessionId, setEditingDateSessionId] = useState(null)
@@ -749,7 +981,16 @@ export function PhotosViewContent({
         {['timeline', 'compare'].map((v) => (
           <button
             key={v}
-            onClick={() => setView(v)}
+            onClick={() => {
+              if (v === 'compare') {
+                const sorted = sortPhotoSessionsByDate(photoSessions || [])
+                if (sorted.length >= 2) {
+                  setCompareA(sorted[sorted.length - 1].id)
+                  setCompareB(sorted[0].id)
+                }
+              }
+              setView(v)
+            }}
             className={`flex-1 py-2 rounded-[8px] text-[11px] font-bold capitalize ${
               view === v ? 'bg-card-alt border border-border-strong text-text' : 'text-muted'
             }`}
@@ -810,7 +1051,7 @@ export function PhotosViewContent({
           {view === 'timeline' && (
             <>
               {((Array.isArray(photoSessions) ? photoSessions : []).length <= 3 || showAllSessions
-                ? sortSessionsByDate(photoSessions || [])
+                ? sortPhotoSessionsByDate(photoSessions || [])
                 : [...getOldestMiddleNewestSessions(photoSessions || [])].reverse()
               ).map((session) => (
                 <div key={session.id} className="mb-5">
@@ -835,9 +1076,11 @@ export function PhotosViewContent({
                     )}
                     {canAddPhotos && (
                       <button
+                        type="button"
                         onClick={() => setSessionToDelete(session.id)}
-                        className="text-[10px] text-red-400 font-semibold"
+                        className="text-[10px] text-red-400 font-semibold inline-flex items-center gap-1"
                       >
+                        <DeleteTrashGlyph className="w-3 h-3 shrink-0" />
                         Delete session
                       </button>
                     )}
@@ -890,7 +1133,7 @@ export function PhotosViewContent({
               ) : (
                 <>
                   {(() => {
-                    const sorted = sortSessionsByDate(photoSessions || [])
+                    const sorted = sortPhotoSessionsByDate(photoSessions || [])
                     const oldest = sorted.length > 0 ? sorted[sorted.length - 1] : null
                     const newest = sorted.length > 0 ? sorted[0] : null
                     const isOldestNewestSelected = oldest && newest && compareA === oldest.id && compareB === newest.id
@@ -1046,8 +1289,9 @@ export function PhotosViewContent({
       {sessionToDelete && (
         <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 z-[100]" aria-modal="true">
           <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-xl relative z-[101]">
-            <div className="text-[15px] font-bold text-text mb-1">Delete session?</div>
-            <div className="text-[13px] text-muted mb-5">
+            <DeleteTrashBadge />
+            <div className="text-[15px] font-bold text-text mb-1 text-center">Delete session?</div>
+            <div className="text-[13px] text-muted mb-5 text-center">
               All photos from this date will be removed. This cannot be undone.
             </div>
             <div className="flex gap-3">
@@ -1064,8 +1308,9 @@ export function PhotosViewContent({
                   deleteSession(sessionToDelete)
                   setSessionToDelete(null)
                 }}
-                className="flex-1 py-3 rounded-xl text-[13px] font-bold bg-red-500/90 text-white hover:bg-red-500"
+                className="flex-1 py-3 rounded-xl text-[13px] font-bold bg-red-500/90 text-white hover:bg-red-500 inline-flex items-center justify-center gap-2"
               >
+                <DeleteTrashGlyph className="w-4 h-4 text-white" />
                 Delete
               </button>
             </div>

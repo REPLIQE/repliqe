@@ -4,7 +4,16 @@ import { MUSCLE_GROUPS, EQUIPMENT_TYPES, TYPE_LABELS, filterExercises, groupByMu
 
 const MUSCLE_KEYS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'mobility']
 
-export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, onClose, onCreateCustom, onEditExercise }) {
+export default function ExerciseLibrary({
+  allExercises,
+  mode = 'page',
+  onAdd,
+  onClose,
+  onCreateCustom,
+  onEditExercise,
+  /** Modal: ét tryk vælger øvelsen og kalder onAdd med ét element (til erstatning). */
+  replaceMode = false,
+}) {
   const [search, setSearch] = useState('')
   const [myOnly, setMyOnly] = useState(false)
   const [muscles, setMuscles] = useState([])
@@ -116,7 +125,15 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
 
               return (
                 <div key={ex.name}
-                  onClick={() => mode === 'modal' ? toggleSelected(ex.name) : (onEditExercise && ex.isCustom ? onEditExercise(ex) : null)}
+                  onClick={() => {
+                    if (mode === 'modal' && replaceMode) {
+                      onAdd([ex])
+                      setSelected([])
+                      return
+                    }
+                    if (mode === 'modal') toggleSelected(ex.name)
+                    else if (onEditExercise && ex.isCustom) onEditExercise(ex)
+                  }}
                   className={`flex items-center gap-3 bg-card border rounded-xl px-3 py-2.5 mb-1 cursor-pointer transition-all ${isSelected ? 'border-accent bg-accent/5' : 'border-border hover:border-accent'}`}>
                   <MuscleIcon muscle={ex.muscle} size={16} />
                   <div className="flex-1 min-w-0">
@@ -129,7 +146,7 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
                       <span className="text-xs font-semibold text-muted-strong">{typeLabel}</span>
                     </div>
                   </div>
-                  {mode === 'modal' && (
+                  {mode === 'modal' && !replaceMode && (
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all ${isSelected ? 'bg-accent border-accent' : 'bg-card-alt border-[1.5px] border-border-strong'}`}>
                       {isSelected ? (
                         <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-3.5 h-3.5 stroke-on-accent"><polyline points="20 6 9 17 4 12"/></svg>
@@ -156,7 +173,7 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
         <div className="w-full max-w-md bg-page rounded-t-3xl flex flex-col" style={{ maxHeight: '88vh' }}>
           {/* Header */}
           <div className="flex justify-between items-center px-5 pt-5 pb-2 shrink-0">
-            <h2 className="text-lg font-bold">Add Exercise</h2>
+            <h2 className="text-lg font-bold">{replaceMode ? 'Replace exercise' : 'Add Exercise'}</h2>
             <button onClick={onClose} className="text-sm font-semibold text-muted-mid">Cancel</button>
           </div>
 
@@ -166,7 +183,7 @@ export default function ExerciseLibrary({ allExercises, mode = 'page', onAdd, on
           </div>
 
           {/* Floating add bar */}
-          {selected.length > 0 && (
+          {!replaceMode && selected.length > 0 && (
             <div className="px-5 pb-8 pt-3 shrink-0 border-t border-border">
               <button onClick={confirmAdd} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end text-on-accent rounded-2xl font-bold text-sm shadow-lg shadow-accent/25 flex items-center justify-center gap-2">
                 Add {selected.length} exercise{selected.length !== 1 ? 's' : ''}

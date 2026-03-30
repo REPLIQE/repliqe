@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { getTopMovers, getPhotoSessionSortKey, sortPhotoSessionsByDate } from './progressUtils'
+import { getTopMovers, comparePhotoSessionsByDateDesc, sortPhotoSessionsByDate } from './progressUtils'
 import { MUSCLE_COLOURS_HEX, getMuscleRecoveryPct, formatMuscleLabel } from './utils'
 import { getExerciseSlugs } from './exerciseLibrary'
 import StrengthVolumeSection from './StrengthVolumeSection'
@@ -69,7 +69,7 @@ function getPhotoSessionsAround(photoSessions, dateStr, max = 3) {
     const diff = Math.abs(s.parsed.getTime() - workoutDate.getTime())
     return diff <= 4 * 24 * 60 * 60 * 1000
   })
-  nearby.sort((a, b) => getPhotoSessionSortKey(b) - getPhotoSessionSortKey(a))
+  nearby.sort(comparePhotoSessionsByDateDesc)
   return nearby.slice(0, max)
 }
 

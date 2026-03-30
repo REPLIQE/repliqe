@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import PhotosModal, { PhotosViewContent } from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
 import { useAuth } from './lib/AuthContext'
@@ -56,19 +56,18 @@ export default function ProgressBody({
   const [openPhotosToAdd, setOpenPhotosToAdd] = useState(false)
   const photosSectionRef = useRef(null)
 
-  useEffect(() => {
-    if (scrollToPhotosSection && photosSectionRef.current) {
-      photosSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      onScrolledToPhotos?.()
-    }
+  useLayoutEffect(() => {
+    if (!scrollToPhotosSection || !photosSectionRef.current) return
+    photosSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    onScrolledToPhotos?.()
   }, [scrollToPhotosSection, onScrolledToPhotos])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!openAddPhoto) return
-    if (photosSectionRef.current) photosSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setOpenPhotosToAdd(true)
     setShowPhotos(true)
     onConsumedOpenAddPhoto?.()
-  }, [openAddPhoto])
+  }, [openAddPhoto, onConsumedOpenAddPhoto])
 
   const [newWeight, setNewWeight] = useState('')
   const [newBF, setNewBF] = useState('')
@@ -315,7 +314,7 @@ export default function ProgressBody({
         + Log measurements
       </button>
 
-      <div ref={photosSectionRef} className="scroll-mt-4">
+      <div ref={photosSectionRef} className="scroll-mt-28">
         <div className="sec">Photos</div>
         <div className="relative flex flex-col min-h-[280px]">
         <PhotosViewContent

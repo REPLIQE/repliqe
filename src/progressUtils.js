@@ -165,24 +165,33 @@ export function parseGBDate(str) {
 }
 
 /**
- * Sort key for a photo session: timestamp ms for ordering (newest = largest).
- * Uses createdAt if set (actual time), else start of date from "dd/mm/yyyy".
- * Used only for sorting; time is not shown in UI.
+ * Compare sessions for timeline: newest calendar day first (session.date),
+ * then newest createdAt within the same day (so edited/backdated dates sort correctly).
+ */
+export function comparePhotoSessionsByDateDesc(a, b) {
+  const dayA = parseGBDate(a?.date)?.getTime() ?? 0
+  const dayB = parseGBDate(b?.date)?.getTime() ?? 0
+  if (dayB !== dayA) return dayB - dayA
+  const ca = a?.createdAt != null && typeof a.createdAt === 'number' ? a.createdAt : 0
+  const cb = b?.createdAt != null && typeof b.createdAt === 'number' ? b.createdAt : 0
+  return cb - ca
+}
+
+/**
+ * Sort key for rough ordering by calendar day only (e.g. when a simple scalar is needed).
+ * Prefer comparePhotoSessionsByDateDesc for full sort.
  */
 export function getPhotoSessionSortKey(session) {
-  if (session?.createdAt != null && typeof session.createdAt === 'number') return session.createdAt
   const d = parseGBDate(session?.date)
   return d ? d.getTime() : 0
 }
 
 /**
- * Sort photo sessions by date + time. Returns newest first.
- * Sessions have { id, date, front, back, side, createdAt? } with date as "dd/mm/yyyy".
- * createdAt (ms) is used when present so same-day sessions order by actual time.
+ * Sort photo sessions for timeline: newest session.date first; same day → newest createdAt first.
  */
 export function sortPhotoSessionsByDate(sessions) {
   if (!Array.isArray(sessions) || sessions.length === 0) return []
-  return [...sessions].sort((a, b) => getPhotoSessionSortKey(b) - getPhotoSessionSortKey(a))
+  return [...sessions].sort(comparePhotoSessionsByDateDesc)
 }
 
 /**

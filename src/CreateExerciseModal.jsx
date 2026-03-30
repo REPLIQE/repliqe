@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
 import MuscleIcon from './MuscleIcon'
 import { MUSCLE_GROUPS, EQUIPMENT_TYPES, TYPE_LABELS } from './exerciseLibrary'
 
@@ -134,13 +135,30 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
         {isEditing && onDelete && (
           <>
             {!showDelete ? (
-              <button onClick={() => setShowDelete(true)} className="w-full py-3 text-sm font-semibold text-red-400 mb-1">Delete exercise</button>
+              <button
+                type="button"
+                onClick={() => setShowDelete(true)}
+                className="w-full py-3 text-sm font-semibold text-red-400 mb-1 inline-flex items-center justify-center gap-2"
+              >
+                <DeleteTrashGlyph className="w-4 h-4" />
+                Delete exercise
+              </button>
             ) : (
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-3">
+                <DeleteTrashBadge className="!mb-3" />
                 <p className="text-sm text-muted text-center mb-3">Delete "{editExercise.name}"? This cannot be undone.</p>
                 <div className="flex gap-2">
-                  <button onClick={() => onDelete(editExercise)} className="flex-1 py-2.5 bg-red-500 rounded-xl text-sm font-bold">Delete</button>
-                  <button onClick={() => setShowDelete(false)} className="flex-1 py-2.5 border border-border-strong rounded-xl text-sm font-semibold text-muted">Cancel</button>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(editExercise)}
+                    className="flex-1 py-2.5 bg-red-500 rounded-xl text-sm font-bold text-white inline-flex items-center justify-center gap-2"
+                  >
+                    <DeleteTrashGlyph className="w-4 h-4 text-white" />
+                    Delete
+                  </button>
+                  <button type="button" onClick={() => setShowDelete(false)} className="flex-1 py-2.5 border border-border-strong rounded-xl text-sm font-semibold text-muted">
+                    Cancel
+                  </button>
                 </div>
               </div>
             )}

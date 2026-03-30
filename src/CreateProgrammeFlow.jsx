@@ -445,7 +445,9 @@ export function CreateProgrammeCoachOnboarding({
 
       const validNamesLower = new Set(relevantExercises.map((e) => e.name.toLowerCase()))
 
-      const prompt = `You are REPLIQE Coach, an expert AI personal trainer. 
+      const prompt = `You are REPLIQE Coach, an expert AI personal trainer.
+You give training-programme suggestions only — not medical advice. Do not diagnose, treat, or claim exercises are safe for injuries or health conditions. If notes mention serious health concerns, keep safetyNote cautious and tell the user to confirm with their doctor or physiotherapist.
+
 Build a complete weekly training programme based on these inputs:
 
 Goal: ${goal}
@@ -463,6 +465,7 @@ Rules:
 - Create exactly ${daysPerWeek} routines (one per training day)
 - Name routines clearly: e.g. "Day 1 – Push", "Day 2 – Pull", 
   "Day 3 – Legs", or "Upper A", "Lower B" etc.
+- MUSCLE COVERAGE (mandatory unless user explicitly excludes): Across all routines for the week, the programme must train every major area: chest, back, shoulders, arms (include both elbow flexors and triceps across the week — e.g. on pull/push or an arm-focused day), legs, and core. Never omit a whole major group by default. If Additional notes or focus clearly say to skip a group (injury, "upper only for now", etc.), follow that instead. On few training days (e.g. 2-day), still schedule at least one substantive leg movement and core work across the week within session-length limits (use compounds where helpful).
 - Use progressive structure (compound lifts first, isolation after)
 - NEVER schedule the same primary muscle group on back-to-back days
 - Beginner: simpler movements, 3 sets, higher reps (10-15)

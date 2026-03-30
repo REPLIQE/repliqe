@@ -8,6 +8,7 @@ import {
   deleteAuthUser,
 } from './auth'
 import { deleteUserData, clearAllUserContent } from './deleteUserData'
+import { DeleteTrashBadge, DeleteTrashGlyph } from '../DeleteConfirmTrashIcon'
 import {
   PLAN_LIMITS,
   defaultPlanUsage,
@@ -742,8 +743,8 @@ export default function AccountTab({
             className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
           >
             <div className="flex items-center gap-3">
-              <span className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
-                <TrashIcon />
+              <span className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0 text-red-400">
+                <DeleteTrashGlyph className="w-4 h-4" />
               </span>
               <span className="text-red-400 font-semibold text-sm">Delete account</span>
             </div>
@@ -773,9 +774,16 @@ export default function AccountTab({
                 type="button"
                 onClick={handleDeleteAccount}
                 disabled={loading || (canChangePassword && !deletePassword)}
-                className="w-full py-3.5 sm:py-4 rounded-2xl font-bold text-sm bg-red-600 text-white shadow-lg shadow-red-900/25 disabled:opacity-50 disabled:pointer-events-none"
+                className="w-full py-3.5 sm:py-4 rounded-2xl font-bold text-sm bg-red-600 text-white shadow-lg shadow-red-900/25 disabled:opacity-50 disabled:pointer-events-none inline-flex items-center justify-center gap-2"
               >
-                {loading ? 'Deleting…' : 'Yes, delete my account'}
+                {loading ? (
+                  'Deleting…'
+                ) : (
+                  <>
+                    <DeleteTrashGlyph className="w-4 h-4 text-white shrink-0" />
+                    Yes, delete my account
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -826,18 +834,6 @@ function RefreshIcon() {
       <path d="M2 8a6 6 0 0 0 10.5 4.2" />
       <path d="M2 2v4h4" />
       <path d="M14 14v-4h-4" />
-    </svg>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
-      <polyline points="2,4 4,4 14,4" />
-      <path d="M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" />
-      <path d="M13 4l-.867 9.143A1 1 0 0 1 11.138 14H4.862a1 1 0 0 1-.995-.857L3 4" />
-      <line x1="6" y1="7" x2="6" y2="11" />
-      <line x1="10" y1="7" x2="10" y2="11" />
     </svg>
   )
 }

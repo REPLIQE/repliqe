@@ -15,7 +15,8 @@ export default function ProgressScreen(props) {
     onReturnToWorkoutAfterPhoto,
     ...restProps
   } = props
-  const [tab, setTab] = useState('Overview')
+  /** Start on Body when opening from workout complete → add photo (avoids one frame of Overview). */
+  const [tab, setTab] = useState(() => (postCompleteOpenPhoto ? 'Body' : 'Overview'))
   const [scrollToPhotosSection, setScrollToPhotosSection] = useState(false)
   const [scrollRecoveryToTop, setScrollRecoveryToTop] = useState(false)
   const [scrollStrengthToTop, setScrollStrengthToTop] = useState(false)
