@@ -691,9 +691,9 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
 
         <div className="space-y-2 mb-6">
           {generatedProgramme.routines.map((routine, i) => (
-            <div key={i} className="rounded-xl border border-border bg-card p-3.5">
-              <div className="font-semibold text-text text-sm mb-1">{routine.name}</div>
-              <div className="text-xs text-muted-strong">
+            <div key={i} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5">
+              <div className="font-semibold text-white text-sm mb-1">{routine.name}</div>
+              <div className="text-xs text-white/35">
                 {routine.exercises.length} exercises · {routine.exercises.map((e) => e.exerciseName).join(', ')}
               </div>
             </div>

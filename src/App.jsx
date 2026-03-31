@@ -2665,25 +2665,36 @@ ${JSON.stringify(ctx)}`
                             </button>
                           </div>
                         ) : (
-                          <div className="flex gap-1.5">
+                          <div className="flex gap-1.5 items-end">
                             {routineIds.map((rtnId) => {
                               const rtn = routines.find(r => r.id === rtnId)
                               const isSelected = rtnId === displayRtnId
+                              const showUpNext = !workoutActive && rtnId === nextRtnId
                               return (
-                                <button
-                                  key={rtnId}
-                                  type="button"
-                                  onClick={() => rtn && setSelectedStartRoutineId(rtnId)}
-                                  className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border transition-colors ${
-                                    isSelected
-                                      ? 'border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.08)]'
-                                      : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
-                                  }`}
-                                >
-                                  <div className={`text-[11px] font-semibold truncate ${isSelected ? 'text-[#7b7fff]' : 'text-[rgba(123,127,255,0.55)]'}`}>
-                                    {rtn?.name || '—'}
-                                  </div>
-                                </button>
+                                <div key={rtnId} className="flex-1 min-w-0 flex flex-col items-stretch">
+                                  {showUpNext ? (
+                                    <div
+                                      className={`flex justify-center mb-[-10px] relative z-10 pointer-events-none transition-transform duration-500 ease-out delay-200 ${isSelected ? 'translate-y-[10px]' : 'translate-y-0'}`}
+                                    >
+                                      <div className="inline-flex items-center rounded-full px-2.5 py-1 border border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.14)] animate-pulse-badge shadow-[0_2px_8px_rgba(123,127,255,0.18)]">
+                                        <span className="text-[9px] font-extrabold tracking-[0.65px] text-[#7b7fff] uppercase">Up next</span>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={() => rtn && setSelectedStartRoutineId(rtnId)}
+                                    className={`w-full flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border relative transition-[transform,colors,background-color,border-color] duration-200 ease-out ${
+                                      isSelected
+                                        ? 'border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.08)] translate-y-[10px] z-10'
+                                        : 'z-0 translate-y-0 bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
+                                    }`}
+                                  >
+                                    <div className={`text-[11px] font-semibold truncate ${isSelected ? 'text-[#7b7fff]' : 'text-[rgba(123,127,255,0.55)]'}`}>
+                                      {rtn?.name || '—'}
+                                    </div>
+                                  </button>
+                                </div>
                               )
                             })}
                           </div>
@@ -2697,15 +2708,10 @@ ${JSON.stringify(ctx)}`
                           {/* Badges inline with day title + last trained */}
                           <div className="mb-3">
                             <div className="flex flex-wrap items-center gap-2 min-w-0">
-                              <div className="text-[13px] font-bold text-success min-w-0 truncate">{displayRtn.name}</div>
+                              <div className="text-[13px] font-bold text-white min-w-0 truncate">{displayRtn.name}</div>
                               {workoutActive && !emptyInProgress ? (
                                 <div className="inline-flex items-center rounded-full px-3 py-1 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge shrink-0">
                                   <span className="text-[11px] font-extrabold tracking-[0.8px] text-[#00e5a0]">IN PROGRESS</span>
-                                </div>
-                              ) : null}
-                              {!workoutActive && displayRtnId === nextRtnId ? (
-                                <div className="inline-flex items-center rounded-full px-3 py-1 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge shrink-0">
-                                  <span className="text-[11px] font-extrabold tracking-[0.8px] text-[#00e5a0]">UP NEXT</span>
                                 </div>
                               ) : null}
                             </div>
@@ -2745,22 +2751,25 @@ ${JSON.stringify(ctx)}`
                             const avgWorked = workedTimes.reduce((a, b) => a + b, 0) / workedTimes.length
                             const recoveryPct =
                               avgWorked === 0 ? 100 : Math.min(100, Math.round(((now - avgWorked) / RECOVERY_MS) * 100))
-                            const isFullyRecovered = recoveryPct >= 100
-                            const barColor = isFullyRecovered ? '#00e5a0' : recoveryPct > 60 ? '#D4FF4F' : '#FFAA50'
+                            const recoveryAccent = '#7b7fff'
                             return (
                               <div className="mb-3">
                                 <div className="flex items-center justify-between mb-1.5">
-                                  <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-white/30">Recovery</span>
-                                  <span className="text-[11px] font-bold" style={{ color: barColor }}>{recoveryPct}%</span>
+                                  <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-[rgba(123,127,255,0.55)]">Recovery</span>
+                                  <span className="text-[11px] font-bold" style={{ color: recoveryAccent }}>{recoveryPct}%</span>
                                 </div>
                                 <div className="h-[3px] rounded-full bg-white/[0.07] overflow-hidden mb-2">
                                   <div
                                     className="h-full rounded-full transition-all duration-500"
-                                    style={{ width: `${recoveryPct}%`, background: barColor }}
+                                    style={{ width: `${recoveryPct}%`, background: recoveryAccent }}
                                   />
                                 </div>
-                                <div className="flex flex-wrap gap-[4px]">
-                                  {allSlugs.slice(0, 8).map((slug) => {
+                                <div
+                                  className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 touch-pan-x [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]"
+                                  role="list"
+                                  aria-label="Muscle groups for this day"
+                                >
+                                  {allSlugs.map((slug) => {
                                     const SLUG_COLORS = {
                                       chest: '#7B7BFF',
                                       'front-delts': '#4ECDC4',
@@ -2785,7 +2794,9 @@ ${JSON.stringify(ctx)}`
                                     return (
                                       <span
                                         key={slug}
-                                        className="text-[9px] font-semibold px-[7px] py-[3px] rounded-full"
+                                        role="listitem"
+                                        title={label}
+                                        className="shrink-0 text-[9px] font-semibold px-[7px] py-[3px] rounded-full whitespace-nowrap"
                                         style={{ color, background: `${color}14` }}
                                       >
                                         {label}
@@ -2884,19 +2895,19 @@ ${JSON.stringify(ctx)}`
                       return (
                         <div
                           key={prog.id}
-                          className={`rounded-[14px] p-4 mb-4 border ${isActive ? 'border-[1.5px] border-success/20 bg-success/5' : 'border border-border bg-card'}`}
+                          className={`rounded-[14px] p-4 mb-4 border ${isActive ? 'border border-white/[0.07] bg-white/[0.02]' : 'border border-border bg-card'}`}
                         >
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <div className="flex-1 min-w-0 pr-1">
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-sm font-bold tracking-tight text-accent truncate">{prog.name}</span>
+                                <span className="text-sm font-bold tracking-tight text-white truncate">{prog.name}</span>
                               </div>
-                              <div className="text-[11px] text-muted-strong mt-0.5">{progRoutines.length} routines</div>
+                              <div className="text-[11px] text-white/35 mt-0.5">{progRoutines.length} routines</div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0 self-center">
                               {isActive ? (
                                 <span
-                                  className="inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-success/35 bg-success/10 text-success text-[9px] font-bold uppercase tracking-wide leading-none animate-up-next-pulse min-h-[32px]"
+                                  className="inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.1)] text-[#7b7fff] text-[9px] font-bold uppercase tracking-wide leading-none animate-up-next-pulse min-h-[32px]"
                                   aria-label="Active programme"
                                 >
                                   Active
@@ -2905,7 +2916,7 @@ ${JSON.stringify(ctx)}`
                                 <button
                                   type="button"
                                   onClick={() => setProgrammeActive(prog.id)}
-                                  className="inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-success/35 bg-success/8 text-success text-[9px] font-bold uppercase tracking-wide leading-none hover:bg-success/12 active:opacity-90 transition-colors whitespace-nowrap min-h-[32px]"
+                                  className="inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.08)] text-[#7b7fff] text-[9px] font-bold uppercase tracking-wide leading-none hover:bg-[rgba(123,127,255,0.12)] active:opacity-90 transition-colors whitespace-nowrap min-h-[32px]"
                                 >
                                   Set active
                                 </button>
@@ -2929,12 +2940,12 @@ ${JSON.stringify(ctx)}`
                                 }}
                                 className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border transition-colors ${
                                   isActive
-                                    ? 'border-[rgba(91,245,160,0.15)] bg-success/5'
+                                    ? 'border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.08)]'
                                     : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
                                 }`}
                               >
-                                <div className={`text-[11px] font-semibold truncate ${isActive ? 'text-success' : 'text-muted'}`}>{r.name}</div>
-                                <div className="text-[9px] text-muted-deep mt-0.5">{r.exercises?.length ?? 0} ex</div>
+                                <div className={`text-[11px] font-semibold truncate ${isActive ? 'text-[#7b7fff]' : 'text-[rgba(123,127,255,0.55)]'}`}>{r.name}</div>
+                                <div className="text-[9px] text-white/30 mt-0.5">{r.exercises?.length ?? 0} ex</div>
                               </button>
                             ))}
                           </div>
@@ -3570,9 +3581,9 @@ ${JSON.stringify(ctx)}`
               <input type="text" value={createProgrammeName} onChange={e => setCreateProgrammeName(e.target.value)} placeholder="e.g. 2 Split - Push/Pull" onFocus={e => e.target.select()} autoFocus={!createProgrammeName.trim()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent" />
               <label className="block text-[10px] font-semibold text-muted uppercase tracking-wider mt-3 mb-1.5">Routines</label>
               {createProgrammeRoutines.map((r, i) => (
-                <div key={i} className="flex justify-between items-center py-3 px-3 bg-card-alt rounded-[10px] border border-border-strong mb-1.5">
-                  <span className="text-text text-sm font-semibold">{r.name}</span>
-                  <span className="text-muted-strong text-xs">{r.exercises?.length ?? 0} exercises</span>
+                <div key={i} className="flex justify-between items-center py-3 px-3 rounded-[10px] border border-white/[0.07] bg-white/[0.02] mb-1.5">
+                  <span className="text-white text-sm font-semibold">{r.name}</span>
+                  <span className="text-white/35 text-xs">{r.exercises?.length ?? 0} exercises</span>
                   <button type="button" onClick={() => setCreateProgrammeRoutines(prev => prev.filter((_, j) => j !== i))} className="text-[rgba(255,85,85,0.5)] p-1">✕</button>
                 </div>
               ))}
@@ -3647,16 +3658,16 @@ ${JSON.stringify(ctx)}`
                           setDragRoutine(null); setDragOverTarget(null)
                         } catch (_) {}
                       }}
-                      className={`flex justify-between items-center py-3 px-3 rounded-[10px] border mb-1.5 transition-colors ${isDragging ? 'opacity-50 bg-card-alt border-border-strong' : isDropTarget ? 'bg-accent/10 border-accent/40' : 'bg-card-alt border-border-strong'}`}
+                      className={`flex justify-between items-center py-3 px-3 rounded-[10px] border mb-1.5 transition-colors ${isDragging ? 'opacity-50 bg-white/[0.02] border-white/[0.07]' : isDropTarget ? 'bg-[rgba(123,127,255,0.08)] border-[rgba(123,127,255,0.35)]' : 'bg-white/[0.02] border-white/[0.07]'}`}
                     >
                       <span
                         draggable
                         onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/json', JSON.stringify({ rtnId: r.id, progId: editingProgrammeId })); setDragRoutine({ rtnId: r.id, progId: editingProgrammeId }) }}
                         onDragEnd={() => { setDragRoutine(null); setDragOverTarget(null) }}
-                        className="text-muted mr-2 cursor-grab active:cursor-grabbing touch-none"
+                        className="text-white/35 mr-2 cursor-grab active:cursor-grabbing touch-none"
                       >⋮⋮</span>
-                      <span className="text-text text-sm font-semibold flex-1 min-w-0 truncate">{r.name}</span>
-                      <span className="text-muted-strong text-xs shrink-0">{r.exercises?.length ?? 0} ex</span>
+                      <span className="text-white text-sm font-semibold flex-1 min-w-0 truncate">{r.name}</span>
+                      <span className="text-white/30 text-xs shrink-0">{r.exercises?.length ?? 0} ex</span>
                       <div className="flex items-center gap-1 shrink-0 ml-2">
                         <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'up')} className={`p-1 rounded-md ${i === 0 ? 'opacity-20' : 'hover:bg-white/5'}`} disabled={i === 0} aria-label="Move routine up">
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-accent"><polyline points="18 15 12 9 6 15"/></svg>
