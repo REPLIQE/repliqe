@@ -2717,10 +2717,10 @@ ${JSON.stringify(ctx)}`
                         )}
                       </div>
 
-                      {/* BOTTOM ZONE: selected day details */}
+                      {/* BOTTOM ZONE: selected day details — animates in from above on load & when switching day (not the day chips) */}
                       {displayRtn && (
-                        <div className="px-4 pt-3 pb-4 border-t border-white/[0.05]">
-
+                        <div key={displayRtnId} className="border-t border-white/[0.05] animate-start-routine-drop-in">
+                          <div className="px-4 pt-3 pb-4">
                           {/* Badges inline with day title + last trained */}
                           <div className="mb-3">
                             <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -2857,6 +2857,7 @@ ${JSON.stringify(ctx)}`
                               Start
                             </button>
                           )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2982,7 +2983,7 @@ ${JSON.stringify(ctx)}`
                               )}
                             </div>
                           </div>
-                          <div className="flex gap-1.5 mt-2">
+                          <div className="flex gap-2 mt-2">
                             {progRoutines.map((r) => {
                               const meta = routinePlanTileMeta(r, allLibraryExercises)
                               const focusStr =
@@ -3003,19 +3004,19 @@ ${JSON.stringify(ctx)}`
                                   setEditingRoutineId(r.id)
                                   setEditingRoutineProgrammeId(prog.id)
                                 }}
-                                className={`flex-1 min-w-0 rounded-[10px] py-2 px-1.5 text-center border transition-colors ${
+                                className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-2 sm:py-2 sm:px-1.5 text-center border transition-colors ${
                                   isActive
-                                    ? 'border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.08)]'
+                                    ? 'border-[rgba(123,127,255,0.45)] bg-[rgba(123,127,255,0.1)]'
                                     : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
                                 }`}
                               >
-                                <div className={`text-[11px] font-semibold truncate ${isActive ? 'text-[#7b7fff]' : 'text-[rgba(123,127,255,0.55)]'}`}>{r.name}</div>
-                                <div className={`text-[9px] mt-0.5 tabular-nums leading-tight ${isActive ? 'text-white/40' : 'text-white/30'}`}>
+                                <div className={`text-[12px] sm:text-[11px] font-semibold truncate leading-tight ${isActive ? 'text-[#a8abff]' : 'text-[rgba(200,202,255,0.88)]'}`}>{r.name}</div>
+                                <div className={`text-[11px] sm:text-[9px] mt-1 tabular-nums leading-snug font-medium ${isActive ? 'text-white/65' : 'text-white/50'}`}>
                                   {meta.exCount} ex · {meta.setCount} sets
                                 </div>
                                 {focusStr ? (
                                   <div
-                                    className={`text-[8px] mt-0.5 leading-snug line-clamp-2 ${isActive ? 'text-[rgba(123,127,255,0.45)]' : 'text-white/25'}`}
+                                    className={`text-[10px] sm:text-[8px] mt-1 leading-snug line-clamp-2 font-medium ${isActive ? 'text-[rgba(168,171,255,0.82)]' : 'text-white/42'}`}
                                     title={meta.focusLabels.join(', ')}
                                   >
                                     {focusStr}

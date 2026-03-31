@@ -697,3 +697,35 @@ input:focus:invalid {
     opacity: 1;
   }
 }
+
+/* Start tab: fade og slide hver for sig = ét glat forløb pr. property (ingen kink mellem keyframes) */
+@keyframes start-routine-drop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes start-routine-drop-slide {
+  from {
+    transform: translate3d(0, -40px, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-start-routine-drop-in {
+  animation:
+    start-routine-drop-fade 2.55s cubic-bezier(0.52, 0.02, 0.12, 1) both,
+    start-routine-drop-slide 2.55s cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-start-routine-drop-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
