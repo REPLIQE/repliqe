@@ -638,6 +638,22 @@ input:focus:invalid {
   animation: badge-pulse 2.4s ease-in-out infinite;
 }
 
+/* Start tab "Up next": text-only pulse — no box-shadow (avoids rectangular glow on inline text) */
+@keyframes up-next-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    text-shadow: 0 0 6px rgba(123, 127, 255, 0.45);
+  }
+  50% {
+    opacity: 0.42;
+    text-shadow: 0 0 16px rgba(123, 127, 255, 0.85);
+  }
+}
+.animate-pulse-up-next {
+  animation: up-next-pulse 1.85s ease-in-out infinite;
+}
+
 @keyframes slide-up {
   from { transform: translateY(100%); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }

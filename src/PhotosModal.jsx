@@ -1130,6 +1130,7 @@ export function PhotosViewContent({
                     {ANGLES.map(({ key, label }) => (
                       <div key={key} className="relative rounded-[10px] overflow-hidden">
                         <ProgressPhoto
+                          key={`${session.id}-${key}-${session[key] ?? ''}`}
                           src={thumbs[session[key]] || null}
                           crop={session.crops?.[key]}
                           className={`rounded-[10px] ${session[key] && canAddPhotos ? 'cursor-pointer' : ''}`}
@@ -1286,6 +1287,7 @@ export function PhotosViewContent({
                         return (
                           <div key={i} className="flex flex-col gap-1">
                             <ProgressPhoto
+                              key={`${session?.id ?? i}-${compareAngle}-${session?.[compareAngle] ?? ''}`}
                               src={session?.[compareAngle] && thumbs[session[compareAngle]] ? thumbs[session[compareAngle]] : null}
                               crop={session?.crops?.[compareAngle]}
                               className={`rounded-[12px] ${session?.[compareAngle] && canAddPhotos ? 'cursor-pointer' : ''}`}

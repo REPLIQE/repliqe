@@ -671,7 +671,7 @@ function SessionPhotosCropped({ session, dateLabel }) {
             <div key={key} className="flex-1 min-w-0 flex flex-col items-center gap-0.5">
               <div className="w-full rounded-lg overflow-hidden border border-border bg-card-deep">
                 {file && src ? (
-                  <ProgressPhoto src={src} crop={crop} className="w-full rounded-lg" />
+                  <ProgressPhoto key={`${session?.id}-${key}-${file}`} src={src} crop={crop} className="w-full rounded-lg" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <span className="text-[8px] text-muted">—</span>

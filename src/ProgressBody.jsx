@@ -494,8 +494,20 @@ function PhotoSessionThumb({ filename, label, onClick }) {
   const [src, setSrc] = useState(null)
 
   useEffect(() => {
-    if (!filename) return
-    loadPhotoSrc(filename, user?.uid ?? null).then(setSrc).catch(() => {})
+    if (!filename) {
+      setSrc(null)
+      return undefined
+    }
+    let cancelled = false
+    setSrc(null)
+    loadPhotoSrc(filename, user?.uid ?? null)
+      .then((url) => {
+        if (!cancelled) setSrc(url)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [filename, user?.uid])
 
   return (
@@ -504,7 +516,7 @@ function PhotoSessionThumb({ filename, label, onClick }) {
       className="aspect-[0.72] bg-card-deep rounded-[10px] flex items-center justify-center relative overflow-hidden cursor-pointer"
     >
       {src ? (
-        <img src={src} alt={label} className="max-h-full max-w-full object-contain" />
+        <img key={filename} src={src} alt={label} className="max-h-full max-w-full object-contain" />
       ) : (
         <span className="text-[9px] font-bold text-muted uppercase tracking-[0.5px]">{label}</span>
       )}

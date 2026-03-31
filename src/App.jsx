@@ -9,7 +9,7 @@ import SupersetWrapper from './SupersetWrapper'
 import LinkModeBanner from './LinkModeBanner'
 import RirSheet from './RirSheet'
 import MuscleMapCard from './MuscleMapCard'
-import { getDayMuscles, getDayMusclesSlugs, formatDecimal as formatDecimalUtil, parseDecimal as parseDecimalUtil } from './utils'
+import { getDayMuscles, getDayMusclesSlugs, formatMuscleLabel, formatDecimal as formatDecimalUtil, parseDecimal as parseDecimalUtil } from './utils'
 import { formatStoredDateForDisplay, DATE_FORMAT_DDMY, DATE_FORMAT_MMDY } from './dateFormatUtils'
 import { useAuth } from './lib/AuthContext'
 import LoginScreen from './lib/LoginScreen'
@@ -19,7 +19,7 @@ import { fetchWorkoutPlans, saveWorkoutPlans, deleteWorkoutPlan } from './lib/wo
 import { addWorkoutSession, fetchWorkoutSessions, fetchWorkoutSessionsFromServer, updateWorkoutSessionRating, updateWorkoutSessionPhotoSessions } from './lib/workoutSessionsFirestore'
 import { getUserDoc, mergeUserSettings, DEFAULT_SETTINGS, normalizeUserPlan, USER_PLAN_STORAGE_KEY } from './lib/userFirestore'
 import { fetchAppData, updateAppData } from './lib/appDataFirestore'
-import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
+import { DEFAULT_EXERCISES, MUSCLE_GROUPS, SLUG_TO_GROUP } from './exerciseLibrary'
 import RecoveryModal from './RecoveryModal'
 import RepliqeLogo from './RepliqeLogo'
 import ProgressPhoto from './ProgressPhoto'
@@ -34,6 +34,25 @@ function LazyFallback({ label = 'Loading…' }) {
       {label}
     </div>
   )
+}
+
+/** Plan programme tiles: exercise/set counts + unique muscle group labels from library */
+function routinePlanTileMeta(routine, library) {
+  const exs = routine?.exercises || []
+  const exCount = exs.length
+  const setCount = exs.reduce((n, ex) => n + (ex.setConfigs?.length || 0), 0)
+  const { primary } = getDayMusclesSlugs(exs, library)
+  const labels = []
+  const seen = new Set()
+  for (const slug of primary) {
+    const gk = SLUG_TO_GROUP[slug]
+    const label = gk && MUSCLE_GROUPS[gk] ? MUSCLE_GROUPS[gk].label : formatMuscleLabel(slug)
+    if (!seen.has(label)) {
+      seen.add(label)
+      labels.push(label)
+    }
+  }
+  return { exCount, setCount, focusLabels: labels }
 }
 import PricingSheet from './PricingSheet'
 import {
@@ -2671,11 +2690,11 @@ ${JSON.stringify(ctx)}`
                                 <div key={rtnId} className="flex-1 min-w-0 flex flex-col items-stretch">
                                   {showUpNext ? (
                                     <div
-                                      className={`flex justify-center mb-[-10px] relative z-10 pointer-events-none transition-transform duration-500 ease-out delay-200 ${isSelected ? 'translate-y-[10px]' : 'translate-y-0'}`}
+                                      className={`flex justify-center relative z-10 pointer-events-none -mb-[18px] transition-transform duration-500 ease-out delay-200 ${isSelected ? '-translate-y-[3px]' : '-translate-y-[13px]'}`}
                                     >
-                                      <div className="inline-flex items-center rounded-full px-2.5 py-1 border border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.14)] animate-pulse-badge shadow-[0_2px_8px_rgba(123,127,255,0.18)]">
-                                        <span className="text-[9px] font-extrabold tracking-[0.65px] text-[#7b7fff] uppercase">Up next</span>
-                                      </div>
+                                      <span className="text-[9px] font-extrabold tracking-[0.65px] text-[#7b7fff] uppercase animate-pulse-up-next inline-block leading-none">
+                                        Up next
+                                      </span>
                                     </div>
                                   ) : null}
                                   <button
@@ -2883,7 +2902,7 @@ ${JSON.stringify(ctx)}`
                       return (
                         <>
                           <div className="rounded-2xl border border-border bg-card p-6 text-center mb-4">
-                            <div className="w-12 h-12 rounded-full bg-card-alt flex items-center justify-center mx-auto mb-3 text-muted-strong">
+                            <div className="w-12 h-12 rounded-full bg-[rgba(123,127,255,0.12)] flex items-center justify-center mx-auto mb-3 text-[#7b7fff]">
                               <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                             </div>
                             <div className="text-text font-bold text-base mb-1">No programme yet</div>
@@ -2911,7 +2930,7 @@ ${JSON.stringify(ctx)}`
                                   <button
                                     type="button"
                                     onClick={() => openEditProgramme(prog.id)}
-                                    className="p-2 rounded-lg text-accent hover:text-text hover:bg-white/5 active:opacity-80"
+                                    className="p-2 rounded-lg text-[#7b7fff] hover:text-[#a8abff] hover:bg-white/5 active:opacity-80"
                                     title="Edit programme"
                                     aria-label="Edit programme"
                                   >
@@ -2922,7 +2941,7 @@ ${JSON.stringify(ctx)}`
                                   <button
                                     type="button"
                                     onClick={() => copyProgramme(prog.id)}
-                                    className="p-2 rounded-lg text-muted hover:text-text hover:bg-white/5 active:opacity-80"
+                                    className="p-2 rounded-lg text-[#7b7fff] hover:text-[#a8abff] hover:bg-white/5 active:opacity-80"
                                     title="Copy programme"
                                     aria-label="Copy programme"
                                   >
@@ -2964,7 +2983,15 @@ ${JSON.stringify(ctx)}`
                             </div>
                           </div>
                           <div className="flex gap-1.5 mt-2">
-                            {progRoutines.map((r) => (
+                            {progRoutines.map((r) => {
+                              const meta = routinePlanTileMeta(r, allLibraryExercises)
+                              const focusStr =
+                                meta.focusLabels.length === 0
+                                  ? null
+                                  : meta.focusLabels.length <= 3
+                                    ? meta.focusLabels.join(' · ')
+                                    : `${meta.focusLabels.slice(0, 3).join(' · ')} · +${meta.focusLabels.length - 3}`
+                              return (
                               <button
                                 key={r.id}
                                 type="button"
@@ -2976,16 +3003,27 @@ ${JSON.stringify(ctx)}`
                                   setEditingRoutineId(r.id)
                                   setEditingRoutineProgrammeId(prog.id)
                                 }}
-                                className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border transition-colors ${
+                                className={`flex-1 min-w-0 rounded-[10px] py-2 px-1.5 text-center border transition-colors ${
                                   isActive
                                     ? 'border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.08)]'
                                     : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
                                 }`}
                               >
                                 <div className={`text-[11px] font-semibold truncate ${isActive ? 'text-[#7b7fff]' : 'text-[rgba(123,127,255,0.55)]'}`}>{r.name}</div>
-                                <div className="text-[9px] text-white/30 mt-0.5">{r.exercises?.length ?? 0} ex</div>
+                                <div className={`text-[9px] mt-0.5 tabular-nums leading-tight ${isActive ? 'text-white/40' : 'text-white/30'}`}>
+                                  {meta.exCount} ex · {meta.setCount} sets
+                                </div>
+                                {focusStr ? (
+                                  <div
+                                    className={`text-[8px] mt-0.5 leading-snug line-clamp-2 ${isActive ? 'text-[rgba(123,127,255,0.45)]' : 'text-white/25'}`}
+                                    title={meta.focusLabels.join(', ')}
+                                  >
+                                    {focusStr}
+                                  </div>
+                                ) : null}
                               </button>
-                            ))}
+                              )
+                            })}
                           </div>
                         </div>
                       )
@@ -3665,22 +3703,52 @@ ${JSON.stringify(ctx)}`
                       >⋮⋮</span>
                       <span className="text-white text-sm font-semibold flex-1 min-w-0 truncate">{r.name}</span>
                       <span className="text-white/30 text-xs shrink-0">{r.exercises?.length ?? 0} ex</span>
-                      <div className="flex items-center gap-1 shrink-0 ml-2">
-                        <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'up')} className={`p-1 rounded-md ${i === 0 ? 'opacity-20' : 'hover:bg-white/5'}`} disabled={i === 0} aria-label="Move routine up">
-                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-accent"><polyline points="18 15 12 9 6 15"/></svg>
+                      <div className="flex items-center gap-0.5 shrink-0 ml-2">
+                        <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'up')} className={`p-1 rounded-md text-[#7b7fff] ${i === 0 ? 'opacity-20' : 'hover:bg-white/5 hover:text-[#a8abff]'}`} disabled={i === 0} aria-label="Move routine up">
+                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><polyline points="18 15 12 9 6 15" /></svg>
                         </button>
-                        <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'down')} className={`p-1 rounded-md ${i === progRoutines.length - 1 ? 'opacity-20' : 'hover:bg-white/5'}`} disabled={i === progRoutines.length - 1} aria-label="Move routine down">
-                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-accent"><polyline points="6 9 12 15 18 9"/></svg>
+                        <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'down')} className={`p-1 rounded-md text-[#7b7fff] ${i === progRoutines.length - 1 ? 'opacity-20' : 'hover:bg-white/5 hover:text-[#a8abff]'}`} disabled={i === progRoutines.length - 1} aria-label="Move routine down">
+                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><polyline points="6 9 12 15 18 9" /></svg>
                         </button>
-                        <button type="button" onClick={() => { routineEditorOpenedFromPlanRef.current = false; setEditProgrammeName(prog?.name ?? ''); setEditRoutineName(r.name); setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null }))); setEditingRoutineId(r.id); setEditingRoutineProgrammeId(editingProgrammeId); setEditingProgrammeId(null) }} className="text-accent text-xs font-semibold px-1.5 py-0.5">Edit</button>
-                        <button type="button" onClick={() => copyRoutine(r.id, editingProgrammeId)} className="text-muted text-xs font-semibold px-1.5 py-0.5 hover:text-text" title="Copy routine">Copy</button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            routineEditorOpenedFromPlanRef.current = false
+                            setEditProgrammeName(prog?.name ?? '')
+                            setEditRoutineName(r.name)
+                            setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })))
+                            setEditingRoutineId(r.id)
+                            setEditingRoutineProgrammeId(editingProgrammeId)
+                            setEditingProgrammeId(null)
+                          }}
+                          className="p-2 rounded-lg text-[#7b7fff] hover:text-[#a8abff] hover:bg-white/5 active:opacity-80"
+                          title="Edit routine"
+                          aria-label={`Edit routine ${r.name}`}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current">
+                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => copyRoutine(r.id, editingProgrammeId)}
+                          className="p-2 rounded-lg text-[#7b7fff] hover:text-[#a8abff] hover:bg-white/5 active:opacity-80"
+                          title="Copy routine"
+                          aria-label={`Copy routine ${r.name}`}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        </button>
                         <button
                           type="button"
                           onClick={() => setEditProgrammeRoutinePendingDelete({ progId: editingProgrammeId, rtnId: r.id, name: r.name })}
-                          className="text-[rgba(255,85,85,0.5)] p-1 hover:text-red-400"
+                          className="p-2 rounded-lg text-[rgba(255,85,85,0.65)] hover:text-red-400 hover:bg-white/5 active:opacity-80"
+                          title="Delete routine"
                           aria-label={`Delete routine ${r.name}`}
                         >
-                          ✕
+                          <DeleteTrashGlyph className="w-4 h-4" />
                         </button>
                       </div>
                     </div>

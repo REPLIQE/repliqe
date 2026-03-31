@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { DEFAULT_CROP } from './ProgressPhoto'
 
 const MIN_SCALE = 1
@@ -15,29 +15,6 @@ export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose 
   const pointers = useRef({})
   const pinchStart = useRef(null)
   const containerRef = useRef(null)
-  const [frameAspect, setFrameAspect] = useState('3 / 4')
-
-  useEffect(() => {
-    if (!src) {
-      setFrameAspect('3 / 4')
-      return undefined
-    }
-    let cancelled = false
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => {
-      if (!cancelled && img.naturalWidth > 0 && img.naturalHeight > 0) {
-        setFrameAspect(`${img.naturalWidth} / ${img.naturalHeight}`)
-      }
-    }
-    img.onerror = () => {
-      if (!cancelled) setFrameAspect('3 / 4')
-    }
-    img.src = src
-    return () => {
-      cancelled = true
-    }
-  }, [src])
 
   const clampScale = (s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s))
   const getDistance = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
@@ -117,9 +94,7 @@ export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose 
           </button>
         </div>
         <div
-          ref={containerRef}
           className="flex-1 flex items-center justify-center overflow-hidden p-4 touch-none min-h-0"
-          style={{ aspectRatio: frameAspect }}
           onWheel={handleWheel}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -128,8 +103,9 @@ export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose 
           onPointerCancel={handlePointerUp}
         >
           <div
+            ref={containerRef}
             className="relative w-full max-h-full overflow-hidden rounded-[12px] bg-card-deep border border-border"
-            style={{ aspectRatio: frameAspect }}
+            style={{ aspectRatio: 'var(--progress-photo-ratio)' }}
           >
             {src && (
               <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-card-deep">

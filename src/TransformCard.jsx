@@ -35,13 +35,26 @@ export function PhotoThumb({ session, label, angle = 'front', weightLog, muscleM
   const statsLine = [weightEntry?.value != null && `${weightEntry.value} ${unitWeight || 'kg'}`, muscleEntry?.value != null && `${muscleEntry.value}%`].filter(Boolean).join(' · ')
 
   useEffect(() => {
-    if (!filename) return
-    loadPhotoSrc(filename, user?.uid ?? null).then(setSrc).catch(() => {})
+    if (!filename) {
+      setSrc(null)
+      return undefined
+    }
+    let cancelled = false
+    setSrc(null)
+    loadPhotoSrc(filename, user?.uid ?? null)
+      .then((url) => {
+        if (!cancelled) setSrc(url)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [filename, user?.uid])
 
   return (
     <div className="relative flex items-center justify-center">
       <ProgressPhoto
+        key={filename || 'none'}
         src={src}
         crop={crop}
         className="w-full rounded-none"
