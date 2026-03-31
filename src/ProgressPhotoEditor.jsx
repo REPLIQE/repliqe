@@ -128,23 +128,25 @@ export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose 
           onPointerCancel={handlePointerUp}
         >
           <div
-            className="relative w-full max-h-full overflow-hidden rounded-[12px] bg-card border border-border"
+            className="relative w-full max-h-full overflow-hidden rounded-[12px] bg-card-deep border border-border"
             style={{ aspectRatio: frameAspect }}
           >
             {src && (
-              <div
-                className="absolute inset-0 flex items-center justify-center"
-                style={{
-                  transform: `translate(${current.x}%, ${current.y}%) scale(${current.scale})`,
-                  transformOrigin: 'center',
-                }}
-              >
-                <img
-                  src={src}
-                  alt=""
-                  className="w-full h-full object-cover min-w-full min-h-full select-none pointer-events-none"
-                  draggable={false}
-                />
+              <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-card-deep">
+                <div
+                  className="flex h-full w-full items-center justify-center"
+                  style={{
+                    transform: `translate(${current.x}%, ${current.y}%) scale(${current.scale})`,
+                    transformOrigin: 'center center',
+                  }}
+                >
+                  <img
+                    src={src}
+                    alt=""
+                    className="max-h-full max-w-full object-contain select-none pointer-events-none"
+                    draggable={false}
+                  />
+                </div>
               </div>
             )}
           </div>

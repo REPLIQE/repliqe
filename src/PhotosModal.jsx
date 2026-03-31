@@ -220,7 +220,6 @@ export default function PhotosModal({
   const [captureThumbSrcs, setCaptureThumbSrcs] = useState({ front: null, back: null, side: null })
   const inputCameraRef = useRef(null)
   const inputLibraryRef = useRef(null)
-  const dateInputRef = useRef(null)
   const initialPhotoSessionsRef = useRef(null)
   /** Angles that already triggered onProgressPhotoAdded this capture (retake does not re-add). */
   const progressQuotaAnglesRef = useRef(new Set())
@@ -632,43 +631,41 @@ export default function PhotosModal({
             {ANGLES.map(({ key, label }) => captureAngleSlot(key, label))}
           </div>
           <div className="w-full max-w-sm mb-6">
-            <input
-              ref={dateInputRef}
-              type="date"
-              value={enGBToDateInput(captureSessionDate)}
-              onChange={(e) => {
-                const newDate = dateInputToEnGB(e.target.value)
-                setCaptureSessionDate(newDate)
-                const sid = capturedImages._sessionId
-                if (sid && typeof setPhotoSessions === 'function') {
-                  setPhotoSessions((prev) =>
-                    (prev || []).map((s) => (s.id === sid ? { ...s, date: newDate } : s))
-                  )
-                }
-              }}
-              className="absolute opacity-0 w-0 h-0 pointer-events-none"
-              aria-hidden
-            />
-            <button
-              type="button"
-              onClick={() => dateInputRef.current?.showPicker?.() ?? dateInputRef.current?.click()}
-              className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-border-strong bg-card-alt hover:border-accent/50 hover:bg-card transition-colors text-left"
-            >
-              <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-accent">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
+            <label className="relative flex w-full cursor-pointer flex-col rounded-2xl border-2 border-dashed border-border-strong bg-card-alt p-4 transition-colors hover:border-accent/50 hover:bg-card">
+              <input
+                type="date"
+                value={enGBToDateInput(captureSessionDate)}
+                onChange={(e) => {
+                  const newDate = dateInputToEnGB(e.target.value)
+                  setCaptureSessionDate(newDate)
+                  const sid = capturedImages._sessionId
+                  if (sid && typeof setPhotoSessions === 'function') {
+                    setPhotoSessions((prev) =>
+                      (prev || []).map((s) => (s.id === sid ? { ...s, date: newDate } : s))
+                    )
+                  }
+                }}
+                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                style={{ fontSize: 16 }}
+                aria-label="Change session date"
+              />
+              <div className="flex items-center gap-3 pointer-events-none">
+                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-accent">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-0.5">Session date</div>
+                  <div className="text-base font-bold text-text">{captureSessionDate}</div>
+                  <div className="text-[11px] text-accent font-semibold mt-0.5">Tap to change date</div>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-0.5">Session date</div>
-                <div className="text-base font-bold text-text">{captureSessionDate}</div>
-                <div className="text-[11px] text-accent font-semibold mt-0.5">Tap to change date</div>
-              </div>
-            </button>
-          </div>
+            </label>
+             </div>
           <button
             onClick={finishCapture}
             className="w-full max-w-sm py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
@@ -715,42 +712,40 @@ export default function PhotosModal({
           })}
         </div>
         <div className="px-6 pb-3">
-          <input
-            ref={dateInputRef}
-            type="date"
-            value={enGBToDateInput(captureSessionDate)}
-            onChange={(e) => {
-              const newDate = dateInputToEnGB(e.target.value)
-              setCaptureSessionDate(newDate)
-              const sid = capturedImages._sessionId
-              if (sid && typeof setPhotoSessions === 'function') {
-                setPhotoSessions((prev) =>
-                  (prev || []).map((s) => (s.id === sid ? { ...s, date: newDate } : s))
-                )
-              }
-            }}
-            className="absolute opacity-0 w-0 h-0 pointer-events-none"
-            aria-hidden
-          />
-          <button
-            type="button"
-            onClick={() => dateInputRef.current?.showPicker?.() ?? dateInputRef.current?.click()}
-            className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-dashed border-border-strong bg-card-alt hover:border-accent/50 hover:bg-card transition-colors text-left"
-          >
-            <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-accent">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
+          <label className="relative flex w-full cursor-pointer flex-col rounded-xl border-2 border-dashed border-border-strong bg-card-alt p-3 transition-colors hover:border-accent/50 hover:bg-card">
+            <input
+              type="date"
+              value={enGBToDateInput(captureSessionDate)}
+              onChange={(e) => {
+                const newDate = dateInputToEnGB(e.target.value)
+                setCaptureSessionDate(newDate)
+                const sid = capturedImages._sessionId
+                if (sid && typeof setPhotoSessions === 'function') {
+                  setPhotoSessions((prev) =>
+                    (prev || []).map((s) => (s.id === sid ? { ...s, date: newDate } : s))
+                  )
+                }
+              }}
+              className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+              style={{ fontSize: 16 }}
+              aria-label="Change session date"
+            />
+            <div className="flex items-center gap-3 pointer-events-none">
+              <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-accent">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-0.5">Session date</div>
+                <div className="text-sm font-bold text-text">{captureSessionDate}</div>
+                <div className="text-[11px] text-accent font-semibold mt-0.5">Tap to change date</div>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-0.5">Session date</div>
-              <div className="text-sm font-bold text-text">{captureSessionDate}</div>
-              <div className="text-[11px] text-accent font-semibold mt-0.5">Tap to change date</div>
-            </div>
-          </button>
+          </label>
         </div>
         <div className="px-6 pb-3">
           <div className="flex gap-2 justify-center">

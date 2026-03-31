@@ -504,7 +504,7 @@ function PhotoSessionThumb({ filename, label, onClick }) {
       className="aspect-[0.72] bg-card-deep rounded-[10px] flex items-center justify-center relative overflow-hidden cursor-pointer"
     >
       {src ? (
-        <img src={src} alt={label} className="w-full h-full object-cover" />
+        <img src={src} alt={label} className="max-h-full max-w-full object-contain" />
       ) : (
         <span className="text-[9px] font-bold text-muted uppercase tracking-[0.5px]">{label}</span>
       )}

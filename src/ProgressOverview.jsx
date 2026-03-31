@@ -633,9 +633,9 @@ function PhotoThumbSmall({ filename, date }) {
     loadPhotoSrc(filename, user?.uid ?? null).then(setSrc).catch(() => {})
   }, [filename, user?.uid])
   return (
-    <div className="aspect-[3/4] rounded-lg bg-card-deep overflow-hidden shrink-0 border border-border">
+    <div className="aspect-[3/4] rounded-lg bg-card-deep overflow-hidden shrink-0 border border-border flex items-center justify-center">
       {src ? (
-        <img src={src} alt="" className="w-full h-full object-cover" />
+        <img src={src} alt="" className="max-h-full max-w-full object-contain" />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
           <span className="text-[9px] text-muted">{date || '—'}</span>
