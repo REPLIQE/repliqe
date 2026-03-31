@@ -2564,6 +2564,7 @@ ${JSON.stringify(ctx)}`
               <>
               {(() => {
                 if (workoutPlansLoaded && programmes.length === 0) {
+                  const emptyInProgress = workoutActive && startedFromEmptyRef.current
                   return (
                     <>
                       <div className="rounded-2xl border border-border bg-card p-6 text-center mb-5">
@@ -2574,11 +2575,20 @@ ${JSON.stringify(ctx)}`
                         <p className="text-muted-strong text-sm mb-4">Create a programme to get structured workouts and track your progress.</p>
                         <button type="button" onClick={createProgramme} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">+ Create programme</button>
                       </div>
-                      <button type="button" onClick={startEmpty} className="w-full py-4 px-4 border-2 border-accent/40 rounded-[14px] bg-accent/5 flex items-center gap-3">
-                        <span className="w-[38px] h-[38px] rounded-[10px] bg-accent/10 flex items-center justify-center text-accent text-lg font-bold">+</span>
-                        <div className="text-left">
+                      <button
+                        type="button"
+                        onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
+                        className={`w-full py-4 px-4 border-2 rounded-[14px] flex items-center gap-3 transition-colors ${emptyInProgress ? 'border-[rgba(0,229,160,0.45)] bg-[rgba(0,229,160,0.1)]' : 'border-accent/40 bg-accent/5'}`}
+                      >
+                        <span className={`w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-lg font-bold shrink-0 ${emptyInProgress ? 'bg-[rgba(0,229,160,0.2)] text-[#00e5a0]' : 'bg-accent/10 text-accent'}`}>+</span>
+                        <div className="text-left min-w-0">
+                          {emptyInProgress ? (
+                            <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
+                              <span className="text-[10px] font-extrabold tracking-[0.8px] text-[#00e5a0]">IN PROGRESS</span>
+                            </div>
+                          ) : null}
                           <div className="text-text text-sm font-bold">Empty Workout</div>
-                          <div className="text-[11px] text-muted-strong">Start fresh and add exercises as you go</div>
+                          <div className="text-[11px] text-muted-strong">{emptyInProgress ? 'Tap to open workout' : 'Start fresh and add exercises as you go'}</div>
                         </div>
                       </button>
                     </>
@@ -2588,6 +2598,7 @@ ${JSON.stringify(ctx)}`
                 const showAsNoProgramme = !activeProgramme
 
                 if (showAsNoProgramme) {
+                  const emptyInProgress = workoutActive && startedFromEmptyRef.current
                   return (
                     <>
                       <div className="rounded-2xl border border-border bg-card p-6 text-center mb-5">
@@ -2598,11 +2609,20 @@ ${JSON.stringify(ctx)}`
                         <div className="text-muted-deep text-xs mb-4">Suggestions for your next routine will only be shown after you've created your first programme.</div>
                         <button type="button" onClick={() => setWorkoutTab('plan')} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">Go to Plan</button>
                       </div>
-                      <button type="button" onClick={startEmpty} className="w-full py-4 px-4 border-2 border-accent/40 rounded-[14px] bg-accent/5 flex items-center gap-3">
-                        <span className="w-[38px] h-[38px] rounded-[10px] bg-accent/10 flex items-center justify-center text-accent text-lg font-bold">+</span>
-                        <div className="text-left">
+                      <button
+                        type="button"
+                        onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
+                        className={`w-full py-4 px-4 border-2 rounded-[14px] flex items-center gap-3 transition-colors ${emptyInProgress ? 'border-[rgba(0,229,160,0.45)] bg-[rgba(0,229,160,0.1)]' : 'border-accent/40 bg-accent/5'}`}
+                      >
+                        <span className={`w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-lg font-bold shrink-0 ${emptyInProgress ? 'bg-[rgba(0,229,160,0.2)] text-[#00e5a0]' : 'bg-accent/10 text-accent'}`}>+</span>
+                        <div className="text-left min-w-0">
+                          {emptyInProgress ? (
+                            <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
+                              <span className="text-[10px] font-extrabold tracking-[0.8px] text-[#00e5a0]">IN PROGRESS</span>
+                            </div>
+                          ) : null}
                           <div className="text-text text-sm font-bold">Empty Workout</div>
-                          <div className="text-[11px] text-muted-strong">Start fresh and add exercises as you go</div>
+                          <div className="text-[11px] text-muted-strong">{emptyInProgress ? 'Tap to open workout' : 'Start fresh and add exercises as you go'}</div>
                         </div>
                       </button>
                     </>
@@ -2621,6 +2641,7 @@ ${JSON.stringify(ctx)}`
                 const selectedIdx = displayRtnId ? routineIds.indexOf(displayRtnId) : -1
 
                 const dayMuscles = displayRtn ? getDayMusclesSlugs(displayRtn.exercises || [], allLibraryExercises) : { primary: [], secondary: [] }
+                const emptyInProgress = workoutActive && startedFromEmptyRef.current
 
                 return (
                   <>
@@ -2667,7 +2688,7 @@ ${JSON.stringify(ctx)}`
                     </div>
                     {displayRtn && (
                     <div className="border-[1.5px] border-[rgba(0,229,160,0.25)] rounded-[14px] p-4 bg-[rgba(0,229,160,0.05)] mb-5">
-                      {workoutActive && (
+                      {workoutActive && !emptyInProgress && (
                         <div className="inline-flex items-center rounded-full px-3 py-1 mb-3 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
                           <span className="text-[11px] font-extrabold tracking-[0.8px] text-[#00e5a0]">IN PROGRESS</span>
                         </div>
@@ -2716,11 +2737,24 @@ ${JSON.stringify(ctx)}`
                       )}
                     </div>
                     )}
-                    <button type="button" onClick={startEmpty} className="w-full mt-3 border border-[rgba(123,127,255,0.35)] rounded-2xl bg-[rgba(123,127,255,0.07)] p-4 flex items-center gap-3.5">
-                      <div className="w-11 h-11 rounded-xl bg-[rgba(123,127,255,0.18)] flex items-center justify-center text-[22px] text-[#7b7fff] font-light shrink-0">+</div>
-                      <div className="text-left">
+                    <button
+                      type="button"
+                      onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
+                      className={`w-full mt-3 rounded-2xl p-4 flex items-center gap-3.5 transition-colors ${
+                        emptyInProgress
+                          ? 'border-[1.5px] border-[rgba(0,229,160,0.4)] bg-[rgba(0,229,160,0.08)]'
+                          : 'border border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.07)]'
+                      }`}
+                    >
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-[22px] font-light shrink-0 ${emptyInProgress ? 'bg-[rgba(0,229,160,0.18)] text-[#00e5a0]' : 'bg-[rgba(123,127,255,0.18)] text-[#7b7fff]'}`}>+</div>
+                      <div className="text-left min-w-0">
+                        {emptyInProgress ? (
+                          <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
+                            <span className="text-[10px] font-extrabold tracking-[0.8px] text-[#00e5a0]">IN PROGRESS</span>
+                          </div>
+                        ) : null}
                         <div className="text-sm font-bold text-text">Empty Workout</div>
-                        <div className="text-xs text-white/35 mt-0.5">Start fresh and add exercises as you go</div>
+                        <div className="text-xs text-white/35 mt-0.5">{emptyInProgress ? 'Tap to open workout' : 'Start fresh and add exercises as you go'}</div>
                       </div>
                     </button>
                   </>
@@ -3084,9 +3118,9 @@ ${JSON.stringify(ctx)}`
 
                   <button type="button" onClick={() => { setExerciseLibraryReplaceIndex(null); setShowAddExercise(true) }} className="w-full py-3 mb-4 border border-dashed border-success/30 rounded-xl text-success text-sm font-semibold hover:bg-success/8 hover:border-success transition-colors">+ Add exercise</button>
 
-                  {exercises.length > 0 && !editingTemplate && (
+                  {!editingTemplate && (
                     <div className="flex flex-col gap-3 mt-2 mb-8">
-                      <button type="button" onClick={() => setShowCancelWorkoutConfirm(true)} className="w-full py-3 border-2 border-border-strong rounded-2xl text-sm font-semibold text-muted hover:border-red-500/50 hover:text-red-400 transition-colors">Cancel</button>
+                      <button type="button" onClick={() => setShowCancelWorkoutConfirm(true)} className="w-full py-3 border-2 border-border-strong rounded-2xl text-sm font-semibold text-muted hover:border-red-500/50 hover:text-red-400 transition-colors">Cancel workout</button>
                     </div>
                   )}
                 </div>
