@@ -111,7 +111,7 @@ export function TransformCard({
             <div className="text-[13px] font-bold text-text">Start tracking</div>
             <div className="text-[10px] text-muted mt-0.5">Add your first photos</div>
           </div>
-          <button type="button" onClick={(e) => { e.stopPropagation(); handleArrowClick() }} className="w-[26px] h-[26px] bg-[rgba(123,123,255,0.08)] border border-[rgba(123,123,255,0.2)] rounded-full flex items-center justify-center text-accent text-[12px]">
+          <button type="button" onClick={(e) => { e.stopPropagation(); handleArrowClick() }} className="shrink-0 text-accent text-[12px] leading-none px-1 py-0.5 rounded-lg flex items-center justify-center active:opacity-70">
             →
           </button>
         </div>
@@ -139,7 +139,7 @@ export function TransformCard({
           <button
             type="button"
             onClick={handleArrowClick}
-            className="w-[26px] h-[26px] bg-[rgba(123,123,255,0.08)] border border-[rgba(123,123,255,0.2)] rounded-full flex items-center justify-center text-accent text-[12px] shrink-0"
+            className="shrink-0 text-accent text-[12px] leading-none px-1 py-0.5 rounded-lg flex items-center justify-center active:opacity-70"
           >
             →
           </button>

@@ -417,7 +417,6 @@ function AppContent() {
   const [programmes, setProgrammes] = useState([])
   const [muscleLastWorked, setMuscleLastWorked] = useState({})
   const [routines, setRoutines] = useState([])
-  const [programmeMenuProgramme, setProgrammeMenuProgramme] = useState(null)
   const [showCreateProgramme, setShowCreateProgramme] = useState(false)
   const [createProgrammeFlowStep, setCreateProgrammeFlowStep] = useState(null) // 'entry' | 'explainer' | 'choice' | 'coach'
   const [editingProgrammeId, setEditingProgrammeId] = useState(null)
@@ -432,6 +431,8 @@ function AppContent() {
   const [showSetActiveAfterEditProgramme, setShowSetActiveAfterEditProgramme] = useState(null)
   const [dragRoutine, setDragRoutine] = useState(null) // { rtnId, progId }
   const [dragOverTarget, setDragOverTarget] = useState(null) // { type: 'index', progId, index } | { type: 'programme', progId } | null
+  /** True når rutine-editoren åbnes ved tryk på rutine på Plan (ikke fra Edit programme-modal). */
+  const routineEditorOpenedFromPlanRef = useRef(false)
   const [selectedStartRoutineId, setSelectedStartRoutineId] = useState(null) // which routine is selected on Start (null = Up Next)
   const [showStartRecoveryInfo, setShowStartRecoveryInfo] = useState(false)
   const [showActiveWorkoutSheet, setShowActiveWorkoutSheet] = useState(false)
@@ -1167,7 +1168,6 @@ function AppContent() {
 
   function setProgrammeActive(progId) {
     setProgrammes(prev => prev.map(p => ({ ...p, isActive: p.id === progId })))
-    setProgrammeMenuProgramme(null)
   }
 
   function createProgramme() {
@@ -1257,7 +1257,6 @@ function AppContent() {
     const prog = programmes.find(p => p.id === progId)
     if (prog) setEditProgrammeName(prog.name)
     setEditingProgrammeId(progId)
-    setProgrammeMenuProgramme(null)
   }
 
   function saveEditedProgramme(progId, name, type, routineIdsOrder) {
@@ -1277,7 +1276,6 @@ function AppContent() {
     setProgrammes(programmesToSet)
     setRoutines(routinesToSet)
     setShowDeleteProgrammeConfirm(null)
-    setProgrammeMenuProgramme(null)
     const uid = user?.uid
     if (uid) {
       try {
@@ -1374,7 +1372,6 @@ function AppContent() {
     }
     setRoutines(prev => [...prev, ...newRoutines])
     setProgrammes(prev => [...prev.map(p => ({ ...p, isActive: false })), { id: newProgId, name: (prog.name || 'Programme') + ' (copy)', type: prog.type || 'rotation', routineIds: newRoutineIds, isActive: false, currentIndex: 0 }])
-    setProgrammeMenuProgramme(null)
   }
 
   function copyRoutine(rtnId, progId) {
@@ -2753,10 +2750,30 @@ ${JSON.stringify(ctx)}`
                               avgWorked === 0 ? 100 : Math.min(100, Math.round(((now - avgWorked) / RECOVERY_MS) * 100))
                             const recoveryAccent = '#7b7fff'
                             return (
-                              <div className="mb-3">
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-[rgba(123,127,255,0.55)]">Recovery</span>
-                                  <span className="text-[11px] font-bold" style={{ color: recoveryAccent }}>{recoveryPct}%</span>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setShowStartRecoveryInfo(true)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    setShowStartRecoveryInfo(true)
+                                  }
+                                }}
+                                className="mb-3 w-full rounded-lg -mx-1 px-1 py-1 text-left cursor-pointer hover:bg-white/[0.04] active:bg-white/[0.06] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[rgba(123,127,255,0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-page"
+                                aria-label="Recovery details for this day"
+                              >
+                                <div className="flex items-center justify-between mb-1.5 gap-2">
+                                  <span className="flex items-center gap-2 min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-[rgba(123,127,255,0.55)]">Recovery</span>
+                                    <span
+                                      className="shrink-0 text-accent text-[12px] leading-none pointer-events-none"
+                                      aria-hidden
+                                    >
+                                      →
+                                    </span>
+                                  </span>
+                                  <span className="text-[11px] font-bold tabular-nums" style={{ color: recoveryAccent }}>{recoveryPct}%</span>
                                 </div>
                                 <div className="h-[3px] rounded-full bg-white/[0.07] overflow-hidden mb-2">
                                   <div
@@ -2766,8 +2783,6 @@ ${JSON.stringify(ctx)}`
                                 </div>
                                 <div
                                   className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 touch-pan-x [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]"
-                                  role="list"
-                                  aria-label="Muscle groups for this day"
                                 >
                                   {allSlugs.map((slug) => {
                                     const SLUG_COLORS = {
@@ -2794,7 +2809,6 @@ ${JSON.stringify(ctx)}`
                                     return (
                                       <span
                                         key={slug}
-                                        role="listitem"
                                         title={label}
                                         className="shrink-0 text-[9px] font-semibold px-[7px] py-[3px] rounded-full whitespace-nowrap"
                                         style={{ color, background: `${color}14` }}
@@ -2804,14 +2818,6 @@ ${JSON.stringify(ctx)}`
                                     )
                                   })}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setShowStartRecoveryInfo(true)}
-                                  className="mt-1.5 w-full py-0.5 text-left text-[9px] font-medium text-white/20 hover:text-white/36 active:text-white/42 transition-colors"
-                                  aria-label="More about recovery for this day"
-                                >
-                                  Tap for more info
-                                </button>
                               </div>
                             )
                           })()}
@@ -2900,11 +2906,45 @@ ${JSON.stringify(ctx)}`
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <div className="flex-1 min-w-0 pr-1">
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-sm font-bold tracking-tight text-white truncate">{prog.name}</span>
+                                <span className="text-sm font-bold tracking-tight text-white flex-1 min-w-0 truncate">{prog.name}</span>
+                                <div className="flex items-center shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditProgramme(prog.id)}
+                                    className="p-2 rounded-lg text-accent hover:text-text hover:bg-white/5 active:opacity-80"
+                                    title="Edit programme"
+                                    aria-label="Edit programme"
+                                  >
+                                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current">
+                                      <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyProgramme(prog.id)}
+                                    className="p-2 rounded-lg text-muted hover:text-text hover:bg-white/5 active:opacity-80"
+                                    title="Copy programme"
+                                    aria-label="Copy programme"
+                                  >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+                                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowDeleteProgrammeConfirm(prog.id)}
+                                    className="p-2 rounded-lg text-[rgba(255,85,85,0.65)] hover:text-red-400 hover:bg-white/5 active:opacity-80"
+                                    title="Delete programme"
+                                    aria-label={`Delete programme ${prog.name}`}
+                                  >
+                                    <DeleteTrashGlyph className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                               <div className="text-[11px] text-white/35 mt-0.5">{progRoutines.length} routines</div>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0 self-center">
+                            <div className="flex items-center gap-1.5 shrink-0 self-center">
                               {isActive ? (
                                 <span
                                   className="inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.1)] text-[#7b7fff] text-[9px] font-bold uppercase tracking-wide leading-none animate-up-next-pulse min-h-[32px]"
@@ -2921,9 +2961,6 @@ ${JSON.stringify(ctx)}`
                                   Set active
                                 </button>
                               )}
-                              <button type="button" onClick={() => setProgrammeMenuProgramme(prog)} className="w-8 h-8 rounded-lg bg-white/[0.03] border border-border-subtle flex items-center justify-center shrink-0" aria-label="Programme options">
-                                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-muted-strong"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
-                              </button>
                             </div>
                           </div>
                           <div className="flex gap-1.5 mt-2">
@@ -2932,6 +2969,7 @@ ${JSON.stringify(ctx)}`
                                 key={r.id}
                                 type="button"
                                 onClick={() => {
+                                  routineEditorOpenedFromPlanRef.current = true
                                   setEditProgrammeName(prog.name ?? '')
                                   setEditRoutineName(r.name)
                                   setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })))
@@ -3404,47 +3442,6 @@ ${JSON.stringify(ctx)}`
         </div>
 
         {/* MODALS */}
-        {/* Programme Menu (bottom sheet) */}
-        {programmeMenuProgramme && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setProgrammeMenuProgramme(null)}>
-            <div className="w-full max-w-md bg-card rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="w-9 h-1 bg-handle rounded mx-auto mb-4" />
-              <h2 className="text-text text-base font-bold mb-3">{programmeMenuProgramme.name}</h2>
-              <button type="button" onClick={() => openEditProgramme(programmeMenuProgramme.id)} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
-                <span className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-accent"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                </span>
-                <div className="text-left flex-1">
-                  <div className="text-text text-sm font-semibold">Edit Programme</div>
-                  <div className="text-muted-strong text-[11px] mt-0.5">Rename, add or reorder routines</div>
-                </div>
-                <span className="text-[#333] text-base">›</span>
-              </button>
-              <button type="button" onClick={() => copyProgramme(programmeMenuProgramme.id)} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
-                <span className="w-9 h-9 rounded-lg bg-card-alt flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 text-muted"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                </span>
-                <div className="text-left flex-1">
-                  <div className="text-text text-sm font-semibold">Copy Programme</div>
-                  <div className="text-muted-strong text-[11px] mt-0.5">Duplicate with all routines</div>
-                </div>
-                <span className="text-[#333] text-base">›</span>
-              </button>
-              <button type="button" onClick={() => { setShowDeleteProgrammeConfirm(programmeMenuProgramme.id); setProgrammeMenuProgramme(null) }} className="flex items-center gap-3 w-full py-3.5 px-3 rounded-[10px] mb-1 hover:bg-white/5">
-                <span className="w-9 h-9 rounded-lg bg-[rgba(255,85,85,0.06)] flex items-center justify-center shrink-0 text-[#FF5555]">
-                  <DeleteTrashGlyph className="w-4 h-4" />
-                </span>
-                <div className="text-left flex-1">
-                  <div className="text-red-400 text-sm font-semibold">Delete Programme</div>
-                  <div className="text-muted-strong text-[11px] mt-0.5">Permanently remove this programme</div>
-                </div>
-                <span className="text-[#333] text-base">›</span>
-              </button>
-              <button type="button" onClick={() => setProgrammeMenuProgramme(null)} className="w-full py-3 mt-2 border border-border-strong rounded-lg text-muted-strong text-xs font-semibold">Cancel</button>
-            </div>
-          </div>
-        )}
-
         {/* Delete Programme confirmation (centered) */}
         {showDeleteProgrammeConfirm && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
@@ -3675,7 +3672,7 @@ ${JSON.stringify(ctx)}`
                         <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'down')} className={`p-1 rounded-md ${i === progRoutines.length - 1 ? 'opacity-20' : 'hover:bg-white/5'}`} disabled={i === progRoutines.length - 1} aria-label="Move routine down">
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-accent"><polyline points="6 9 12 15 18 9"/></svg>
                         </button>
-                        <button type="button" onClick={() => { setEditProgrammeName(prog?.name ?? ''); setEditRoutineName(r.name); setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null }))); setEditingRoutineId(r.id); setEditingRoutineProgrammeId(editingProgrammeId); setEditingProgrammeId(null) }} className="text-accent text-xs font-semibold px-1.5 py-0.5">Edit</button>
+                        <button type="button" onClick={() => { routineEditorOpenedFromPlanRef.current = false; setEditProgrammeName(prog?.name ?? ''); setEditRoutineName(r.name); setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null }))); setEditingRoutineId(r.id); setEditingRoutineProgrammeId(editingProgrammeId); setEditingProgrammeId(null) }} className="text-accent text-xs font-semibold px-1.5 py-0.5">Edit</button>
                         <button type="button" onClick={() => copyRoutine(r.id, editingProgrammeId)} className="text-muted text-xs font-semibold px-1.5 py-0.5 hover:text-text" title="Copy routine">Copy</button>
                         <button
                           type="button"
@@ -3717,7 +3714,7 @@ ${JSON.stringify(ctx)}`
                     </div>
                   </div>
                 )}
-                <button type="button" onClick={() => { setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineId(null); setEditingRoutineProgrammeId(editingProgrammeId); setEditProgrammeName(programmes.find(p => p.id === editingProgrammeId)?.name || ''); setShowCreateRoutine(true); setEditingProgrammeId(null) }} className="w-full py-3 border border-dashed border-border-strong rounded-xl text-accent text-sm font-semibold mb-4">+ Add Routine</button>
+                <button type="button" onClick={() => { routineEditorOpenedFromPlanRef.current = false; setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineId(null); setEditingRoutineProgrammeId(editingProgrammeId); setEditProgrammeName(programmes.find(p => p.id === editingProgrammeId)?.name || ''); setShowCreateRoutine(true); setEditingProgrammeId(null) }} className="w-full py-3 border border-dashed border-border-strong rounded-xl text-accent text-sm font-semibold mb-4">+ Add Routine</button>
                 <button type="button" onClick={() => {
                   const progId = editingProgrammeId
                   const programme = programmes.find(p => p.id === progId)
@@ -3776,6 +3773,8 @@ ${JSON.stringify(ctx)}`
           }
           const closeRoutineEditor = () => {
             const progId = editingRoutineProgrammeId
+            const returnToPlanOnly = routineEditorOpenedFromPlanRef.current
+            routineEditorOpenedFromPlanRef.current = false
             setShowCreateRoutine(false)
             setEditingRoutineId(null)
             setEditingRoutineProgrammeId(null)
@@ -3786,9 +3785,12 @@ ${JSON.stringify(ctx)}`
             setRoutineEditorConfirmEmptyExercises(false)
             setFocusNewExerciseAt(null)
             setRoutineReplaceExerciseId(null)
-            if (progId) {
+            if (progId && !returnToPlanOnly) {
               setEditingProgrammeId(progId)
               setEditProgrammeName(programmes.find(p => p.id === progId)?.name || '')
+            }
+            if (returnToPlanOnly) {
+              setWorkoutTab('plan')
             }
           }
           return (

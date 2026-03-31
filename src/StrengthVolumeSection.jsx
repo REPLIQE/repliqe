@@ -287,7 +287,7 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
         {content}
         <div className="flex items-center justify-between gap-3 mt-3">
           <p className="text-xs text-muted">Tap to filter by period and muscle group</p>
-          <span className="w-[26px] h-[26px] bg-[rgba(123,123,255,0.08)] border border-[rgba(123,123,255,0.2)] rounded-full flex items-center justify-center text-accent text-[12px] shrink-0" aria-hidden>
+          <span className="shrink-0 text-accent text-[12px] leading-none" aria-hidden>
             →
           </span>
         </div>
