@@ -474,7 +474,7 @@ export default function AccountTab({
                 {userPlan === 'free' &&
                   'Full tracking, one AI-generated programme, and up to 12 progress photos.'}
                 {userPlan === 'pro' &&
-                  'Higher monthly limits for AI programmes, REPLIQE Coach, and progress photos.'}
+                  'Higher monthly limits for AI programmes and REPLIQE Coach; up to 50 progress photos in total.'}
                 {userPlan === 'elite' &&
                   'Top-tier limits for AI programmes and Coach; unlimited progress photo storage.'}
               </p>
@@ -495,7 +495,7 @@ export default function AccountTab({
           <div className="border-t border-border pt-4 space-y-4">
             <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider">Plan usage</p>
             <p className="text-[10px] text-muted-mid -mt-2 mb-1">
-              Monthly counters reset on the 1st of each month (UTC), except lifetime Free limits below.
+              Monthly counters reset on the 1st of each month (UTC). Progress photos on Free and Pro count toward a total storage cap, not per month.
             </p>
 
             {userPlan === 'free' && (
@@ -532,29 +532,20 @@ export default function AccountTab({
               />
             )}
 
-            {userPlan === 'free' && (
+            {(userPlan === 'free' || userPlan === 'pro') && (
               <UsageMeter
                 label="Progress photos (total stored)"
                 used={progressPhotosStored}
-                cap={limits.photos ?? 12}
-                hint="Total photo slots across all sessions."
-              />
-            )}
-            {userPlan === 'pro' && (
-              <UsageMeter
-                label="Progress photos added (this month)"
-                used={planUsage.progressPhotosThisPeriod}
-                cap={limits.photos ?? 50}
-                hint="New photo slots you add this month; stored photos stay in your library."
+                cap={limits.photos ?? (userPlan === 'pro' ? 50 : 12)}
+                hint="Total photo slots (front, back, side) across all sessions."
               />
             )}
             {userPlan === 'elite' && (
               <UsageMeter
-                label="Progress photos added (this month)"
-                used={planUsage.progressPhotosThisPeriod}
+                label="Progress photos stored"
+                used={progressPhotosStored}
                 unlimited
-                extraText="new"
-                hint={`${progressPhotosStored} photos stored in total — no storage cap on Elite.`}
+                hint="No storage cap on Elite."
               />
             )}
           </div>

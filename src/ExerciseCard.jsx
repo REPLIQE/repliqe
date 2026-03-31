@@ -342,24 +342,42 @@ function ExerciseCard({
 
       {showExerciseMenu && (
         <div className="mt-2 bg-card-alt border border-border-strong rounded-xl overflow-hidden">
+          <button onClick={() => { setShowExerciseMenu(false); setShowNoteInput(true) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            {exercise.note ? 'Edit note' : 'Add note'}
+          </button>
+          {onReplaceExercise && !isLinkModeActive && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowExerciseMenu(false)
+                onReplaceExercise(exIndex)
+              }}
+              className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong"
+            >
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current">
+                <path d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+              </svg>
+              Replace exercise
+            </button>
+          )}
           {!isLinkSource && !isLinkModeActive && (exerciseCount > 1
             ? (exercise.supersetGroupId
               ? (
-                <button onClick={() => { setShowExerciseMenu(false); onBreakSuperset?.() }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
+                <button onClick={() => { setShowExerciseMenu(false); onBreakSuperset?.() }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong">
                   <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
                   Break superset
                 </button>
               )
               : (
-                <button onClick={() => { setShowExerciseMenu(false); onStartLinkMode?.() }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
+                <button onClick={() => { setShowExerciseMenu(false); onStartLinkMode?.() }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong">
                   <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
                   Create superset
                 </button>
               ))
             : null)}
-          <div className="border-t border-border-strong" />
           {supersetRole !== 'A' && (
-          <button onClick={() => { setShowExerciseMenu(false); setShowRestPicker(true) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
+          <button onClick={() => { setShowExerciseMenu(false); setShowRestPicker(true) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             Rest timer {exercise.restOverride !== null && exercise.restOverride !== undefined ? `· ${currentRest === 0 ? 'None' : formatTime(currentRest)}` : `· Default (${formatTime(defaultRest)})`}
           </button>
@@ -389,25 +407,6 @@ function ExerciseCard({
               <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${rirEnabled ? 'left-4' : 'left-0.5'}`} />
             </div>
           </button>
-          )}
-          <button onClick={() => { setShowExerciseMenu(false); setShowNoteInput(true) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong">
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-            {exercise.note ? 'Edit note' : 'Add note'}
-          </button>
-          {onReplaceExercise && !isLinkModeActive && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowExerciseMenu(false)
-                onReplaceExercise(exIndex)
-              }}
-              className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong"
-            >
-              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current">
-                <path d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-              </svg>
-              Replace exercise
-            </button>
           )}
           <button onClick={() => { setShowExerciseMenu(false); onRemoveExercise(exIndex) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-colors border-t border-border-strong">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>

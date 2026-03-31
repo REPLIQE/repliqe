@@ -44,42 +44,77 @@ function isNativePlatform() {
   return p === 'ios' || p === 'android'
 }
 
-/** Normalize image: resize to max 800px, JPEG, preserve aspect ratio. Returns base64 (no data URL prefix). */
-function normalizeImage(input) {
-  return new Promise((resolve, reject) => {
-    const dataUrl = input instanceof File
-      ? null
-      : (input.startsWith('data:') ? input : `data:image/jpeg;base64,${input}`)
-    const finish = (url) => {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => {
-        const w = img.naturalWidth
-        const h = img.naturalHeight
-        const scale = Math.min(1, MAX_PHOTO_PX / Math.max(w, h))
-        const cw = Math.round(w * scale)
-        const ch = Math.round(h * scale)
-        const canvas = document.createElement('canvas')
-        canvas.width = cw
-        canvas.height = ch
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return reject(new Error('Canvas not available'))
-        ctx.drawImage(img, 0, 0, cw, ch)
-        const out = canvas.toDataURL('image/jpeg', PHOTO_QUALITY)
-        const base64 = out.replace(/^data:image\/jpeg;base64,/, '')
-        resolve(base64)
+function bitmapToJpegBase64(bitmap) {
+  const w = bitmap.width
+  const h = bitmap.height
+  const scale = Math.min(1, MAX_PHOTO_PX / Math.max(w, h))
+  const cw = Math.round(w * scale)
+  const ch = Math.round(h * scale)
+  const canvas = document.createElement('canvas')
+  canvas.width = cw
+  canvas.height = ch
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas not available')
+  ctx.drawImage(bitmap, 0, 0, cw, ch)
+  const out = canvas.toDataURL('image/jpeg', PHOTO_QUALITY)
+  return out.replace(/^data:image\/jpeg;base64,/, '')
+}
+
+/**
+ * Resize longest side to MAX_PHOTO_PX, JPEG, preserve aspect ratio.
+ * Uses EXIF orientation when decoding (so proportions match what the user sees).
+ * Returns base64 without data URL prefix.
+ */
+async function normalizeImage(input) {
+  const blob =
+    input instanceof File
+      ? input
+      : await fetch(
+          typeof input === 'string' && input.startsWith('data:')
+            ? input
+            : `data:image/jpeg;base64,${input}`
+        ).then((r) => r.blob())
+
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' })
+      try {
+        return bitmapToJpegBase64(bitmap)
+      } finally {
+        bitmap.close()
       }
-      img.onerror = () => reject(new Error('Image load failed'))
-      img.src = url
+    } catch {
+      try {
+        const bitmap = await createImageBitmap(blob)
+        try {
+          return bitmapToJpegBase64(bitmap)
+        } finally {
+          bitmap.close()
+        }
+      } catch {
+        // fall through to Image()
+      }
     }
-    if (input instanceof File) {
-      const reader = new FileReader()
-      reader.onload = () => finish(reader.result)
-      reader.onerror = () => reject(reader.error)
-      reader.readAsDataURL(input)
-    } else {
-      finish(dataUrl)
+  }
+
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try {
+        resolve(bitmapToJpegBase64(img))
+      } catch (e) {
+        reject(e)
+      } finally {
+        URL.revokeObjectURL(url)
+      }
     }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Image load failed'))
+    }
+    img.src = url
   })
 }
 
@@ -169,7 +204,9 @@ export default function PhotosModal({
   onPhotoSessionCreated,
   /** Called when a new progress photo slot is filled (counts toward plan quota). */
   onProgressPhotoAdded,
-  /** Progress bar: used count (total slots on Free, this month on Pro/Elite). */
+  /** Called when saved photo slots are removed (syncs plan usage counter for Pro/Elite). */
+  onProgressPhotoRemoved,
+  /** Progress bar: used count (total stored slots; Elite has no cap). */
   progressPhotoBarUsed,
   /** Max for bar; null = unlimited (Elite). */
   progressPhotoBarCap,
@@ -364,6 +401,9 @@ export default function PhotosModal({
   function removeCapturedAngle(angleKey) {
     const sessionId = capturedImages._sessionId
     if (!sessionId) return
+    if (progressQuotaAnglesRef.current.has(angleKey)) {
+      onProgressPhotoRemoved?.(1)
+    }
     progressQuotaAnglesRef.current.delete(angleKey)
     setCaptureCropEditorAngle((prev) => (prev === angleKey ? null : prev))
     setCaptureAngleActionSheet((prev) => (prev === angleKey ? null : prev))
@@ -822,6 +862,7 @@ export default function PhotosModal({
           showExitCTA={true}
           onClose={onClose}
           hasChanges={hasChanges}
+          onProgressPhotoRemoved={onProgressPhotoRemoved}
           onOpenAddPhotos={() => {
             progressQuotaAnglesRef.current = new Set()
             setCaptureCropEditorAngle(null)
@@ -854,6 +895,7 @@ export function PhotosViewContent({
   onClose,
   hasChanges = false,
   onOpenAddPhotos,
+  onProgressPhotoRemoved,
   inline = false,
 }) {
   const { user } = useAuth()
@@ -950,7 +992,11 @@ export function PhotosViewContent({
   }, [editingDateSessionId])
 
   function deleteSession(sessionId) {
-    if (setPhotoSessions) setPhotoSessions((prev) => (prev || []).filter((s) => s.id !== sessionId))
+    if (!setPhotoSessions) return
+    const session = (photoSessions || []).find((s) => s.id === sessionId)
+    const removed = session ? [session.front, session.back, session.side].filter(Boolean).length : 0
+    if (removed > 0) onProgressPhotoRemoved?.(removed)
+    setPhotoSessions((prev) => (prev || []).filter((s) => s.id !== sessionId))
   }
 
   function updateSessionDate(sessionId, newDate) {

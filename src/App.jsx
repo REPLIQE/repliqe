@@ -20,7 +20,7 @@ import { addWorkoutSession, fetchWorkoutSessions, fetchWorkoutSessionsFromServer
 import { getUserDoc, mergeUserSettings, DEFAULT_SETTINGS, normalizeUserPlan, USER_PLAN_STORAGE_KEY } from './lib/userFirestore'
 import { fetchAppData, updateAppData } from './lib/appDataFirestore'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS } from './exerciseLibrary'
-import RecoverySection from './RecoverySection'
+import RecoveryModal from './RecoveryModal'
 import RepliqeLogo from './RepliqeLogo'
 import ProgressPhoto from './ProgressPhoto'
 import { loadPhotoSrc } from './PhotosModal'
@@ -433,6 +433,7 @@ function AppContent() {
   const [dragRoutine, setDragRoutine] = useState(null) // { rtnId, progId }
   const [dragOverTarget, setDragOverTarget] = useState(null) // { type: 'index', progId, index } | { type: 'programme', progId } | null
   const [selectedStartRoutineId, setSelectedStartRoutineId] = useState(null) // which routine is selected on Start (null = Up Next)
+  const [showStartRecoveryInfo, setShowStartRecoveryInfo] = useState(false)
   const [showActiveWorkoutSheet, setShowActiveWorkoutSheet] = useState(false)
   const [createProgrammeName, setCreateProgrammeName] = useState('')
   const [createProgrammeRoutines, setCreateProgrammeRoutines] = useState([])
@@ -444,6 +445,7 @@ function AppContent() {
   const [editRoutineExercises, setEditRoutineExercises] = useState([])
   const [routineEditorRestForIndex, setRoutineEditorRestForIndex] = useState(null)
   const [routineEditorNoteForIndex, setRoutineEditorNoteForIndex] = useState(null)
+  const [routineEditorRemoveNoteConfirmForExerciseId, setRoutineEditorRemoveNoteConfirmForExerciseId] = useState(null)
   const [routineEditorSupersetMenuForId, setRoutineEditorSupersetMenuForId] = useState(null)
   /** Routine editor: validation / empty-routine hint only after Save (not by default). */
   const [routineEditorTriedSave, setRoutineEditorTriedSave] = useState(false)
@@ -502,6 +504,9 @@ function AppContent() {
   }, [theme, user?.uid])
   useEffect(() => { if (page === 'library') setPage('workout') }, [page])
   useEffect(() => { if (page !== 'profile') setProfileSection(null) }, [page])
+  useEffect(() => {
+    if (workoutTab !== 'start') setShowStartRecoveryInfo(false)
+  }, [workoutTab])
 
   useEffect(() => {
     function syncLegalHash() {
@@ -1217,13 +1222,10 @@ function AppContent() {
       .catch((err) => console.error('planUsage coach generation:', err?.code || err?.message || err))
   }
 
-  function handleProgressPhotoAdded() {
-    const uid = user?.uid
-    if (!uid) return
-    incrementPlanUsage(uid, { progressPhotos: 1 })
-      .then(setPlanUsage)
-      .catch((err) => console.error('planUsage progress photo:', err?.code || err?.message || err))
-  }
+  /** Progress photo limits are total slots in appData (Free/Pro), not planUsage. */
+  function handleProgressPhotoAdded() {}
+
+  function handleProgressPhotoRemoved(_count) {}
 
   function saveCoachGeneratedProgramme(payload, makeActive) {
     if (!user?.uid || !payload?.programme || !Array.isArray(payload.routines)) return
@@ -2499,6 +2501,7 @@ ${JSON.stringify(ctx)}`
                 userPlan={userPlan}
                 planUsage={planUsage}
                 onProgressPhotoAdded={handleProgressPhotoAdded}
+                onProgressPhotoRemoved={handleProgressPhotoRemoved}
               />
               </Suspense>
             </ProgressErrorBoundary>
@@ -2630,113 +2633,197 @@ ${JSON.stringify(ctx)}`
                 }
 
                 const nextRtnId = getNextRoutine(activeProgramme, history)
-                const nextRtn = nextRtnId ? routines.find(r => r.id === nextRtnId) : null
                 const routineIds = activeProgramme.routineIds || []
-                const nextIdx = nextRtnId ? routineIds.indexOf(nextRtnId) : -1
                 const displayRtnId = (selectedStartRoutineId && routineIds.includes(selectedStartRoutineId)) ? selectedStartRoutineId : nextRtnId
                 const displayRtn = displayRtnId ? routines.find(r => r.id === displayRtnId) : null
                 const exCount = displayRtn?.exercises?.length ?? 0
                 const setCountR = displayRtn?.exercises?.reduce((s, e) => s + getSetConfigs(e).length, 0) ?? 0
                 const estMin = displayRtn ? Math.round(getEstimatedSecondsForRoutine(displayRtn, defaultRest) / 60) : 0
-                const selectedIdx = displayRtnId ? routineIds.indexOf(displayRtnId) : -1
 
                 const dayMuscles = displayRtn ? getDayMusclesSlugs(displayRtn.exercises || [], allLibraryExercises) : { primary: [], secondary: [] }
                 const emptyInProgress = workoutActive && startedFromEmptyRef.current
+                const startReadinessHint = null
 
                 return (
                   <>
-                    <h2 className="text-sm font-bold tracking-tight mb-3 text-accent">{activeProgramme.name}</h2>
-                    {routineIds.length === 0 ? (
-                      <div className="rounded-xl border border-border-strong bg-card-alt/80 p-4 mb-4 text-sm text-muted-strong">
-                        <p className="mb-3">This programme has no routines yet. Add one under Plan — the programme is already saved.</p>
-                        <button type="button" onClick={() => setWorkoutTab('plan')} className="w-full py-2.5 rounded-xl border border-accent/40 bg-accent/10 text-accent text-sm font-bold">
-                          Open Plan
-                        </button>
+                    {/* Programme card — Design C */}
+                    <div className="rounded-[18px] border border-white/[0.07] overflow-hidden mb-5">
+
+                      {/* TOP ZONE: programme name + day selector */}
+                      <div className="px-4 pt-4 pb-3 bg-white/[0.02]">
+                        <div className="text-sm font-bold text-white mb-3">
+                          {activeProgramme.name}
+                        </div>
+                        {startReadinessHint ? (
+                          <p className="text-[11px] text-amber-400/90 leading-snug mb-3">{startReadinessHint}</p>
+                        ) : null}
+                        {routineIds.length === 0 ? (
+                          <div className="rounded-xl border border-border-strong bg-card-alt/80 p-4 text-sm text-muted-strong">
+                            <p className="mb-3">This programme has no routines yet. Add one under Plan.</p>
+                            <button type="button" onClick={() => setWorkoutTab('plan')} className="w-full py-2.5 rounded-xl border border-accent/40 bg-accent/10 text-accent text-sm font-bold">
+                              Open Plan
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-1.5">
+                            {routineIds.map((rtnId) => {
+                              const rtn = routines.find(r => r.id === rtnId)
+                              const isSelected = rtnId === displayRtnId
+                              return (
+                                <button
+                                  key={rtnId}
+                                  type="button"
+                                  onClick={() => rtn && setSelectedStartRoutineId(rtnId)}
+                                  className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border transition-colors ${
+                                    isSelected
+                                      ? 'border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.08)]'
+                                      : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
+                                  }`}
+                                >
+                                  <div className={`text-[11px] font-semibold truncate ${isSelected ? 'text-[#7b7fff]' : 'text-[rgba(123,127,255,0.55)]'}`}>
+                                    {rtn?.name || '—'}
+                                  </div>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
-                    ) : null}
-                    <div className="flex gap-1.5 mb-1">
-                      {routineIds.map((rtnId) => {
-                        const rtn = routines.find(r => r.id === rtnId)
-                        const currIdx = routineIds.indexOf(rtnId)
-                        const isDone = nextIdx >= 0 && currIdx < nextIdx
-                        const isUpNext = rtnId === nextRtnId
-                        const isSelected = rtnId === displayRtnId
-                        const daysSince = getDaysSinceRoutine(rtnId)
-                        const daysSinceText = daysSince === null ? '' : daysSince === 0 ? 'Today' : daysSince === 1 ? '1 day since' : `${daysSince} days since`
-                        return (
-                          <button
-                            key={rtnId}
-                            type="button"
-                            onClick={() => rtn && setSelectedStartRoutineId(rtnId)}
-                            className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border-[1.5px] transition-colors ${isSelected ? 'border-[rgba(0,229,160,0.4)] bg-[rgba(0,229,160,0.08)]' : 'border-transparent bg-card hover:bg-card-alt hover:border-border-strong active:opacity-90'}`}
-                            style={isDone && !isSelected ? { opacity: 0.8 } : {}}
-                          >
-                            <div className={`text-[11px] font-semibold truncate ${isSelected ? 'text-[#00e5a0]' : isDone ? 'text-[#7a7a9a]' : 'text-muted'}`}>{rtn?.name || '—'}</div>
-                            {daysSinceText ? <div className="text-[9px] text-muted-deep mt-0.5">{daysSinceText}</div> : null}
-                          </button>
-                        )
-                      })}
+
+                      {/* BOTTOM ZONE: selected day details */}
+                      {displayRtn && (
+                        <div className="px-4 pt-3 pb-4 border-t border-white/[0.05]">
+
+                          {/* Badges inline with day title + last trained */}
+                          <div className="mb-3">
+                            <div className="flex flex-wrap items-center gap-2 min-w-0">
+                              <div className="text-[13px] font-bold text-success min-w-0 truncate">{displayRtn.name}</div>
+                              {workoutActive && !emptyInProgress ? (
+                                <div className="inline-flex items-center rounded-full px-3 py-1 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge shrink-0">
+                                  <span className="text-[11px] font-extrabold tracking-[0.8px] text-[#00e5a0]">IN PROGRESS</span>
+                                </div>
+                              ) : null}
+                              {!workoutActive && displayRtnId === nextRtnId ? (
+                                <div className="inline-flex items-center rounded-full px-3 py-1 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge shrink-0">
+                                  <span className="text-[11px] font-extrabold tracking-[0.8px] text-[#00e5a0]">UP NEXT</span>
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="text-[10px] text-white/30 mt-[2px]">
+                              {(() => {
+                                const days = getDaysSinceRoutine(displayRtnId)
+                                if (days === null) return 'Never trained'
+                                if (days === 0) return 'Trained today'
+                                if (days === 1) return 'Last trained yesterday'
+                                return `Last trained ${days} days ago`
+                              })()}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 mb-3">
+                            {[
+                              { val: exCount, lbl: 'Exercises' },
+                              { val: setCountR, lbl: 'Sets' },
+                              { val: estMin, lbl: 'Est. min' },
+                            ].map(({ val, lbl }) => (
+                              <div key={lbl} className="flex-1 bg-white/[0.03] rounded-[10px] py-[9px] px-2 text-center">
+                                <span className="text-[18px] font-extrabold text-text block leading-none">{val}</span>
+                                <span className="text-[8px] font-semibold tracking-[0.06em] uppercase text-white/30 block mt-[3px]">{lbl}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Compact recovery bar + muscle pills inline */}
+                          {!workoutActive && (() => {
+                            const allSlugs = [...new Set([...(dayMuscles.primary || []), ...(dayMuscles.secondary || [])])]
+                            if (allSlugs.length === 0) return null
+                            const now = Date.now()
+                            const RECOVERY_MS = 48 * 60 * 60 * 1000
+                            const workedTimes = allSlugs.map((slug) =>
+                              muscleLastWorked?.[slug] ? new Date(muscleLastWorked[slug]).getTime() : 0
+                            )
+                            const avgWorked = workedTimes.reduce((a, b) => a + b, 0) / workedTimes.length
+                            const recoveryPct =
+                              avgWorked === 0 ? 100 : Math.min(100, Math.round(((now - avgWorked) / RECOVERY_MS) * 100))
+                            const isFullyRecovered = recoveryPct >= 100
+                            const barColor = isFullyRecovered ? '#00e5a0' : recoveryPct > 60 ? '#D4FF4F' : '#FFAA50'
+                            return (
+                              <div className="mb-3">
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="text-[9px] font-bold uppercase tracking-[0.06em] text-white/30">Recovery</span>
+                                  <span className="text-[11px] font-bold" style={{ color: barColor }}>{recoveryPct}%</span>
+                                </div>
+                                <div className="h-[3px] rounded-full bg-white/[0.07] overflow-hidden mb-2">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-500"
+                                    style={{ width: `${recoveryPct}%`, background: barColor }}
+                                  />
+                                </div>
+                                <div className="flex flex-wrap gap-[4px]">
+                                  {allSlugs.slice(0, 8).map((slug) => {
+                                    const SLUG_COLORS = {
+                                      chest: '#7B7BFF',
+                                      'front-delts': '#4ECDC4',
+                                      'side-delts': '#4ECDC4',
+                                      'rear-delts': '#4ECDC4',
+                                      triceps: '#ff6b6b',
+                                      biceps: '#ff6b6b',
+                                      forearms: '#ff6b6b',
+                                      back: '#5BF5A0',
+                                      lats: '#5BF5A0',
+                                      traps: '#5BF5A0',
+                                      'lower-back': '#5BF5A0',
+                                      abs: '#C8A0FF',
+                                      obliques: '#C8A0FF',
+                                      quads: '#FFAA50',
+                                      hamstrings: '#FFAA50',
+                                      glutes: '#FFAA50',
+                                      calves: '#FFAA50',
+                                    }
+                                    const color = SLUG_COLORS[slug] || 'rgba(255,255,255,0.4)'
+                                    const label = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ')
+                                    return (
+                                      <span
+                                        key={slug}
+                                        className="text-[9px] font-semibold px-[7px] py-[3px] rounded-full"
+                                        style={{ color, background: `${color}14` }}
+                                      >
+                                        {label}
+                                      </span>
+                                    )
+                                  })}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowStartRecoveryInfo(true)}
+                                  className="mt-1.5 w-full py-0.5 text-left text-[9px] font-medium text-white/20 hover:text-white/36 active:text-white/42 transition-colors"
+                                  aria-label="More about recovery for this day"
+                                >
+                                  Tap for more info
+                                </button>
+                              </div>
+                            )
+                          })()}
+
+                          {!workoutActive && (
+                            <button
+                              type="button"
+                              onClick={() => tryStart('routine', displayRtn)}
+                              className="w-full py-4 rounded-2xl font-bold text-[15px] text-white flex items-center justify-center gap-2.5 active:opacity-95"
+                              style={{ background: 'linear-gradient(135deg, #7b7fff, #6060dd)', boxShadow: '0 8px 24px rgba(123,127,255,0.28)' }}
+                              aria-label={`Start ${displayRtn?.name || 'workout'}`}
+                            >
+                              <span
+                                className="inline-block w-0 h-0 border-y-[6px] border-y-transparent border-l-[10px] border-l-white shrink-0 animate-start-play-triangle"
+                                style={{ marginLeft: 2 }}
+                                aria-hidden
+                              />
+                              Start
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex gap-1.5 h-5 mb-0 items-stretch">
-                      {routineIds.map((rtnId, i) => (
-                        <div key={rtnId} className="flex-1 min-w-0 flex justify-center">
-                          {i === selectedIdx ? (
-                            <div className="routine-connector-line" />
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                    {displayRtn && (
-                    <div className="border-[1.5px] border-[rgba(0,229,160,0.25)] rounded-[14px] p-4 bg-[rgba(0,229,160,0.05)] mb-5">
-                      {workoutActive && !emptyInProgress && (
-                        <div className="inline-flex items-center rounded-full px-3 py-1 mb-3 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
-                          <span className="text-[11px] font-extrabold tracking-[0.8px] text-[#00e5a0]">IN PROGRESS</span>
-                        </div>
-                      )}
-                      {!workoutActive && displayRtnId === nextRtnId && (
-                        <div className="inline-flex items-center rounded-full px-3 py-1 mb-3 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
-                          <span className="text-[11px] font-extrabold tracking-[0.8px] text-[#00e5a0]">UP NEXT</span>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-3 gap-2 mb-2">
-                        <div className="min-h-[72px] rounded-2xl border border-white/[0.06] bg-white/[0.03] flex flex-col items-center justify-center gap-0.5 p-3">
-                          <span className="text-[20px] font-extrabold text-text leading-none">{exCount}</span>
-                          <span className="text-[9px] font-bold tracking-wider uppercase text-white/40">Exercises</span>
-                        </div>
-                        <div className="min-h-[72px] rounded-2xl border border-white/[0.06] bg-white/[0.03] flex flex-col items-center justify-center gap-0.5 p-3">
-                          <span className="text-[20px] font-extrabold text-text leading-none">{setCountR}</span>
-                          <span className="text-[9px] font-bold tracking-wider uppercase text-white/40">Sets</span>
-                        </div>
-                        <div className="min-h-[72px] rounded-2xl border border-white/[0.06] bg-white/[0.03] flex flex-col items-center justify-center gap-0.5 p-3">
-                          <span className="text-[20px] font-extrabold text-text leading-none">{estMin}</span>
-                          <span className="text-[9px] font-bold tracking-wider uppercase text-white/40">EST. MINUTES</span>
-                        </div>
-                      </div>
-                      {!workoutActive && (
-                        <RecoverySection
-                          muscles={dayMuscles}
-                          muscleLastWorked={muscleLastWorked}
-                          dayName={displayRtn.name}
-                        />
-                      )}
-                      {!workoutActive && (
-                        <button
-                          type="button"
-                          onClick={() => tryStart('routine', displayRtn)}
-                          className="w-full py-4 rounded-2xl font-bold text-[15px] text-white flex items-center justify-center gap-2.5 active:opacity-95"
-                          style={{ background: 'linear-gradient(135deg, #7b7fff, #6060dd)', boxShadow: '0 8px 24px rgba(123,127,255,0.28)' }}
-                          aria-label={`Start ${displayRtn?.name || 'workout'}`}
-                        >
-                          <span
-                            className="inline-block w-0 h-0 border-y-[6px] border-y-transparent border-l-[10px] border-l-white shrink-0 animate-start-play-triangle"
-                            style={{ marginLeft: 2 }}
-                            aria-hidden
-                          />
-                          Start
-                        </button>
-                      )}
-                    </div>
-                    )}
                     <button
                       type="button"
                       onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
@@ -2757,6 +2844,14 @@ ${JSON.stringify(ctx)}`
                         <div className="text-xs text-white/35 mt-0.5">{emptyInProgress ? 'Tap to open workout' : 'Start fresh and add exercises as you go'}</div>
                       </div>
                     </button>
+                    {showStartRecoveryInfo && displayRtn ? (
+                      <RecoveryModal
+                        muscles={dayMuscles}
+                        muscleLastWorked={muscleLastWorked}
+                        dayName={displayRtn.name}
+                        onClose={() => setShowStartRecoveryInfo(false)}
+                      />
+                    ) : null}
                   </>
                 )
               })()}
@@ -3637,6 +3732,7 @@ ${JSON.stringify(ctx)}`
             setRoutineEditorSupersetMenuForId(null)
             setRoutineEditorRestForIndex(null)
             setRoutineEditorNoteForIndex(null)
+            setRoutineEditorRemoveNoteConfirmForExerciseId(null)
           }
           const RoutineReorderButtons = ({ blockIndex }) => {
             const reorderLocked = routineLinkMode.active
@@ -3674,6 +3770,7 @@ ${JSON.stringify(ctx)}`
             setEditingRoutineProgrammeId(null)
             setRoutineEditorRestForIndex(null)
             setRoutineEditorNoteForIndex(null)
+            setRoutineEditorRemoveNoteConfirmForExerciseId(null)
             setRoutineEditorTriedSave(false)
             setRoutineEditorConfirmEmptyExercises(false)
             setFocusNewExerciseAt(null)
@@ -3684,6 +3781,7 @@ ${JSON.stringify(ctx)}`
             }
           }
           return (
+            <>
             <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={closeRoutineEditor}>
               <div className="w-full max-w-md bg-page rounded-t-[20px] pt-2 pb-10 px-4 max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="w-9 h-1 bg-handle rounded mx-auto mb-3 shrink-0" />
@@ -3818,7 +3916,14 @@ ${JSON.stringify(ctx)}`
                         {note && routineEditorNoteForIndex !== i && (
                           <div className="flex items-start gap-2 mb-2 px-3 py-2 bg-card-alt rounded-lg border border-border-strong">
                             <span className="text-sm text-muted italic flex-1 min-w-0 break-words whitespace-pre-wrap">{note}</span>
-                            <button type="button" onClick={() => updateNote('')} className="text-muted-mid hover:text-red-400 shrink-0">✕</button>
+                            <button
+                              type="button"
+                              onClick={() => setRoutineEditorRemoveNoteConfirmForExerciseId(ex.id)}
+                              className="text-muted-mid hover:text-red-400 transition-colors shrink-0"
+                              aria-label="Remove note"
+                            >
+                              <DeleteTrashGlyph className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         )}
                         {routineEditorRestForIndex === i && (
@@ -3927,8 +4032,8 @@ ${JSON.stringify(ctx)}`
                       return
                     }
                     if (isEdit) { saveRoutineEdits(editingRoutineId, editRoutineName, editRoutineExercises); closeRoutineEditor() }
-                    else if (programmeId) { addRoutineToProgramme(programmeId, { name: editRoutineName, exercises: editRoutineExercises }); setProgrammes(prev => prev.map(p => p.id === programmeId ? { ...p, name: (editProgrammeName.trim() || p.name) } : p)); setShowCreateRoutine(false); setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineProgrammeId(null); setEditingProgrammeId(programmeId); setEditProgrammeName(programmes.find(p => p.id === programmeId)?.name || ''); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
-                    else { setCreateProgrammeRoutines(prev => [...prev, { name: editRoutineName, exercises: editRoutineExercises }]); setShowCreateRoutine(false); setShowCreateProgramme(true); setEditRoutineName(''); setEditRoutineExercises([]); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null) }
+                    else if (programmeId) { addRoutineToProgramme(programmeId, { name: editRoutineName, exercises: editRoutineExercises }); setProgrammes(prev => prev.map(p => p.id === programmeId ? { ...p, name: (editProgrammeName.trim() || p.name) } : p)); setShowCreateRoutine(false); setEditRoutineName(''); setEditRoutineExercises([]); setEditingRoutineProgrammeId(null); setEditingProgrammeId(programmeId); setEditProgrammeName(programmes.find(p => p.id === programmeId)?.name || ''); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null); setRoutineEditorRemoveNoteConfirmForExerciseId(null) }
+                    else { setCreateProgrammeRoutines(prev => [...prev, { name: editRoutineName, exercises: editRoutineExercises }]); setShowCreateRoutine(false); setShowCreateProgramme(true); setEditRoutineName(''); setEditRoutineExercises([]); setRoutineEditorRestForIndex(null); setRoutineEditorNoteForIndex(null); setRoutineEditorRemoveNoteConfirmForExerciseId(null) }
                     setRoutineEditorTriedSave(false)
                     setRoutineEditorConfirmEmptyExercises(false)
                   }} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold">Save</button>
@@ -3936,6 +4041,45 @@ ${JSON.stringify(ctx)}`
                 </div>
               </div>
             </div>
+            {routineEditorRemoveNoteConfirmForExerciseId && (
+              <div
+                className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[50] px-6"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="routine-remove-note-title"
+                onClick={() => setRoutineEditorRemoveNoteConfirmForExerciseId(null)}
+              >
+                <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-7 text-center" onClick={(e) => e.stopPropagation()}>
+                  <DeleteTrashBadge />
+                  <h2 id="routine-remove-note-title" className="text-text text-lg font-bold mb-2">
+                    Remove note?
+                  </h2>
+                  <p className="text-muted text-sm mb-5">This exercise note will be permanently cleared.</p>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setRoutineEditorRemoveNoteConfirmForExerciseId(null)}
+                      className="flex-1 py-3 border border-border-strong rounded-xl text-muted text-sm font-semibold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = routineEditorRemoveNoteConfirmForExerciseId
+                        setRoutineEditorRemoveNoteConfirmForExerciseId(null)
+                        if (id) setEditRoutineExercises((prev) => prev.map((e) => (e.id === id ? { ...e, note: '' } : e)))
+                      }}
+                      className="flex-1 py-3 bg-[#FF5555] rounded-xl text-text text-sm font-bold inline-flex items-center justify-center gap-2"
+                    >
+                      <DeleteTrashGlyph className="w-4 h-4 shrink-0" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
           )
         })()}
 

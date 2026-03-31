@@ -100,7 +100,7 @@ export default function PricingSheet({ open, onClose, userId, userPlan, onPlanCh
   const proExtra = [
     '4 AI programmes / month',
     '20 REPLIQE Coach messages / month',
-    '50 progress photos / month',
+    '50 progress photos (total)',
   ]
 
   const eliteExtra = [

@@ -43,6 +43,7 @@ export default function ProgressBody({
   userPlan = 'free',
   planUsage: planUsageProp,
   onProgressPhotoAdded,
+  onProgressPhotoRemoved,
 }) {
   const planUsage = planUsageProp ?? defaultPlanUsage()
   const fmt = formatDecimal ?? ((n, decimals) => (n != null ? (decimals != null ? Number(n).toFixed(decimals) : String(n)) : '—'))
@@ -89,8 +90,7 @@ export default function ProgressBody({
 
   const totalPhotos = countProgressPhotoSlots(safePhotoSessions)
   const atLimit = photoAtLimit(userPlan, totalPhotos, planUsage)
-  const progressPhotoBarUsed =
-    userPlan === 'pro' || userPlan === 'elite' ? planUsage.progressPhotosThisPeriod : totalPhotos
+  const progressPhotoBarUsed = totalPhotos
   const progressPhotoBarCap = userPlan === 'elite' ? null : userPlan === 'pro' ? 50 : 12
 
   function filterLog(log) {
@@ -333,13 +333,14 @@ export default function ProgressBody({
           onOpenAddPhotos={() => {
             if (atLimit) {
               alert(
-                "You've reached your progress photo limit for your current plan. You can delete older photos, upgrade under Profile → Account, or wait until next month if you're on Pro."
+                "You've reached your progress photo limit for your current plan. You can delete older photos or upgrade under Profile → Account."
               )
               return
             }
             setOpenPhotosToAdd(true)
             setShowPhotos(true)
           }}
+          onProgressPhotoRemoved={onProgressPhotoRemoved}
         />
         </div>
       </div>
@@ -413,6 +414,7 @@ export default function ProgressBody({
               : undefined
           }
           onProgressPhotoAdded={onProgressPhotoAdded}
+          onProgressPhotoRemoved={onProgressPhotoRemoved}
         />
       )}
     </div>

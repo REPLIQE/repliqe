@@ -15,7 +15,7 @@ export const PLAN_LIMITS: Record<
   { aiProgrammes: number | null; coachMessages: number | null; photos: number | null; photosMonthly: boolean }
 > = {
   free: { aiProgrammes: 1, coachMessages: null, photos: 12, photosMonthly: false },
-  pro: { aiProgrammes: 4, coachMessages: 20, photos: 50, photosMonthly: true },
+  pro: { aiProgrammes: 4, coachMessages: 20, photos: 50, photosMonthly: false },
   elite: { aiProgrammes: 12, coachMessages: 60, photos: null, photosMonthly: true },
 }
 
@@ -67,11 +67,11 @@ export function countCoachProgrammes(programmes: unknown[] | null | undefined): 
   }).length
 }
 
-export function photoAtLimit(userPlan: UserPlan, totalPhotos: number, usage: PlanUsage): boolean {
+export function photoAtLimit(userPlan: UserPlan, totalPhotos: number, _usage: PlanUsage): boolean {
   const lim = PLAN_LIMITS[userPlan]
   if (userPlan === 'elite') return false
   if (userPlan === 'free') return totalPhotos >= (lim.photos ?? 12)
-  if (userPlan === 'pro') return usage.progressPhotosThisPeriod >= (lim.photos ?? 50)
+  if (userPlan === 'pro') return totalPhotos >= (lim.photos ?? 50)
   return false
 }
 
@@ -97,7 +97,7 @@ export async function incrementPlanUsage(
     periodKey: u.periodKey,
     coachGenerations: u.coachGenerations + (delta.coachGenerations ?? 0),
     coachProgrammesSaved: u.coachProgrammesSaved + (delta.coachProgrammesSaved ?? 0),
-    progressPhotosThisPeriod: u.progressPhotosThisPeriod + (delta.progressPhotos ?? 0),
+    progressPhotosThisPeriod: Math.max(0, u.progressPhotosThisPeriod + (delta.progressPhotos ?? 0)),
   }
   await updateDoc(ref, { planUsage: u })
   return u

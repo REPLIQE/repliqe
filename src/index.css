@@ -19,7 +19,7 @@ body {
 /* ========== Repliqe — Bone Theme Design (data-theme) ========== */
 /* Default: Dark theme */
 :root {
-  /* Progress photos: single aspect ratio everywhere (3:4 portrait) */
+  /* Progress photos: placeholder / loading frame; intrinsic ratio used once image is measured */
   --progress-photo-ratio: 3 / 4;
 
   /* Backgrounds */

@@ -1,13 +1,37 @@
+import { useState, useEffect } from 'react'
+
 /**
- * Single reusable progress-photo display. Uses global aspect ratio and optional crop.
- * Use everywhere a progress photo is shown (overview, gallery, compare, fullscreen).
+ * Progress-photo display: optional crop; frame matches image intrinsic aspect once loaded
+ * (fallback 3:4 from CSS while loading) so originals are not cropped to a fixed ratio.
  */
 const DEFAULT_CROP = { x: 0, y: 0, scale: 1 }
 
 export default function ProgressPhoto({ src, crop, className = '', onClick, children }) {
   const c = crop && typeof crop.scale === 'number' ? crop : DEFAULT_CROP
+  const [aspectRatio, setAspectRatio] = useState(null)
+
+  useEffect(() => {
+    setAspectRatio(null)
+    if (!src) return undefined
+    let cancelled = false
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      if (!cancelled && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        setAspectRatio(`${img.naturalWidth} / ${img.naturalHeight}`)
+      }
+    }
+    img.onerror = () => {
+      if (!cancelled) setAspectRatio(null)
+    }
+    img.src = src
+    return () => {
+      cancelled = true
+    }
+  }, [src])
+
   const style = {
-    aspectRatio: 'var(--progress-photo-ratio)',
+    aspectRatio: aspectRatio ?? 'var(--progress-photo-ratio)',
   }
 
   return (

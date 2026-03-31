@@ -173,6 +173,7 @@ export default function ProgressOverview({
   userPlan = 'free',
   planUsage: planUsageProp,
   onProgressPhotoAdded,
+  onProgressPhotoRemoved,
 }) {
   const planUsage = planUsageProp ?? defaultPlanUsage()
   const fmtDate = formatDateForDisplay ?? ((d) => d ?? '')
@@ -189,8 +190,7 @@ export default function ProgressOverview({
   const safePhotoSessions = Array.isArray(photoSessions) ? photoSessions : []
   const overviewPhotoTotal = countProgressPhotoSlots(safePhotoSessions)
   const overviewPhotoAtLimit = photoAtLimit(userPlan, overviewPhotoTotal, planUsage)
-  const overviewPhotoBarUsed =
-    userPlan === 'pro' || userPlan === 'elite' ? planUsage.progressPhotosThisPeriod : overviewPhotoTotal
+  const overviewPhotoBarUsed = overviewPhotoTotal
   const overviewPhotoBarCap = userPlan === 'elite' ? null : userPlan === 'pro' ? 50 : 12
   const sortedPhotoSessions = sortPhotoSessionsByDate(safePhotoSessions)
   const safeMuscleLastWorked = muscleLastWorked && typeof muscleLastWorked === 'object' ? muscleLastWorked : {}
@@ -545,6 +545,7 @@ export default function ProgressOverview({
           muscleMassLog={safeMuscleMassLog}
           unitWeight={unitWeight ?? 'kg'}
           onProgressPhotoAdded={onProgressPhotoAdded}
+          onProgressPhotoRemoved={onProgressPhotoRemoved}
         />
       )}
     </div>
@@ -668,9 +669,9 @@ function SessionPhotosCropped({ session, dateLabel }) {
           const crop = session?.crops?.[key]
           return (
             <div key={key} className="flex-1 min-w-0 flex flex-col items-center gap-0.5">
-              <div className="w-full rounded-lg overflow-hidden border border-border bg-card-deep" style={{ aspectRatio: 'var(--progress-photo-ratio)' }}>
+              <div className="w-full rounded-lg overflow-hidden border border-border bg-card-deep">
                 {file && src ? (
-                  <ProgressPhoto src={src} crop={crop} className="w-full h-full rounded-lg" />
+                  <ProgressPhoto src={src} crop={crop} className="w-full rounded-lg" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <span className="text-[8px] text-muted">—</span>
