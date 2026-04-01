@@ -209,14 +209,40 @@ async function savePhoto(base64Data, filename, uid) {
   throw new Error('Could not save photo (sign in to sync photos)')
 }
 
-function loadImageFromSrc(src) {
-  return new Promise((resolve, reject) => {
-    if (!src) {
-      reject(new Error('No image source'))
-      return
+/**
+ * Pixeldata til canvas / toDataURL: fetch → Blob → ImageBitmap undgår ofte fejl hvor <img crossOrigin>
+ * giver snavset canvas på Firebase Storage-URL'er.
+ */
+async function loadImageForBake(src) {
+  if (!src) throw new Error('No image source')
+
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const blob =
+        src.startsWith('data:') || src.startsWith('blob:')
+          ? await fetch(src).then((r) => {
+              if (!r.ok) throw new Error(String(r.status))
+              return r.blob()
+            })
+          : await fetch(src, { mode: 'cors', credentials: 'omit', cache: 'no-cache' }).then((r) => {
+              if (!r.ok) throw new Error(String(r.status))
+              return r.blob()
+            })
+      try {
+        return await createImageBitmap(blob, { imageOrientation: 'from-image' })
+      } catch {
+        return await createImageBitmap(blob)
+      }
+    } catch (e) {
+      console.warn('[REPLIQE] loadImageForBake fetch/ImageBitmap failed, prøver <img>:', e?.message || e)
     }
+  }
+
+  return new Promise((resolve, reject) => {
     const img = new Image()
-    img.crossOrigin = 'anonymous'
+    if (!src.startsWith('data:') && !src.startsWith('blob:')) {
+      img.crossOrigin = 'anonymous'
+    }
     img.onload = () => resolve(img)
     img.onerror = () => reject(new Error('Image load failed'))
     img.src = src
@@ -226,10 +252,20 @@ function loadImageFromSrc(src) {
 /** Ved ikke-default crop: erstat fil med baget udsnit (fuld MAX_PHOTO_PX), nulstil crop-metadata. */
 async function bakeAndReplaceProgressPhoto(filename, imageSrc, crop, uid) {
   if (isDefaultCrop(crop)) return { baked: false }
-  const img = await loadImageFromSrc(imageSrc)
-  const clean = bakeProgressPhotoCropToJpegBase64(img, crop, MAX_PHOTO_PX, PHOTO_QUALITY)
-  await savePhoto(clean, filename, uid)
-  return { baked: true, dataUrl: `data:image/jpeg;base64,${clean}` }
+  const img = await loadImageForBake(imageSrc)
+  try {
+    const clean = bakeProgressPhotoCropToJpegBase64(img, crop, MAX_PHOTO_PX, PHOTO_QUALITY)
+    await savePhoto(clean, filename, uid)
+    return { baked: true, dataUrl: `data:image/jpeg;base64,${clean}` }
+  } finally {
+    if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) {
+      try {
+        img.close()
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 }
 
 export default function PhotosModal({
