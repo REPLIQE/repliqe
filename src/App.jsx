@@ -3270,13 +3270,13 @@ ${JSON.stringify(ctx)}`
                                     : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
                                 }`}
                               >
-                                <div className={`${TYPE_BODY_SM_SEMIBOLD} sm:text-[12px] truncate leading-tight ${isActive ? 'text-plan-hover' : 'text-[var(--plan-text-row)]'}`}>{r.name}</div>
-                                <div className={`${TYPE_MICRO} sm:text-[10px] mt-1 tabular-nums leading-snug font-medium ${isActive ? 'text-white/65' : 'text-white/50'}`}>
+                                <div className={`${TYPE_BODY_SM_SEMIBOLD} sm:text-[13px] truncate leading-tight ${isActive ? 'text-plan-hover' : 'text-[var(--plan-text-row)]'}`}>{r.name}</div>
+                                <div className={`${TYPE_MICRO} sm:text-[11px] mt-1 tabular-nums leading-snug font-medium ${isActive ? 'text-white/65' : 'text-white/50'}`}>
                                   {meta.exCount} ex · {meta.setCount} sets
                                 </div>
                                 {focusStr ? (
                                   <div
-                                    className={`${TYPE_META} sm:text-[9px] mt-1 leading-snug line-clamp-2 font-medium ${isActive ? 'text-[var(--plan-text-focus-secondary)]' : 'text-white/42'}`}
+                                    className={`${TYPE_META} sm:text-[10px] mt-1 leading-snug line-clamp-2 font-medium ${isActive ? 'text-[var(--plan-text-focus-secondary)]' : 'text-white/42'}`}
                                     title={meta.focusLabels.join(', ')}
                                   >
                                     {focusStr}

@@ -406,7 +406,7 @@ select:focus-visible {
 [data-theme='dark'] div.plan-tab div.plan-section-title[role='heading'] {
   display: block;
   margin: 0 0 0.75rem;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -417,7 +417,7 @@ select:focus-visible {
 [data-theme='bone'] div.plan-tab div.plan-section-title[role='heading'] {
   display: block;
   margin: 0 0 0.75rem;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -672,7 +672,7 @@ input:focus-visible:invalid {
 
 /* Progress tab: section labels */
 .sec {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -682,7 +682,7 @@ input:focus-visible:invalid {
 
 .progress-section-label {
   color: #888;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   margin: 0 0 8px;
 }

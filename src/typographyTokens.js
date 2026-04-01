@@ -2,7 +2,7 @@
  * Top 10 #6 — Typografi-roller (minimal skala).
  * Brug som `className={\`${TYPE_BODY} …\`}` og tilføj farve/font-modifikatorer efter behov.
  *
- * Afstand mellem trin er ~1px (“diskret løft” jan. 2026) for bedre læsbarhed uden tung UI.
+ * Brød ~15px (tættere på platform-vaner); display/store tal er bevidst ikke skruet yderligere op.
  */
 
 /** Sektions-overline (uppercase, tracking) */
@@ -21,29 +21,29 @@ export const TYPE_LABEL_UPPER = 'text-[10px] font-bold text-muted uppercase trac
 export const TYPE_META = 'text-[11px] text-muted'
 
 /** Primær brød, lister, søgefelt-input */
-export const TYPE_BODY = 'text-[14px] text-text'
+export const TYPE_BODY = 'text-[15px] text-text'
 
-export const TYPE_BODY_SEMIBOLD = 'text-[14px] font-semibold text-text'
+export const TYPE_BODY_SEMIBOLD = 'text-[15px] font-semibold text-text'
 
 /** Kompakt brød, chips, procent-badges */
-export const TYPE_BODY_SM = 'text-[13px]'
+export const TYPE_BODY_SM = 'text-[14px]'
 
-export const TYPE_BODY_SM_SEMIBOLD = 'text-[13px] font-semibold text-text'
+export const TYPE_BODY_SM_SEMIBOLD = 'text-[14px] font-semibold text-text'
 
 /** Kort- / række-titel */
-export const TYPE_TITLE_ROW = 'text-[15px] font-bold text-text'
+export const TYPE_TITLE_ROW = 'text-[16px] font-bold text-text'
 
 /** Kompakt tal-blok (fx “at that time”) */
-export const TYPE_NUMBER_COMPACT = 'text-[15px] font-extrabold text-text'
+export const TYPE_NUMBER_COMPACT = 'text-[16px] font-extrabold text-text'
 
 /** Blok-titel (deep-dive, m.m.) */
-export const TYPE_TITLE_BLOCK = 'text-[16px] font-extrabold text-text'
+export const TYPE_TITLE_BLOCK = 'text-[17px] font-extrabold text-text'
 
 /** Modaldialog titel */
-export const TYPE_TITLE_MODAL = 'text-[16px] font-bold text-text'
+export const TYPE_TITLE_MODAL = 'text-[17px] font-bold text-text'
 
 /** Bottom sheet / modal titel */
-export const TYPE_SHEET_TITLE = 'text-[18px] font-extrabold text-text'
+export const TYPE_SHEET_TITLE = 'text-[19px] font-extrabold text-text'
 
 /** Store tal (overview stat tiles) */
 export const TYPE_DISPLAY = 'text-[21px] font-extrabold text-text leading-none'
@@ -64,7 +64,7 @@ export const TYPE_UNIT_SUFFIX = 'text-[11px] text-muted font-semibold'
 export const TYPE_MICRO = 'text-[12px] text-muted'
 
 /** Under-titel i sheet (accent) */
-export const TYPE_SUBTITLE = 'text-[13px] font-semibold text-accent'
+export const TYPE_SUBTITLE = 'text-[14px] font-semibold text-accent'
 
 /** Lille fremhævet linje (delta, links) */
 export const TYPE_EMPHASIS_SM = 'text-[11px] font-bold'
@@ -81,7 +81,7 @@ export const TYPE_LABEL_MICRO = 'text-[9px] font-bold text-muted uppercase track
 export const TYPE_LABEL_FORM = 'text-[11px] font-semibold text-muted uppercase tracking-wider'
 
 /** Side-/paneloverskrift (fx Photos) */
-export const TYPE_HEADING_PAGE = 'text-[19px] font-extrabold text-text'
+export const TYPE_HEADING_PAGE = 'text-[20px] font-extrabold text-text'
 
 /** Overline med muted-mid (workout complete m.m.) */
 export const TYPE_OVERLINE_MID = 'text-[11px] font-bold text-muted-mid uppercase tracking-wider'
