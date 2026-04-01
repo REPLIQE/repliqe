@@ -5,7 +5,7 @@ import ProgressPhoto from './ProgressPhoto'
 import ProgressPhotoEditor from './ProgressPhotoEditor'
 import { bakeProgressPhotoCropToJpegBase64, isDefaultCrop } from './progressPhotoBake'
 import { useAuth } from './lib/AuthContext'
-import { uploadProgressPhoto, getProgressPhotoUrl } from './lib/photoStorage'
+import { uploadProgressPhoto, getProgressPhotoUrl, getProgressPhotoBlob } from './lib/photoStorage'
 
 const ANGLES = [
   { key: 'front', label: 'Front' },
@@ -20,6 +20,15 @@ const ANGLES = [
 const MAX_PHOTO_PX = 1280
 /** JPEG quality 0–1 – lidt lavere end før for at kompensere for flere pixels vs 720. */
 const PHOTO_QUALITY = 0.8
+
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(message || `Timeout efter ${ms} ms`)), ms)
+    ),
+  ])
+}
 
 function getTodayEnGB() {
   return new Date().toLocaleDateString('en-GB')
@@ -203,41 +212,29 @@ async function savePhoto(base64Data, filename, uid) {
     }
   }
   if (uid) {
-    await uploadProgressPhoto(uid, filename, clean)
+    await withTimeout(uploadProgressPhoto(uid, filename, clean), 120000, 'Upload timeout — prøv igen')
     return filename
   }
   throw new Error('Could not save photo (sign in to sync photos)')
 }
 
-/**
- * Pixeldata til canvas / toDataURL: fetch → Blob → ImageBitmap undgår ofte fejl hvor <img crossOrigin>
- * giver snavset canvas på Firebase Storage-URL'er.
- */
-async function loadImageForBake(src) {
-  if (!src) throw new Error('No image source')
-
-  if (typeof createImageBitmap === 'function') {
+async function blobToImageBitmap(blob) {
+  if (typeof createImageBitmap !== 'function') {
+    throw new Error('createImageBitmap not supported')
+  }
+  /* Uden imageOrientation først — from-image kan hænge på nogle Safari/JPEG-kombinationer */
+  try {
+    return await createImageBitmap(blob)
+  } catch {
     try {
-      const blob =
-        src.startsWith('data:') || src.startsWith('blob:')
-          ? await fetch(src).then((r) => {
-              if (!r.ok) throw new Error(String(r.status))
-              return r.blob()
-            })
-          : await fetch(src, { mode: 'cors', credentials: 'omit', cache: 'no-cache' }).then((r) => {
-              if (!r.ok) throw new Error(String(r.status))
-              return r.blob()
-            })
-      try {
-        return await createImageBitmap(blob, { imageOrientation: 'from-image' })
-      } catch {
-        return await createImageBitmap(blob)
-      }
-    } catch (e) {
-      console.warn('[REPLIQE] loadImageForBake fetch/ImageBitmap failed, prøver <img>:', e?.message || e)
+      return await createImageBitmap(blob, { imageOrientation: 'from-image' })
+    } catch {
+      throw new Error('Kunne ikke afkode billedet')
     }
   }
+}
 
+function loadImageElement(src) {
   return new Promise((resolve, reject) => {
     const img = new Image()
     if (!src.startsWith('data:') && !src.startsWith('blob:')) {
@@ -249,10 +246,82 @@ async function loadImageForBake(src) {
   })
 }
 
+const BITMAP_DECODE_MS = 20000
+
+/** Blob → ImageBitmap (med timeout) eller HTMLImageElement via object URL — til canvas-bagning. */
+async function decodeBlobToDrawable(blob) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      return await withTimeout(blobToImageBitmap(blob), BITMAP_DECODE_MS, 'Bitmap decode timeout')
+    } catch (e) {
+      console.warn('[REPLIQE] bitmap decode, fallback Image:', e?.message || e)
+    }
+  }
+  const url = URL.createObjectURL(blob)
+  try {
+    return await withTimeout(loadImageElement(url), 25000, 'Billedindlæsning (blob)')
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+/**
+ * Dekoder til ImageBitmap eller HTMLImageElement til bagning.
+ * For https: prøv <img> først (samme URL som editoren → cache, undgår fetch 30s + getBlob 30s).
+ */
+async function decodeImageForBake(imageSrc, uid, filename) {
+  if (!imageSrc) throw new Error('No image source')
+
+  if (imageSrc.startsWith('data:') || imageSrc.startsWith('blob:')) {
+    const blob = await withTimeout(
+      fetch(imageSrc).then((r) => {
+        if (!r.ok) throw new Error(String(r.status))
+        return r.blob()
+      }),
+      30000,
+      'Kunne ikke læse billeddata'
+    )
+    return decodeBlobToDrawable(blob)
+  }
+
+  /* HTTPS: samme kilde som ProgressPhoto-editor — ofte øjeblikkelig fra disk-/HTTP-cache */
+  if (imageSrc.startsWith('http')) {
+    try {
+      return await withTimeout(loadImageElement(imageSrc), 25000, 'Billedindlæsning timeout')
+    } catch (e) {
+      console.warn('[REPLIQE] decodeImageForBake img https first:', e?.message || e)
+    }
+    try {
+      const blob = await withTimeout(
+        fetch(imageSrc, { mode: 'cors', credentials: 'omit', cache: 'no-cache' }).then((r) => {
+          if (!r.ok) throw new Error(String(r.status))
+          return r.blob()
+        }),
+        30000,
+        'Download af foto timeout'
+      )
+      return decodeBlobToDrawable(blob)
+    } catch (e) {
+      console.warn('[REPLIQE] decodeImageForBake fetch https:', e?.message || e)
+    }
+  }
+
+  if (uid && filename) {
+    try {
+      const blob = await withTimeout(getProgressPhotoBlob(uid, filename), 30000, 'Firebase getBlob timeout')
+      return decodeBlobToDrawable(blob)
+    } catch (e) {
+      console.warn('[REPLIQE] getProgressPhotoBlob:', e?.message || e)
+    }
+  }
+
+  return withTimeout(loadImageElement(imageSrc), 35000, 'Billedindlæsning timeout')
+}
+
 /** Ved ikke-default crop: erstat fil med baget udsnit (fuld MAX_PHOTO_PX), nulstil crop-metadata. */
 async function bakeAndReplaceProgressPhoto(filename, imageSrc, crop, uid) {
   if (isDefaultCrop(crop)) return { baked: false }
-  const img = await loadImageForBake(imageSrc)
+  const img = await decodeImageForBake(imageSrc, uid, filename)
   try {
     const clean = bakeProgressPhotoCropToJpegBase64(img, crop, MAX_PHOTO_PX, PHOTO_QUALITY)
     await savePhoto(clean, filename, uid)
@@ -301,10 +370,18 @@ export default function PhotosModal({
   const initialPhotoSessionsRef = useRef(null)
   /** Angles that already triggered onProgressPhotoAdded this capture (retake does not re-add). */
   const progressQuotaAnglesRef = useRef(new Set())
+  /** Stabilt ved async save (undgår at captureCropEditorAngle er null i closure). */
+  const captureCropSaveRef = useRef({ sid: null, angle: null })
   const [captureCropEditorAngle, setCaptureCropEditorAngle] = useState(null)
   const [captureAnglePendingDelete, setCaptureAnglePendingDelete] = useState(null)
   /** Which angle's photo the user tapped to show crop/delete options (capture flow only). */
   const [captureAngleActionSheet, setCaptureAngleActionSheet] = useState(null)
+
+  useEffect(() => {
+    if (captureCropEditorAngle && capturedImages._sessionId) {
+      captureCropSaveRef.current = { sid: capturedImages._sessionId, angle: captureCropEditorAngle }
+    }
+  }, [captureCropEditorAngle, capturedImages._sessionId])
 
   const canAddPhotos = typeof setPhotoSessions === 'function'
   const isNative = isNativePlatform()
@@ -580,8 +657,7 @@ export default function PhotosModal({
           src={captureThumbSrcs[captureCropEditorAngle]}
           initialCrop={captureSessionPartial?.crops?.[captureCropEditorAngle]}
           onSave={async (crop) => {
-            const sid = capturedImages._sessionId
-            const angle = captureCropEditorAngle
+            const { sid, angle } = captureCropSaveRef.current
             if (!sid || !angle || typeof setPhotoSessions !== 'function') return
             const filename = `${sid}_${angle}.jpg`
             const imageSrc = captureThumbSrcs[angle]
@@ -631,6 +707,7 @@ export default function PhotosModal({
               onClick={() => {
                 const k = captureAngleActionSheet
                 setCaptureAngleActionSheet(null)
+                captureCropSaveRef.current = { sid: capturedImages._sessionId, angle: k }
                 setCaptureCropEditorAngle(k)
               }}
             >

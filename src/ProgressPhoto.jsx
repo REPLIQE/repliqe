@@ -1,4 +1,5 @@
 import { useState, useLayoutEffect, useRef, useEffect, useCallback } from 'react'
+import { normalizeCrop } from './progressPhotoBake'
 
 /**
  * Ét canvas i slot-størrelse: object-contain + crop bages i samme draw (samme som
@@ -38,8 +39,8 @@ function scheduleRevealSequence(revealGenRef, snapshot, setBitmapReady, setPlace
 }
 
 export default function ProgressPhoto({ src, crop, className = '', onClick, children }) {
-  const c = crop && typeof crop.scale === 'number' ? crop : DEFAULT_CROP
-  const cropKey = `${Number(c.x)}|${Number(c.y)}|${Number(c.scale)}`
+  const c = normalizeCrop(crop)
+  const cropKey = `${c.x}|${c.y}|${c.scale}`
 
   const [bitmapReady, setBitmapReady] = useState(false)
   const [placeholderLifted, setPlaceholderLifted] = useState(false)

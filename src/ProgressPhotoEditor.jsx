@@ -1,15 +1,15 @@
 import { useState, useRef, useCallback } from 'react'
 import { DEFAULT_CROP } from './ProgressPhoto'
+import { normalizeCrop } from './progressPhotoBake'
 
 const MIN_SCALE = 1
 const MAX_SCALE = 4
 const SCALE_STEP = 0.1
 
 export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose }) {
-  const crop = initialCrop && typeof initialCrop.scale === 'number'
-    ? { ...initialCrop }
-    : { ...DEFAULT_CROP }
-  const [current, setCurrent] = useState(crop)
+  const [current, setCurrent] = useState(() =>
+    initialCrop ? normalizeCrop(initialCrop) : { ...DEFAULT_CROP }
+  )
   const [saving, setSaving] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const dragStart = useRef({ x: 0, y: 0, cropX: 0, cropY: 0 })
@@ -72,9 +72,28 @@ export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose 
   }, [])
 
   const handleReset = () => setCurrent({ ...DEFAULT_CROP })
-  const handleSave = () => {
-    onSave({ x: current.x, y: current.y, scale: current.scale })
-    onClose()
+  const SAVE_MAX_MS = 120000
+
+  const handleSave = async () => {
+    if (saving) return
+    const payload = normalizeCrop({ x: current.x, y: current.y, scale: current.scale })
+    setSaving(true)
+    try {
+      await Promise.race([
+        Promise.resolve(onSave?.(payload)),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Save tog for lang tid — prøv igen')), SAVE_MAX_MS)
+        ),
+      ])
+      onClose()
+    } catch (e) {
+      /* Timeout fra race — forælderen når ikke altid at vise fejl */
+      if (typeof alert !== 'undefined' && String(e?.message || '').includes('for lang tid')) {
+        alert(e.message)
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

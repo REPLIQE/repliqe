@@ -1,4 +1,4 @@
-import { ref, uploadString, getDownloadURL } from 'firebase/storage'
+import { ref, uploadString, getDownloadURL, getBlob } from 'firebase/storage'
 import { storage } from './firebase'
 
 const PROGRESS_PHOTOS_PATH = 'progressPhotos'
@@ -34,4 +34,14 @@ export async function getProgressPhotoUrl(
   } catch {
     return null
   }
+}
+
+/**
+ * Henter billedet som Blob via Firebase SDK (samme auth som upload).
+ * Undgår CORS/canvas “tainted”-problemer ved at bruge download-URL i fetch.
+ */
+export async function getProgressPhotoBlob(uid: string, filename: string): Promise<Blob> {
+  const path = `users/${uid}/${PROGRESS_PHOTOS_PATH}/${filename}`
+  const storageRef = ref(storage, path)
+  return getBlob(storageRef)
 }

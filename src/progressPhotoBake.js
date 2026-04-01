@@ -6,12 +6,21 @@
 /** Afstemt med --progress-photo-ratio i index.css (width / height). */
 export const PROGRESS_PHOTO_ASPECT = 3 / 4
 
+/** Firebase/JSON kan give strings — ens retning for visning og bagning. */
+export function normalizeCrop(crop) {
+  if (!crop) return { x: 0, y: 0, scale: 1 }
+  const s = Number(crop.scale)
+  if (!Number.isFinite(s)) return { x: 0, y: 0, scale: 1 }
+  return {
+    x: Number(crop.x) || 0,
+    y: Number(crop.y) || 0,
+    scale: s,
+  }
+}
+
 export function isDefaultCrop(crop) {
-  if (!crop || typeof crop.scale !== 'number') return true
-  const x = Number(crop.x) || 0
-  const y = Number(crop.y) || 0
-  const s = Number(crop.scale) || 1
-  return Math.abs(x) < 0.01 && Math.abs(y) < 0.01 && Math.abs(s - 1) < 0.01
+  const c = normalizeCrop(crop)
+  return Math.abs(c.x) < 0.01 && Math.abs(c.y) < 0.01 && Math.abs(c.scale - 1) < 0.01
 }
 
 /**
@@ -22,7 +31,7 @@ export function isDefaultCrop(crop) {
  * @returns {string} base64 uden data:-præfiks
  */
 export function bakeProgressPhotoCropToJpegBase64(img, crop, maxLongSide, quality) {
-  const c = crop && typeof crop.scale === 'number' ? crop : { x: 0, y: 0, scale: 1 }
+  const c = normalizeCrop(crop)
   const slotH = maxLongSide
   const slotW = Math.max(1, Math.round(maxLongSide * PROGRESS_PHOTO_ASPECT))
 
