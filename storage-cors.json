@@ -4,7 +4,13 @@
       "http://localhost:5173",
       "http://127.0.0.1:5173",
       "https://repliqe-710d2.web.app",
-      "https://repliqe-710d2.firebaseapp.com"
+      "https://repliqe-710d2.firebaseapp.com",
+      "https://repliqe.com",
+      "https://www.repliqe.com",
+      "capacitor://localhost",
+      "ionic://localhost",
+      "https://localhost",
+      "http://localhost"
     ],
     "method": ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS"],
     "responseHeader": [

@@ -273,6 +273,12 @@ async function decodeImageForBake(imageSrc, uid, filename) {
   if (!imageSrc) throw new Error('No image source')
 
   if (imageSrc.startsWith('data:') || imageSrc.startsWith('blob:')) {
+    /* Safari / iOS PWA / Capacitor: fetch(data:) + createImageBitmap fejler oftere end <img> → canvas */
+    try {
+      return await withTimeout(loadImageElement(imageSrc), 30000, 'Billedindlæsning (lokal URL)')
+    } catch (e) {
+      console.warn('[REPLIQE] decodeImageForBake data/blob via img:', e?.message || e)
+    }
     const blob = await withTimeout(
       fetch(imageSrc).then((r) => {
         if (!r.ok) throw new Error(String(r.status))
