@@ -9,7 +9,7 @@ import SupersetWrapper from './SupersetWrapper'
 import LinkModeBanner from './LinkModeBanner'
 import RirSheet from './RirSheet'
 import MuscleMapCard from './MuscleMapCard'
-import { getDayMuscles, getDayMusclesSlugs, formatMuscleLabel, formatDecimal as formatDecimalUtil, parseDecimal as parseDecimalUtil } from './utils'
+import { getDayMuscles, getDayMusclesSlugs, getRecoveryPct, formatMuscleLabel, formatDecimal as formatDecimalUtil, parseDecimal as parseDecimalUtil } from './utils'
 import { formatStoredDateForDisplay, DATE_FORMAT_DDMY, DATE_FORMAT_MMDY } from './dateFormatUtils'
 import { useAuth } from './lib/AuthContext'
 import LoginScreen from './lib/LoginScreen'
@@ -2759,14 +2759,7 @@ ${JSON.stringify(ctx)}`
                           {!workoutActive && (() => {
                             const allSlugs = [...new Set([...(dayMuscles.primary || []), ...(dayMuscles.secondary || [])])]
                             if (allSlugs.length === 0) return null
-                            const now = Date.now()
-                            const RECOVERY_MS = 48 * 60 * 60 * 1000
-                            const workedTimes = allSlugs.map((slug) =>
-                              muscleLastWorked?.[slug] ? new Date(muscleLastWorked[slug]).getTime() : 0
-                            )
-                            const avgWorked = workedTimes.reduce((a, b) => a + b, 0) / workedTimes.length
-                            const recoveryPct =
-                              avgWorked === 0 ? 100 : Math.min(100, Math.round(((now - avgWorked) / RECOVERY_MS) * 100))
+                            const recoveryPct = getRecoveryPct(dayMuscles, muscleLastWorked)
                             const recoveryAccent = '#7b7fff'
                             return (
                               <div

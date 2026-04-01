@@ -120,12 +120,15 @@ async function normalizeImage(input) {
 
 /**
  * Load a stored photo as a data URL or HTTPS URL.
- * Tries Capacitor Data, then Cache, then Firebase Storage (if uid).
- * @param {string} filename - e.g. ps_123_front.jpg
- * @param {string|null} [uid] - Firebase user id for Storage (required for web when not using Capacitor)
+ * Web/desktop: Firebase Storage only (same project as native — enables cross-device sync).
+ * Native: local Data → Cache → then Storage if missing locally (e.g. added on another device).
  */
 export async function loadPhotoSrc(filename, uid = null) {
   if (!filename) return null
+  if (!isNativePlatform()) {
+    if (!uid) return null
+    return await getProgressPhotoUrl(uid, filename)
+  }
   try {
     const { Filesystem, Directory } = await import('@capacitor/filesystem')
     try {
@@ -143,10 +146,22 @@ export async function loadPhotoSrc(filename, uid = null) {
     }
   } catch {
     if (uid) {
-      const url = await getProgressPhotoUrl(uid, filename)
-      return url
+      return await getProgressPhotoUrl(uid, filename)
     }
     return null
+  }
+}
+
+/** Upload after native save — must complete for Mac/web to see the same files. Errors are logged. */
+async function syncPhotoToCloud(uid, filename, clean) {
+  if (!uid) return
+  try {
+    await uploadProgressPhoto(uid, filename, clean)
+  } catch (err) {
+    console.error(
+      '[REPLIQE] Photo cloud sync failed — billedet findes på enheden men andre enheder får det ikke:',
+      err
+    )
   }
 }
 
@@ -161,7 +176,7 @@ async function savePhoto(base64Data, filename, uid) {
         data: clean,
         directory: Directory.Data,
       })
-      if (uid) uploadProgressPhoto(uid, filename, clean).catch(() => {})
+      await syncPhotoToCloud(uid, filename, clean)
       return filename
     } catch (dataErr) {
       try {
@@ -171,7 +186,7 @@ async function savePhoto(base64Data, filename, uid) {
           data: clean,
           directory: Directory.Cache,
         })
-        if (uid) uploadProgressPhoto(uid, filename, clean).catch(() => {})
+        await syncPhotoToCloud(uid, filename, clean)
         return filename
       } catch (cacheErr) {
         if (uid) {
