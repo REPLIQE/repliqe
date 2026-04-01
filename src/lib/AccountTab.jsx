@@ -474,7 +474,7 @@ export default function AccountTab({
                 {userPlan === 'free' &&
                   'Full tracking, one AI-generated programme, and up to 12 progress photos.'}
                 {userPlan === 'pro' &&
-                  'Higher monthly limits for AI programmes and REPLIQE Coach; up to 50 progress photos in total.'}
+                  'Higher monthly limits for AI programmes and Coach; up to 50 progress photos in total.'}
                 {userPlan === 'elite' &&
                   'Top-tier limits for AI programmes and Coach; unlimited progress photo storage.'}
               </p>
@@ -511,20 +511,20 @@ export default function AccountTab({
                 label="AI programmes saved (this month)"
                 used={planUsage.coachProgrammesSaved}
                 cap={limits.aiProgrammes ?? 0}
-                hint="Each time you save a programme built with REPLIQE Coach."
+                hint="Each time you save a programme built with Coach."
               />
             )}
 
             {limits.coachMessages != null ? (
               <UsageMeter
-                label="REPLIQE Coach generations (this month)"
+                label="Coach generations (this month)"
                 used={planUsage.coachGenerations}
                 cap={limits.coachMessages}
                 hint="Each successful Coach build counts as one generation."
               />
             ) : (
               <UsageMeter
-                label="REPLIQE Coach generations (this month)"
+                label="Coach generations (this month)"
                 used={planUsage.coachGenerations}
                 cap={null}
                 unlimited={false}

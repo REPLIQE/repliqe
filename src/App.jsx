@@ -1229,7 +1229,7 @@ function AppContent() {
   }
 
   /**
-   * Gem REPLIQE Coach-program + routines (samme state/Firestore-sti som manuelle programmer via saveWorkoutPlans-useEffect).
+   * Gem Coach-program + routines (samme state/Firestore-sti som manuelle programmer via saveWorkoutPlans-useEffect).
    * @param {{ programme: object, routines: object[] }} payload — fra buildProgrammeFromCoach
    * @param {boolean} makeActive — true = "Save & make active"
    */
@@ -1511,7 +1511,7 @@ function AppContent() {
     return allLibraryExercises.find(e => e.name === eName) || null
   }
 
-  /** Apply REPLIQE Coach [SUGGESTION] to the active programme (best-effort); persists via saveWorkoutPlans useEffect. */
+  /** Apply Coach [SUGGESTION] to the active programme (best-effort); persists via saveWorkoutPlans useEffect. */
   async function handleApplyProgrammeChange(suggestion) {
     console.log('Programme change applied:', suggestion)
     if (!suggestion || typeof suggestion !== 'object') return
@@ -1777,12 +1777,12 @@ function AppContent() {
     const ctx = buildRestCoachTipContext(history, activeProgramme, routines, workoutName, exercises)
     if (!ctx) {
       setCurrentCoachTip({
-        text: `REPLIQE Coach can analyse your programme and training log to suggest structure, volume, and progression. Upgrade to Pro or Elite for full Coach chat.`,
+        text: `Coach can analyse your programme and training log to suggest structure, volume, and progression. Upgrade to Pro or Elite for full Coach chat.`,
       })
       return
     }
 
-    const prompt = `You are REPLIQE Coach, an expert personal trainer. The user is on the FREE plan and reads this during a rest timer between sets.
+    const prompt = `You are Coach, an expert personal trainer. The user is on the FREE plan and reads this during a rest timer between sets.
 
 Use ONLY the JSON below (CONTEXT). Write one coaching tip in 2–4 short sentences (British English).
 
@@ -1792,7 +1792,7 @@ PRIORITY: programme-level advice — how their split/frequency, day balance, vol
 
 You may add one short clause about today’s session or the lift they are on only if it supports the programme point. In the JSON, \`firstWorkouts\` are the only past logged sessions you may reference; \`programme\` and \`todaysSession\` are plan/current session labels — do not claim they completed workouts that are not in \`firstWorkouts\`. Never invent sessions, exercises, PRs, or loads not present in the data.
 
-End with one short sentence that full REPLIQE Coach on Pro/Elite gives ongoing chat-based guidance.
+End with one short sentence that full Coach on Pro/Elite gives ongoing chat-based guidance.
 
 No markdown, no bullet points, no title line. Plain text only.
 
@@ -1812,7 +1812,7 @@ ${JSON.stringify(ctx)}`
         console.error('Coach rest tip', e)
         if (coachTipRequestIdRef.current !== requestId) return
         setCurrentCoachTip({
-          text: `REPLIQE Coach can analyse your programme and recent training for structure, volume, and progression. Upgrade to Pro or Elite for full Coach chat.`,
+          text: `Coach can analyse your programme and recent training for structure, volume, and progression. Upgrade to Pro or Elite for full Coach chat.`,
         })
       })
   }
@@ -3043,7 +3043,7 @@ ${JSON.stringify(ctx)}`
                                   : 'plan-section-title'
                               }
                             >
-                              REPLIQE Coach — built for you
+                              Coach — built for you
                             </div>
                             {coachProgrammes.map(renderProgrammeCard)}
                           </>
@@ -3567,7 +3567,7 @@ ${JSON.stringify(ctx)}`
           )
         })()}
 
-        {/* Create Programme flow (Choice → Explainer → REPLIQE Coach or Manual) */}
+        {/* Create Programme flow (Choice → Explainer → Coach or Manual) */}
         {createProgrammeFlowStep && user?.uid && (
           <Suspense
             fallback={

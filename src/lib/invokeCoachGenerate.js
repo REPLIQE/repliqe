@@ -4,7 +4,7 @@ import { functions } from './firebase'
 const generateCoachCallable = httpsCallable(functions, 'generateCoachProgrammeCallable')
 
 /**
- * REPLIQE Coach → Anthropic via Firebase Callable (works on mobile/PWA where raw fetch() to cloudfunctions.net often fails).
+ * Coach → Anthropic via Firebase Callable (works on mobile/PWA where raw fetch() to cloudfunctions.net often fails).
  */
 export async function invokeCoachGenerate(prompt) {
   if (!prompt || typeof prompt !== 'string') {
@@ -24,7 +24,7 @@ export function coachInvokeErrorMessage(error) {
   const msg = error?.message != null ? String(error.message) : ''
 
   if (code === 'functions/unauthenticated') {
-    return 'Sign in to use REPLIQE Coach.'
+    return 'Sign in to use Coach.'
   }
   if (code === 'functions/invalid-argument') {
     return msg || 'Invalid request.'
@@ -34,7 +34,7 @@ export function coachInvokeErrorMessage(error) {
   }
 
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
-    return 'Could not reach REPLIQE Coach. Check your connection or try again.'
+    return 'Could not reach Coach. Check your connection or try again.'
   }
 
   if (msg && msg.length < 220) return msg

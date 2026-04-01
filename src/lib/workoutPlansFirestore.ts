@@ -146,7 +146,7 @@ export async function saveWorkoutPlans(uid, programmes, routines) {
     const isNew = !existingIds.has(plan.id)
     batch.set(ref, { ...rest, days, ...(isNew ? { createdAt: serverTimestamp() } : {}) }, { merge: true })
   }
-  // Remove Firestore docs for programmes no longer in state (manual + REPLIQE Coach deletes must persist)
+  // Remove Firestore docs for programmes no longer in state (manual + Coach deletes must persist)
   for (const d of existing.docs) {
     if (!currentIds.has(d.id)) {
       batch.delete(d.ref)

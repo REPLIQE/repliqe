@@ -59,7 +59,7 @@ const callableOptions = {
  */
 exports.generateCoachProgrammeCallable = onCall(callableOptions, async (request) => {
   if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Sign in to use REPLIQE Coach.')
+    throw new HttpsError('unauthenticated', 'Sign in to use Coach.')
   }
   const prompt = request.data?.prompt
   if (!prompt || typeof prompt !== 'string') {
@@ -90,7 +90,7 @@ exports.generateCoachProgrammeCallable = onCall(callableOptions, async (request)
   }
 })
 
-/** REPLIQE Coach — HTTP + CORS (legacy / external clients). Prefer generateCoachProgrammeCallable from the app. */
+/** Coach — HTTP + CORS (legacy / external clients). Prefer generateCoachProgrammeCallable from the app. */
 exports.generateCoachProgramme = onRequest(
   {
     secrets: [anthropicKey],

@@ -63,11 +63,11 @@ function parseCoachJson(text) {
     const start = clean.indexOf('{')
     const end = clean.lastIndexOf('}')
     if (start >= 0 && end > start) return JSON.parse(clean.slice(start, end + 1))
-    throw new Error('Invalid JSON from REPLIQE Coach')
+    throw new Error('Invalid JSON from Coach')
   }
 }
 
-/** Build app programme + routines from Claude JSON (REPLIQE Coach). */
+/** Build app programme + routines from Claude JSON (Coach). */
 export function buildProgrammeFromCoach(parsed, allExercises, quiz) {
   const programmeId = `coach_${Date.now()}`
   const allowedLib = Array.isArray(allExercises) && allExercises.length ? allExercises : DEFAULT_EXERCISES
@@ -121,7 +121,7 @@ export function buildProgrammeFromCoach(parsed, allExercises, quiz) {
   return {
     programme: {
       id: programmeId,
-      name: parsed.programmeName || 'REPLIQE Coach programme',
+      name: parsed.programmeName || 'Coach programme',
       type: 'rotation',
       routineIds,
       isActive: false,
@@ -194,7 +194,7 @@ export function CreateProgrammeChoiceScreen({ onCoach, onManual, onClose }) {
     <SheetFrame
       label="NEW PROGRAMME"
       title="How do you want to create it?"
-      subtitle="Build it yourself or let REPLIQE Coach design it based on your goals."
+      subtitle="Build it yourself or let Coach design it based on your goals."
       onBack={onClose}
       onClose={onClose}
     >
@@ -211,9 +211,9 @@ export function CreateProgrammeChoiceScreen({ onCoach, onManual, onClose }) {
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-2 bg-accent/15 text-accent">REPLIQE Coach</span>
-            <div className="text-base font-bold text-text">Create with REPLIQE Coach</div>
-            <p className="text-xs text-muted-strong mt-0.5">Answer a few questions. REPLIQE Coach builds a programme tailored to your goals, level and equipment.</p>
+            <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-2 bg-accent/15 text-accent">Coach</span>
+            <div className="text-base font-bold text-text">Create with Coach</div>
+            <p className="text-xs text-muted-strong mt-0.5">Answer a few questions. Coach builds a programme tailored to your goals, level and equipment.</p>
           </div>
         </button>
 
@@ -417,7 +417,7 @@ export function CreateProgrammeCoachOnboarding({
   const subtitles = [
     'Your programme will be built around this.',
     'Be realistic — consistency beats intensity.',
-    'This helps REPLIQE Coach plan the right amount of exercises.',
+    'This helps Coach plan the right amount of exercises.',
     'Your programme will only use what you have access to.',
     'This determines exercise complexity and volume.',
     'Optional — select focus areas or add your own preferences.',
@@ -445,7 +445,7 @@ export function CreateProgrammeCoachOnboarding({
 
       const validNamesLower = new Set(relevantExercises.map((e) => e.name.toLowerCase()))
 
-      const prompt = `You are REPLIQE Coach, an expert AI personal trainer.
+      const prompt = `You are Coach, an expert AI personal trainer.
 You give training-programme suggestions only — not medical advice. Do not diagnose, treat, or claim exercises are safe for injuries or health conditions. If notes mention serious health concerns, keep safetyNote cautious and tell the user to confirm with their doctor or physiotherapist.
 
 Build a complete weekly training programme based on these inputs:
@@ -524,7 +524,7 @@ PROGRAMME NAME:
 - Never use generic names like "4 Day Programme"
 
 RATIONALE:
-- Write 3-4 sentences as REPLIQE Coach directly to the user
+- Write 3-4 sentences as Coach directly to the user
 - Explain WHY this specific structure suits their goal and level
 - Mention the split type and rep ranges and why they were chosen
 - Be specific, encouraging and expert in tone
@@ -536,7 +536,7 @@ ${focusTags.length > 0 || focusNotes
 Respond ONLY with a valid JSON object, no markdown, no explanation:
 {
   "programmeName": "string (short, descriptive, motivational)",
-  "rationale": "string (3-4 sentences written directly to the user as REPLIQE Coach)",
+  "rationale": "string (3-4 sentences written directly to the user as Coach)",
   "safetyNote": "string or null (only if health concerns mentioned)",
   "routines": [
     {
@@ -556,7 +556,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
 
       const auth = getAuth(app)
       const user = auth.currentUser
-      console.log('Current user before REPLIQE Coach call:', user?.uid, user?.email)
+      console.log('Current user before Coach call:', user?.uid, user?.email)
 
       const text = await invokeCoachGenerate(prompt)
       let parsed = parseCoachJson(text)
@@ -572,7 +572,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
       }
       setPhase('result')
     } catch (err) {
-      console.error('REPLIQE Coach generation error:', err)
+      console.error('Coach generation error:', err)
       setPhase('error')
     } finally {
       setLoading(false)
@@ -618,7 +618,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
   if (loading) {
     return (
       <SheetFrame
-        title="REPLIQE Coach is building your programme"
+        title="Coach is building your programme"
         subtitle="Tailoring it to your goals, level and equipment."
         onBack={onClose}
         onClose={onClose}
@@ -630,7 +630,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
             <RepliqeLogoBuilding size={100} />
           </div>
           <p className="text-muted-strong text-sm text-center animate-pulse">
-            REPLIQE Coach is building your programme<span className="inline-block w-6 text-left">...</span>
+            Coach is building your programme<span className="inline-block w-6 text-left">...</span>
           </p>
         </div>
       </SheetFrame>
@@ -641,7 +641,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
     return (
       <SheetFrame
         title="Something went wrong"
-        subtitle="REPLIQE Coach couldn't build your programme right now."
+        subtitle="Coach couldn't build your programme right now."
         onBack={() => setPhase('consent')}
         onClose={onClose}
         showFlowProgress
@@ -662,9 +662,9 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
   if (phase === 'result' && generatedProgramme) {
     return (
       <SheetFrame
-        label="REPLIQE COACH"
+        label="COACH"
         title={generatedProgramme.programmeName}
-        subtitle="Here's what REPLIQE Coach built for you."
+        subtitle="Here's what Coach built for you."
         onBack={() => setPhase('consent')}
         onClose={onClose}
         showFlowProgress
@@ -677,7 +677,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
                 <path d="M12 3a6 6 0 0 0 4.5 9.97A5 5 0 0 1 12 21a5 5 0 0 1-4.5-8.03A6 6 0 0 0 12 3z" />
               </svg>
             </div>
-            <span className="text-xs font-bold text-accent uppercase tracking-wider">REPLIQE Coach</span>
+            <span className="text-xs font-bold text-accent uppercase tracking-wider">Coach</span>
           </div>
           <p className="text-sm text-text leading-relaxed">{generatedProgramme.rationale}</p>
         </div>
@@ -715,9 +715,9 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
   if (phase === 'consent') {
     return (
       <SheetFrame
-        label="REPLIQE COACH"
+        label="COACH"
         title="Your data & your programme"
-        subtitle="One step before REPLIQE Coach builds your plan."
+        subtitle="One step before Coach builds your plan."
         onBack={handleConsentBack}
         onClose={onClose}
         showFlowProgress
@@ -725,7 +725,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
       >
         <div className="rounded-2xl border border-border bg-card p-4 mb-5">
           <p className="text-sm text-text leading-relaxed">
-            REPLIQE Coach uses AI to design a programme based on your answers. Your training preferences are sent securely to an AI model for processing.
+            Coach uses AI to design a programme based on your answers. Your training preferences are sent securely to an AI model for processing.
           </p>
         </div>
 

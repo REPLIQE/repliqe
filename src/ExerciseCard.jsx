@@ -220,11 +220,13 @@ function ExerciseCard({
   function getGridCols() {
     const prev = hasPrevious ? (showRirColumn ? 'minmax(72px, 1.15fr) ' : 'minmax(44px, 0.6fr) ') : ''
     const rir = showRirColumn ? ' minmax(52px,0.55fr)' : ''
+    const repsCol = hasPrevious ? 'minmax(0,0.75fr)' : 'minmax(0,1fr)'
+    const timeCol = hasPrevious ? 'minmax(0,0.75fr)' : 'minmax(0,1fr)'
     switch (type) {
       case 'weight_reps': return `28px ${prev}minmax(0,0.75fr) minmax(0,0.75fr)${rir} 30px`
       case 'bw_reps': return `28px ${prev}minmax(0,0.9fr) minmax(0,0.75fr)${rir} 30px`
-      case 'reps_only': return `28px ${prev}minmax(0,0.75fr)${rir} 30px`
-      case 'time_only': return `28px ${prev}minmax(0,0.75fr) 30px`
+      case 'reps_only': return `28px ${prev}${repsCol}${rir} 30px`
+      case 'time_only': return `28px ${prev}${timeCol} 30px`
       case 'distance_time': return `28px ${prev}minmax(0,0.75fr) minmax(0,0.75fr) 30px`
       default: return `28px ${prev}minmax(0,0.75fr) minmax(0,0.75fr)${rir} 30px`
     }
@@ -234,8 +236,8 @@ function ExerciseCard({
   function getHeaders() {
     switch (type) {
       case 'weight_reps': return [wLabel, 'Reps']
-      case 'bw_reps':
-      case 'reps_only': return [`± ${wLabel}`, 'Reps']
+      case 'bw_reps': return [`± ${wLabel}`, 'Reps']
+      case 'reps_only': return ['Reps']
       case 'time_only': return ['Time']
       case 'distance_time': return [unitDistance === 'km' ? 'KM' : 'MI', 'Time']
       default: return [wLabel, 'Reps']
@@ -604,7 +606,7 @@ function ExerciseCard({
                     )}
                   </div>
                   <span className="text-[10px] font-bold text-accent uppercase tracking-wider">
-                    REPLIQE Coach
+                    Coach
                   </span>
                 </div>
                 {coachTipData.loading ? (

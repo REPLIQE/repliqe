@@ -12,7 +12,7 @@ import {
 import { mergePlanUsage, incrementPlanUsage, PLAN_LIMITS } from './lib/planUsage'
 
 /** System instructions sent as part of the prompt (user message was truncated in spec). */
-const COACH_CHAT_SYSTEM = `You are REPLIQE Coach, an expert AI personal trainer inside the REPLIQE app. You help users improve their programme, review progress, break plateaus, and explain exercises.
+const COACH_CHAT_SYSTEM = `You are Coach, an expert AI personal trainer inside the REPLIQE app. You help users improve their programme, review progress, break plateaus, and explain exercises.
 
 Rules:
 - Be concise, specific, and encouraging. Use British English spelling where natural.
@@ -279,7 +279,7 @@ ${JSON.stringify(context)}
 CONVERSATION:
 ${transcript}
 
-Coach (reply as REPLIQE Coach; remember [SUGGESTION] rules only when appropriate):`
+Coach (reply as Coach; remember [SUGGESTION] rules only when appropriate):`
 
     try {
       const raw = await invokeCoachGenerate(prompt)
@@ -375,7 +375,7 @@ Coach (reply as REPLIQE Coach; remember [SUGGESTION] rules only when appropriate
   if (!userId) {
     return (
       <div className="px-1 py-4 text-sm text-muted-strong text-center">
-        Sign in to use REPLIQE Coach.
+        Sign in to use Coach.
       </div>
     )
   }
@@ -385,12 +385,7 @@ Coach (reply as REPLIQE Coach; remember [SUGGESTION] rules only when appropriate
       <div className="space-y-5">
         <div className="flex items-center gap-3 mb-1">
           <RepliqeLogo size={28} />
-          <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <h1 className="text-3xl font-bold tracking-tight text-text">Coach</h1>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-accent/15 text-accent border border-accent/25 shrink-0 leading-none">
-              REPLIQE Coach
-            </span>
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-text min-w-0">Coach</h1>
         </div>
 
         <p className="text-sm text-muted-strong leading-relaxed">
@@ -492,12 +487,7 @@ Coach (reply as REPLIQE Coach; remember [SUGGESTION] rules only when appropriate
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
         </button>
-        <div className="min-w-0 flex-1 flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-bold text-text truncate">Chat</h2>
-          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-accent/15 text-accent border border-accent/25 shrink-0 leading-none">
-            REPLIQE Coach
-          </span>
-        </div>
+        <h2 className="text-lg font-bold text-text truncate min-w-0 flex-1">Chat</h2>
       </div>
 
       {showUsageMeter && (

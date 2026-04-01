@@ -67,7 +67,7 @@ export function PrivacyPolicy({ onClose }) {
         </ul>
         <h3 className={subHead}>AI interaction data</h3>
         <ul className={`${list} mb-4`}>
-          <li>Messages sent to REPLIQE Coach</li>
+          <li>Messages sent to Coach</li>
           <li>Training preferences entered during programme creation</li>
         </ul>
 
@@ -106,7 +106,7 @@ export function PrivacyPolicy({ onClose }) {
               </tr>
               <tr>
                 <td className="py-2 text-sm text-muted-strong border-t border-border">Anthropic</td>
-                <td className="py-2 text-sm text-muted-strong border-t border-border">AI processing for REPLIQE Coach and programme generation</td>
+                <td className="py-2 text-sm text-muted-strong border-t border-border">AI processing for Coach and programme generation</td>
                 <td className="py-2 text-sm text-muted-strong border-t border-border">USA</td>
               </tr>
               <tr>
@@ -118,7 +118,7 @@ export function PrivacyPolicy({ onClose }) {
           </table>
         </div>
         <p className="mb-3">
-          When you use REPLIQE Coach or generate an AI programme, your training preferences and relevant workout data are sent to
+          When you use Coach or generate an AI programme, your training preferences and relevant workout data are sent to
           Anthropic for processing. This is disclosed at the point of use and requires your explicit consent.
         </p>
         <p>All providers are bound by data processing agreements and appropriate safeguards for international transfers.</p>
@@ -236,7 +236,7 @@ export function TermsOfService({ onClose }) {
         </ul>
 
         <h2 className={h2}>6. AI features</h2>
-        <p className="mb-3">By using REPLIQE Coach and AI programme generation you acknowledge:</p>
+        <p className="mb-3">By using Coach and AI programme generation you acknowledge:</p>
         <ul className={list}>
           <li>AI responses are for informational purposes only</li>
           <li>AI may occasionally produce inaccurate suggestions</li>
