@@ -135,14 +135,46 @@ body {
   /* Font */
   --font-sans: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
 
-  /* Top 10 #8 — focus ring (keyboard) */
-  --a11y-focus-ring: #c4c4ff;
+  /* Top 10 #8 — focus ring (keyboard): tynd, diskret grøn */
+  --a11y-focus-ring: rgba(91, 245, 160, 0.5);
   --a11y-focus-ring-offset: var(--bg-app);
+  --a11y-focus-ring-width: 1px;
+  --a11y-focus-outline-offset: 1px;
 
   /* Top 10 #9 — motion: korte interaktioner + sheets (warm ease-out) */
   --motion-duration: 180ms;
   --motion-duration-slow: 220ms;
   --motion-ease: cubic-bezier(0.33, 1, 0.68, 1);
+
+  /* Top 10 #10 — Plan / “up next” (dark: lilla nuancer; bone: brun accent) */
+  --plan-text: #7b7fff;
+  --plan-text-hover: #a8abff;
+  --plan-text-muted: rgba(123, 127, 255, 0.55);
+  --plan-text-row: rgba(200, 202, 255, 0.88);
+  --plan-text-focus-secondary: rgba(168, 171, 255, 0.82);
+  --plan-border-35: rgba(123, 127, 255, 0.35);
+  --plan-border-45: rgba(123, 127, 255, 0.45);
+  --plan-surface-07: rgba(123, 127, 255, 0.07);
+  --plan-surface-08: rgba(123, 127, 255, 0.08);
+  --plan-surface-10: rgba(123, 127, 255, 0.1);
+  --plan-surface-12: rgba(123, 127, 255, 0.12);
+  --plan-surface-18: rgba(123, 127, 255, 0.18);
+  --plan-shadow-card: 0 8px 24px rgba(123, 127, 255, 0.28);
+  --plan-gradient: linear-gradient(135deg, #7b7fff, #6060dd);
+  --plan-focus-ring: rgba(123, 127, 255, 0.35);
+
+  --in-progress-text: #00e5a0;
+  --in-progress-bg-strong: rgba(0, 229, 160, 0.2);
+  --in-progress-bg-soft: rgba(0, 229, 160, 0.18);
+  --in-progress-border-30: rgba(0, 229, 160, 0.3);
+  --in-progress-border-40: rgba(0, 229, 160, 0.4);
+  --in-progress-border-45: rgba(0, 229, 160, 0.45);
+  --in-progress-surface-08: rgba(0, 229, 160, 0.08);
+  --in-progress-surface-10: rgba(0, 229, 160, 0.1);
+
+  --semantic-negative: #ff6b6b;
+  --semantic-negative-soft: rgba(255, 85, 85, 0.65);
+  --semantic-negative-faint: rgba(255, 85, 85, 0.5);
 }
 
 /* Bone theme */
@@ -230,8 +262,35 @@ body {
 
   --handle: #DDD8CE;
 
-  --a11y-focus-ring: var(--accent-primary);
+  --a11y-focus-ring: rgba(58, 101, 53, 0.42);
   --a11y-focus-ring-offset: var(--bg-card);
+  --a11y-focus-ring-width: 1px;
+  --a11y-focus-outline-offset: 1px;
+
+  --plan-text: #2a2520;
+  --plan-text-hover: #4a4238;
+  --plan-text-muted: rgba(42, 37, 32, 0.5);
+  --plan-text-row: rgba(42, 37, 32, 0.82);
+  --plan-text-focus-secondary: rgba(42, 37, 32, 0.62);
+  --plan-border-35: rgba(42, 37, 32, 0.2);
+  --plan-border-45: rgba(42, 37, 32, 0.3);
+  --plan-surface-07: rgba(42, 37, 32, 0.035);
+  --plan-surface-08: rgba(42, 37, 32, 0.05);
+  --plan-surface-10: rgba(42, 37, 32, 0.06);
+  --plan-surface-12: rgba(42, 37, 32, 0.08);
+  --plan-surface-18: rgba(42, 37, 32, 0.1);
+  --plan-shadow-card: 0 8px 24px rgba(42, 37, 32, 0.1);
+  --plan-gradient: linear-gradient(135deg, #2a2520, #2a2520);
+  --plan-focus-ring: rgba(42, 37, 32, 0.28);
+
+  --in-progress-text: #3a6535;
+  --in-progress-bg-strong: rgba(58, 101, 53, 0.16);
+  --in-progress-bg-soft: rgba(58, 101, 53, 0.14);
+  --in-progress-border-30: rgba(58, 101, 53, 0.32);
+  --in-progress-border-40: rgba(58, 101, 53, 0.42);
+  --in-progress-border-45: rgba(58, 101, 53, 0.48);
+  --in-progress-surface-08: rgba(58, 101, 53, 0.08);
+  --in-progress-surface-10: rgba(58, 101, 53, 0.1);
 }
 
 /* Raw buttons/links without ActionButton’s data-action-button + ring */
@@ -239,20 +298,20 @@ button:focus-visible:not([data-action-button]),
 a:focus-visible,
 summary:focus-visible,
 [role='button']:focus-visible:not([data-action-button]) {
-  outline: 2px solid var(--a11y-focus-ring);
-  outline-offset: 2px;
+  outline: var(--a11y-focus-ring-width) solid var(--a11y-focus-ring);
+  outline-offset: var(--a11y-focus-outline-offset);
 }
 
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--a11y-focus-ring);
-  outline-offset: 2px;
+  outline: var(--a11y-focus-ring-width) solid var(--a11y-focus-ring);
+  outline-offset: var(--a11y-focus-outline-offset);
 }
 
 .theme-option:focus-visible {
-  outline: 2px solid var(--a11y-focus-ring);
-  outline-offset: 2px;
+  outline: var(--a11y-focus-ring-width) solid var(--a11y-focus-ring);
+  outline-offset: var(--a11y-focus-outline-offset);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -282,6 +341,10 @@ select:focus-visible {
   --color-on-accent: var(--btn-primary-text);
   --color-success: var(--accent-secondary);
   --color-on-success: var(--on-success);
+  --color-plan-text: var(--plan-text);
+  --color-plan-hover: var(--plan-text-hover);
+  --color-in-progress: var(--in-progress-text);
+  --color-negative: var(--semantic-negative);
   --color-handle: var(--handle);
   --font-sans: var(--font-sans);
 }
@@ -343,7 +406,7 @@ select:focus-visible {
 [data-theme='dark'] div.plan-tab div.plan-section-title[role='heading'] {
   display: block;
   margin: 0 0 0.75rem;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -354,7 +417,7 @@ select:focus-visible {
 [data-theme='bone'] div.plan-tab div.plan-section-title[role='heading'] {
   display: block;
   margin: 0 0 0.75rem;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -508,8 +571,8 @@ input:focus:invalid {
 
 /* Restore visible focus for invalid fields when keyboard-focused (still no error glow box) */
 input:focus-visible:invalid {
-  outline: 2px solid var(--a11y-focus-ring) !important;
-  outline-offset: 2px !important;
+  outline: var(--a11y-focus-ring-width) solid var(--a11y-focus-ring) !important;
+  outline-offset: var(--a11y-focus-outline-offset) !important;
 }
 
 /* ========== Theme selector (Profile → Appearance) ========== */
@@ -619,7 +682,7 @@ input:focus-visible:invalid {
 
 .progress-section-label {
   color: #888;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   margin: 0 0 8px;
 }

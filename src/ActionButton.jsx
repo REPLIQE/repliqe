@@ -3,7 +3,7 @@ import { MOTION_DURATION, MOTION_EASE, MOTION_TRANSITION_INTERACTIVE } from './m
 
 /** Stronger ring for WCAG contrast on primary/success fills; offset matches page bg */
 const focusRing =
-  'outline-none focus-visible:ring-2 focus-visible:ring-[var(--a11y-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--a11y-focus-ring-offset)]'
+  'outline-none focus-visible:ring-1 focus-visible:ring-[var(--a11y-focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--a11y-focus-ring-offset)]'
 
 const motionColors = `${MOTION_DURATION} ${MOTION_EASE}`
 

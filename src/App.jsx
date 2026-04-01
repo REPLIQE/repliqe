@@ -479,6 +479,8 @@ function AppContent() {
   const routineEditorOpenedFromPlanRef = useRef(false)
   /** Snapshot ved åbning af Edit programme (navn, routineIds, fuld routine-data) til revert ved Cancel. */
   const editProgrammeSnapshotRef = useRef(null)
+  /** Set each render while routine editor is mounted; used by styled discard confirm. */
+  const routineEditorCloseRef = useRef(() => {})
   /** Baseline for create/edit routine — dirty check ved Cancel / backdrop. */
   const routineEditorBaselineRef = useRef(null)
   const routineEditorBaselineSessionRef = useRef(null)
@@ -493,6 +495,8 @@ function AppContent() {
   const [createProgrammeTriedSave, setCreateProgrammeTriedSave] = useState(false)
   const [createProgrammeConfirmEmptyRoutines, setCreateProgrammeConfirmEmptyRoutines] = useState(false)
   const [showDiscardCreateProgrammeConfirm, setShowDiscardCreateProgrammeConfirm] = useState(false)
+  const [showDiscardEditProgrammeConfirm, setShowDiscardEditProgrammeConfirm] = useState(false)
+  const [showDiscardRoutineEditorConfirm, setShowDiscardRoutineEditorConfirm] = useState(false)
   const [editProgrammeName, setEditProgrammeName] = useState('')
   const [editRoutineName, setEditRoutineName] = useState('')
   const [editRoutineExercises, setEditRoutineExercises] = useState([])
@@ -1462,9 +1466,17 @@ function AppContent() {
       finish()
       return
     }
-    if (typeof window !== 'undefined' && !window.confirm('Discard changes to this programme? Unsaved edits will be lost.')) return
+    setShowDiscardEditProgrammeConfirm(true)
+  }
+
+  function confirmDiscardEditProgramme() {
     revertEditProgrammeSnapshot()
-    finish()
+    setEditingProgrammeId(null)
+    setDragRoutine(null)
+    setDragOverTarget(null)
+    setEditProgrammeRoutinePendingDelete(null)
+    editProgrammeSnapshotRef.current = null
+    setShowDiscardEditProgrammeConfirm(false)
   }
 
   function resetCreateProgrammeModalState() {
@@ -1487,6 +1499,11 @@ function AppContent() {
 
   function confirmDiscardCreateProgrammeDraft() {
     resetCreateProgrammeModalState()
+  }
+
+  function confirmDiscardRoutineEditor() {
+    setShowDiscardRoutineEditorConfirm(false)
+    routineEditorCloseRef.current?.()
   }
 
   function saveEditedProgramme(progId, name, type, routineIdsOrder) {
@@ -2847,13 +2864,13 @@ ${JSON.stringify(ctx)}`
                       <button
                         type="button"
                         onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
-                        className={`w-full py-4 px-4 border-2 rounded-[14px] flex items-center gap-3 transition-colors ${emptyInProgress ? 'border-[rgba(0,229,160,0.45)] bg-[rgba(0,229,160,0.1)]' : 'border-accent/40 bg-accent/5'}`}
+                        className={`w-full py-4 px-4 border-2 rounded-[14px] flex items-center gap-3 transition-colors ${emptyInProgress ? 'border-[var(--in-progress-border-45)] bg-[var(--in-progress-surface-10)]' : 'border-accent/40 bg-accent/5'}`}
                       >
-                        <span className={`w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-lg font-bold shrink-0 ${emptyInProgress ? 'bg-[rgba(0,229,160,0.2)] text-[#00e5a0]' : 'bg-accent/10 text-accent'}`}>+</span>
+                        <span className={`w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-lg font-bold shrink-0 ${emptyInProgress ? 'bg-[var(--in-progress-bg-strong)] text-in-progress' : 'bg-accent/10 text-accent'}`}>+</span>
                         <div className="text-left min-w-0">
                           {emptyInProgress ? (
-                            <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
-                              <span className={`${TYPE_STATUS_BADGE} text-[#00e5a0]`}>IN PROGRESS</span>
+                            <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-pulse-badge">
+                              <span className={`${TYPE_STATUS_BADGE} text-in-progress`}>IN PROGRESS</span>
                             </div>
                           ) : null}
                           <div className="text-text text-sm font-bold">Empty Workout</div>
@@ -2881,13 +2898,13 @@ ${JSON.stringify(ctx)}`
                       <button
                         type="button"
                         onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
-                        className={`w-full py-4 px-4 border-2 rounded-[14px] flex items-center gap-3 transition-colors ${emptyInProgress ? 'border-[rgba(0,229,160,0.45)] bg-[rgba(0,229,160,0.1)]' : 'border-accent/40 bg-accent/5'}`}
+                        className={`w-full py-4 px-4 border-2 rounded-[14px] flex items-center gap-3 transition-colors ${emptyInProgress ? 'border-[var(--in-progress-border-45)] bg-[var(--in-progress-surface-10)]' : 'border-accent/40 bg-accent/5'}`}
                       >
-                        <span className={`w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-lg font-bold shrink-0 ${emptyInProgress ? 'bg-[rgba(0,229,160,0.2)] text-[#00e5a0]' : 'bg-accent/10 text-accent'}`}>+</span>
+                        <span className={`w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-lg font-bold shrink-0 ${emptyInProgress ? 'bg-[var(--in-progress-bg-strong)] text-in-progress' : 'bg-accent/10 text-accent'}`}>+</span>
                         <div className="text-left min-w-0">
                           {emptyInProgress ? (
-                            <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
-                              <span className={`${TYPE_STATUS_BADGE} text-[#00e5a0]`}>IN PROGRESS</span>
+                            <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-pulse-badge">
+                              <span className={`${TYPE_STATUS_BADGE} text-in-progress`}>IN PROGRESS</span>
                             </div>
                           ) : null}
                           <div className="text-text text-sm font-bold">Empty Workout</div>
@@ -2942,7 +2959,7 @@ ${JSON.stringify(ctx)}`
                                     <div
                                       className={`flex justify-center relative z-10 pointer-events-none -mb-[18px] transition-transform duration-500 ease-out delay-200 ${isSelected ? '-translate-y-[3px]' : '-translate-y-[13px]'}`}
                                     >
-                                      <span className={`${TYPE_CAPTION} font-extrabold tracking-[0.65px] text-[#7b7fff] uppercase animate-pulse-up-next inline-block leading-none`}>
+                                      <span className={`${TYPE_CAPTION} font-extrabold tracking-[0.65px] text-plan-text uppercase animate-pulse-up-next inline-block leading-none`}>
                                         Up next
                                       </span>
                                     </div>
@@ -2952,11 +2969,11 @@ ${JSON.stringify(ctx)}`
                                     onClick={() => rtn && setSelectedStartRoutineId(rtnId)}
                                     className={`w-full flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border relative transition-[transform,colors,background-color,border-color] duration-200 ease-out ${
                                       isSelected
-                                        ? 'border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.08)] translate-y-[10px] z-10'
+                                        ? 'border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] translate-y-[10px] z-10'
                                         : 'z-0 translate-y-0 bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
                                     }`}
                                   >
-                                    <div className={`${TYPE_MICRO} font-semibold truncate ${isSelected ? 'text-[#7b7fff]' : 'text-[rgba(123,127,255,0.55)]'}`}>
+                                    <div className={`${TYPE_MICRO} font-semibold truncate ${isSelected ? 'text-plan-text' : 'text-[var(--plan-text-muted)]'}`}>
                                       {rtn?.name || '—'}
                                     </div>
                                   </button>
@@ -2976,8 +2993,8 @@ ${JSON.stringify(ctx)}`
                             <div className="flex flex-wrap items-center gap-2 min-w-0">
                               <div className={`${TYPE_BODY} font-bold text-white min-w-0 truncate`}>{displayRtn.name}</div>
                               {workoutActive && !emptyInProgress ? (
-                                <div className="inline-flex items-center rounded-full px-3 py-1 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge shrink-0">
-                                  <span className={`${TYPE_MICRO} font-extrabold tracking-[0.8px] text-[#00e5a0]`}>IN PROGRESS</span>
+                                <div className="inline-flex items-center rounded-full px-3 py-1 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-pulse-badge shrink-0">
+                                  <span className={`${TYPE_MICRO} font-extrabold tracking-[0.8px] text-in-progress`}>IN PROGRESS</span>
                                 </div>
                               ) : null}
                             </div>
@@ -3010,7 +3027,7 @@ ${JSON.stringify(ctx)}`
                             const allSlugs = [...new Set([...(dayMuscles.primary || []), ...(dayMuscles.secondary || [])])]
                             if (allSlugs.length === 0) return null
                             const recoveryPct = getRecoveryPct(dayMuscles, muscleLastWorked)
-                            const recoveryAccent = '#7b7fff'
+                            const recoveryAccent = 'var(--plan-text)'
                             return (
                               <div
                                 role="button"
@@ -3022,12 +3039,12 @@ ${JSON.stringify(ctx)}`
                                     setShowStartRecoveryInfo(true)
                                   }
                                 }}
-                                className="mb-3 w-full rounded-lg -mx-1 px-1 py-1 text-left cursor-pointer hover:bg-white/[0.04] active:bg-white/[0.06] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[rgba(123,127,255,0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-page"
+                                className="mb-3 w-full rounded-lg -mx-1 px-1 py-1 text-left cursor-pointer hover:bg-white/[0.04] active:bg-white/[0.06] transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[var(--a11y-focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-page"
                                 aria-label="Recovery details for this day"
                               >
                                 <div className="flex items-center justify-between mb-1.5 gap-2">
                                   <span className="flex items-center gap-2 min-w-0">
-                                    <span className={`${TYPE_LABEL_UPPER} tracking-[0.06em] text-[rgba(123,127,255,0.55)]`}>Recovery</span>
+                                    <span className={`${TYPE_LABEL_UPPER} tracking-[0.06em] text-[var(--plan-text-muted)]`}>Recovery</span>
                                     <span
                                       className={`shrink-0 text-accent ${TYPE_BODY_SM} leading-none pointer-events-none`}
                                       aria-hidden
@@ -3089,7 +3106,7 @@ ${JSON.stringify(ctx)}`
                               type="button"
                               onClick={() => tryStart('routine', displayRtn)}
                               className={`w-full py-4 rounded-2xl ${TYPE_TITLE_BLOCK} text-white flex items-center justify-center gap-2.5 active:opacity-95`}
-                              style={{ background: 'linear-gradient(135deg, #7b7fff, #6060dd)', boxShadow: '0 8px 24px rgba(123,127,255,0.28)' }}
+                              style={{ background: 'var(--plan-gradient)', boxShadow: 'var(--plan-shadow-card)' }}
                               aria-label={`Start ${displayRtn?.name || 'workout'}`}
                             >
                               <span
@@ -3109,15 +3126,15 @@ ${JSON.stringify(ctx)}`
                       onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
                       className={`w-full mt-3 rounded-2xl p-4 flex items-center gap-3.5 transition-colors ${
                         emptyInProgress
-                          ? 'border-[1.5px] border-[rgba(0,229,160,0.4)] bg-[rgba(0,229,160,0.08)]'
-                          : 'border border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.07)]'
+                          ? 'border-[1.5px] border-[var(--in-progress-border-40)] bg-[var(--in-progress-surface-08)]'
+                          : 'border border-[var(--plan-border-35)] bg-[var(--plan-surface-07)]'
                       }`}
                     >
-                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${TYPE_HERO_PLUS} shrink-0 ${emptyInProgress ? 'bg-[rgba(0,229,160,0.18)] text-[#00e5a0]' : 'bg-[rgba(123,127,255,0.18)] text-[#7b7fff]'}`}>+</div>
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${TYPE_HERO_PLUS} shrink-0 ${emptyInProgress ? 'bg-[var(--in-progress-bg-soft)] text-in-progress' : 'bg-[var(--plan-surface-18)] text-plan-text'}`}>+</div>
                       <div className="text-left min-w-0">
                         {emptyInProgress ? (
-                          <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[rgba(0,229,160,0.3)] bg-[rgba(0,229,160,0.1)] animate-pulse-badge">
-                            <span className={`${TYPE_STATUS_BADGE} text-[#00e5a0]`}>IN PROGRESS</span>
+                          <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-pulse-badge">
+                            <span className={`${TYPE_STATUS_BADGE} text-in-progress`}>IN PROGRESS</span>
                           </div>
                         ) : null}
                         <div className="text-sm font-bold text-text">Empty Workout</div>
@@ -3146,7 +3163,7 @@ ${JSON.stringify(ctx)}`
                       return (
                         <>
                           <div className="rounded-2xl border border-border bg-card p-6 text-center mb-4">
-                            <div className="w-12 h-12 rounded-full bg-[rgba(123,127,255,0.12)] flex items-center justify-center mx-auto mb-3 text-[#7b7fff]">
+                            <div className="w-12 h-12 rounded-full bg-[var(--plan-surface-12)] flex items-center justify-center mx-auto mb-3 text-plan-text">
                               <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                             </div>
                             <div className="text-text font-bold text-base mb-1">No programme yet</div>
@@ -3174,7 +3191,7 @@ ${JSON.stringify(ctx)}`
                                   <button
                                     type="button"
                                     onClick={() => openEditProgramme(prog.id)}
-                                    className="p-2 rounded-lg text-[#7b7fff] hover:text-[#a8abff] hover:bg-white/5 active:opacity-80"
+                                    className="p-2 rounded-lg text-plan-text hover:text-plan-hover hover:bg-white/5 active:opacity-80"
                                     title="Edit programme"
                                     aria-label="Edit programme"
                                   >
@@ -3185,7 +3202,7 @@ ${JSON.stringify(ctx)}`
                                   <button
                                     type="button"
                                     onClick={() => copyProgramme(prog.id)}
-                                    className="p-2 rounded-lg text-[#7b7fff] hover:text-[#a8abff] hover:bg-white/5 active:opacity-80"
+                                    className="p-2 rounded-lg text-plan-text hover:text-plan-hover hover:bg-white/5 active:opacity-80"
                                     title="Copy programme"
                                     aria-label="Copy programme"
                                   >
@@ -3197,7 +3214,7 @@ ${JSON.stringify(ctx)}`
                                   <button
                                     type="button"
                                     onClick={() => setShowDeleteProgrammeConfirm(prog.id)}
-                                    className="p-2 rounded-lg text-[rgba(255,85,85,0.65)] hover:text-red-400 hover:bg-white/5 active:opacity-80"
+                                    className="p-2 rounded-lg text-[var(--semantic-negative-soft)] hover:text-red-400 hover:bg-white/5 active:opacity-80"
                                     title="Delete programme"
                                     aria-label={`Delete programme ${prog.name}`}
                                   >
@@ -3210,7 +3227,7 @@ ${JSON.stringify(ctx)}`
                             <div className="flex items-center gap-1.5 shrink-0 self-center">
                               {isActive ? (
                                 <span
-                                  className={`inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.1)] text-[#7b7fff] ${TYPE_LABEL_UPPER} tracking-wide leading-none animate-up-next-pulse min-h-[32px]`}
+                                  className={`inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-10)] text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none animate-up-next-pulse min-h-[32px]`}
                                   aria-label="Active programme"
                                 >
                                   Active
@@ -3219,7 +3236,7 @@ ${JSON.stringify(ctx)}`
                                 <button
                                   type="button"
                                   onClick={() => setProgrammeActive(prog.id)}
-                                  className={`inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-[rgba(123,127,255,0.35)] bg-[rgba(123,127,255,0.08)] text-[#7b7fff] ${TYPE_LABEL_UPPER} tracking-wide leading-none hover:bg-[rgba(123,127,255,0.12)] active:opacity-90 transition-colors whitespace-nowrap min-h-[32px]`}
+                                  className={`inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none hover:bg-[var(--plan-surface-12)] active:opacity-90 transition-colors whitespace-nowrap min-h-[32px]`}
                                 >
                                   Set active
                                 </button>
@@ -3249,17 +3266,17 @@ ${JSON.stringify(ctx)}`
                                 }}
                                 className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-2 sm:py-2 sm:px-1.5 text-center border transition-colors ${
                                   isActive
-                                    ? 'border-[rgba(123,127,255,0.45)] bg-[rgba(123,127,255,0.1)]'
+                                    ? 'border-[var(--plan-border-45)] bg-[var(--plan-surface-10)]'
                                     : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
                                 }`}
                               >
-                                <div className={`${TYPE_BODY_SM_SEMIBOLD} sm:text-[11px] truncate leading-tight ${isActive ? 'text-[#a8abff]' : 'text-[rgba(200,202,255,0.88)]'}`}>{r.name}</div>
-                                <div className={`${TYPE_MICRO} sm:text-[9px] mt-1 tabular-nums leading-snug font-medium ${isActive ? 'text-white/65' : 'text-white/50'}`}>
+                                <div className={`${TYPE_BODY_SM_SEMIBOLD} sm:text-[12px] truncate leading-tight ${isActive ? 'text-plan-hover' : 'text-[var(--plan-text-row)]'}`}>{r.name}</div>
+                                <div className={`${TYPE_MICRO} sm:text-[10px] mt-1 tabular-nums leading-snug font-medium ${isActive ? 'text-white/65' : 'text-white/50'}`}>
                                   {meta.exCount} ex · {meta.setCount} sets
                                 </div>
                                 {focusStr ? (
                                   <div
-                                    className={`${TYPE_META} sm:text-[8px] mt-1 leading-snug line-clamp-2 font-medium ${isActive ? 'text-[rgba(168,171,255,0.82)]' : 'text-white/42'}`}
+                                    className={`${TYPE_META} sm:text-[9px] mt-1 leading-snug line-clamp-2 font-medium ${isActive ? 'text-[var(--plan-text-focus-secondary)]' : 'text-white/42'}`}
                                     title={meta.focusLabels.join(', ')}
                                   >
                                     {focusStr}
@@ -3293,7 +3310,7 @@ ${JSON.stringify(ctx)}`
                                   : 'plan-section-title'
                               }
                             >
-                              Coach — built for you
+                              Coach programmes
                             </div>
                             {coachProgrammes.map(renderProgrammeCard)}
                           </>
@@ -3878,7 +3895,7 @@ ${JSON.stringify(ctx)}`
                   <button
                     type="button"
                     onClick={() => setCreateProgrammeRoutines(prev => prev.filter((_, j) => j !== i))}
-                    className="text-[rgba(255,85,85,0.5)] p-1"
+                    className="text-[var(--semantic-negative-faint)] p-1"
                     aria-label={`Remove routine ${r.name} from draft`}
                   >
                     ✕
@@ -3917,7 +3934,7 @@ ${JSON.stringify(ctx)}`
               >
                 Save Programme
               </ActionButton>
-              <ActionButton type="button" variant="tertiary" className="mt-2 !min-h-0 py-3 text-xs" onClick={requestCloseCreateProgramme}>
+              <ActionButton type="button" variant="secondary" className="mt-2" onClick={requestCloseCreateProgramme}>
                 Cancel
               </ActionButton>
           </BottomSheet>
@@ -3993,7 +4010,7 @@ ${JSON.stringify(ctx)}`
                           setDragRoutine(null); setDragOverTarget(null)
                         } catch (_) {}
                       }}
-                      className={`flex justify-between items-center py-3 px-3 rounded-[10px] border mb-1.5 transition-colors ${isDragging ? 'opacity-50 bg-white/[0.02] border-white/[0.07]' : isDropTarget ? 'bg-[rgba(123,127,255,0.08)] border-[rgba(123,127,255,0.35)]' : 'bg-white/[0.02] border-white/[0.07]'}`}
+                      className={`flex justify-between items-center py-3 px-3 rounded-[10px] border mb-1.5 transition-colors ${isDragging ? 'opacity-50 bg-white/[0.02] border-white/[0.07]' : isDropTarget ? 'bg-[var(--plan-surface-08)] border-[var(--plan-border-35)]' : 'bg-white/[0.02] border-white/[0.07]'}`}
                     >
                       <span
                         draggable
@@ -4004,10 +4021,10 @@ ${JSON.stringify(ctx)}`
                       <span className="text-white text-sm font-semibold flex-1 min-w-0 truncate">{r.name}</span>
                       <span className="text-white/30 text-xs shrink-0">{r.exercises?.length ?? 0} ex</span>
                       <div className="flex items-center gap-0.5 shrink-0 ml-2">
-                        <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'up')} className={`p-1 rounded-md text-[#7b7fff] ${i === 0 ? 'opacity-20' : 'hover:bg-white/5 hover:text-[#a8abff]'}`} disabled={i === 0} aria-label="Move routine up">
+                        <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'up')} className={`p-1 rounded-md text-plan-text ${i === 0 ? 'opacity-20' : 'hover:bg-white/5 hover:text-plan-hover'}`} disabled={i === 0} aria-label="Move routine up">
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><polyline points="18 15 12 9 6 15" /></svg>
                         </button>
-                        <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'down')} className={`p-1 rounded-md text-[#7b7fff] ${i === progRoutines.length - 1 ? 'opacity-20' : 'hover:bg-white/5 hover:text-[#a8abff]'}`} disabled={i === progRoutines.length - 1} aria-label="Move routine down">
+                        <button type="button" onClick={() => reorderRoutineInProgramme(editingProgrammeId, r.id, 'down')} className={`p-1 rounded-md text-plan-text ${i === progRoutines.length - 1 ? 'opacity-20' : 'hover:bg-white/5 hover:text-plan-hover'}`} disabled={i === progRoutines.length - 1} aria-label="Move routine down">
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><polyline points="6 9 12 15 18 9" /></svg>
                         </button>
                         <button
@@ -4021,7 +4038,7 @@ ${JSON.stringify(ctx)}`
                             setEditingRoutineProgrammeId(editingProgrammeId)
                             setEditingProgrammeId(null)
                           }}
-                          className="p-2 rounded-lg text-[#7b7fff] hover:text-[#a8abff] hover:bg-white/5 active:opacity-80"
+                          className="p-2 rounded-lg text-plan-text hover:text-plan-hover hover:bg-white/5 active:opacity-80"
                           title="Edit routine"
                           aria-label={`Edit routine ${r.name}`}
                         >
@@ -4032,7 +4049,7 @@ ${JSON.stringify(ctx)}`
                         <button
                           type="button"
                           onClick={() => copyRoutine(r.id, editingProgrammeId)}
-                          className="p-2 rounded-lg text-[#7b7fff] hover:text-[#a8abff] hover:bg-white/5 active:opacity-80"
+                          className="p-2 rounded-lg text-plan-text hover:text-plan-hover hover:bg-white/5 active:opacity-80"
                           title="Copy routine"
                           aria-label={`Copy routine ${r.name}`}
                         >
@@ -4044,7 +4061,7 @@ ${JSON.stringify(ctx)}`
                         <button
                           type="button"
                           onClick={() => setEditProgrammeRoutinePendingDelete({ progId: editingProgrammeId, rtnId: r.id, name: r.name })}
-                          className="p-2 rounded-lg text-[rgba(255,85,85,0.65)] hover:text-red-400 hover:bg-white/5 active:opacity-80"
+                          className="p-2 rounded-lg text-[var(--semantic-negative-soft)] hover:text-red-400 hover:bg-white/5 active:opacity-80"
                           title="Delete routine"
                           aria-label={`Delete routine ${r.name}`}
                         >
@@ -4096,12 +4113,56 @@ ${JSON.stringify(ctx)}`
                 >
                   Save Changes
                 </ActionButton>
-                <ActionButton type="button" variant="tertiary" className="mt-2 !min-h-0 py-3 text-xs" onClick={requestCloseEditProgramme}>
+                <ActionButton type="button" variant="secondary" className="mt-2" onClick={requestCloseEditProgramme}>
                   Cancel
                 </ActionButton>
             </BottomSheet>
           )
         })()}
+
+        {showDiscardEditProgrammeConfirm && editingProgrammeId && (
+          <BottomSheet
+            align="center"
+            variant="card"
+            maxWidthClass="max-w-sm"
+            showHandle={false}
+            closeOnBackdrop
+            onClose={() => setShowDiscardEditProgrammeConfirm(false)}
+            zClass={Z_OVERLAY_STACKED}
+            backdropClassName="bg-black/60 backdrop-blur-sm"
+            layout="flex"
+            role="alertdialog"
+            ariaModal={true}
+            ariaLabelledBy="discard-edit-programme-title"
+          >
+            <h2 id="discard-edit-programme-title" className={`${TYPE_TITLE_MODAL} text-center mb-1`}>
+              Discard changes?
+            </h2>
+            <p className={`${TYPE_BODY} text-muted text-center mb-5`}>
+              Unsaved edits to this programme will be lost.
+            </p>
+            <div className="flex gap-3">
+              <ActionButton
+                type="button"
+                variant="secondary"
+                fullWidth={false}
+                className="flex-1 !rounded-xl"
+                onClick={() => setShowDiscardEditProgrammeConfirm(false)}
+              >
+                Keep editing
+              </ActionButton>
+              <ActionButton
+                type="button"
+                variant="danger"
+                fullWidth={false}
+                className="flex-1 !rounded-xl"
+                onClick={confirmDiscardEditProgramme}
+              >
+                Discard
+              </ActionButton>
+            </div>
+          </BottomSheet>
+        )}
 
         {/* Create / Edit Routine - full bottom sheet, same UI as workout (no timer) */}
         {(showCreateRoutine || editingRoutineId) && (() => {
@@ -4170,6 +4231,7 @@ ${JSON.stringify(ctx)}`
               setWorkoutTab('plan')
             }
           }
+          routineEditorCloseRef.current = closeRoutineEditor
           const requestCloseRoutineEditor = () => {
             if (routineLinkMode.active) {
               routineCancelLinkMode()
@@ -4181,7 +4243,10 @@ ${JSON.stringify(ctx)}`
             const progNameMismatch = Boolean(programmeId) && (editProgrammeName ?? '').trim() !== (b?.programmeName ?? '').trim()
             const exMismatch = Boolean(b && curJson !== b.exercisesJson)
             const dirty = Boolean(b && (nameMismatch || progNameMismatch || exMismatch))
-            if (dirty && typeof window !== 'undefined' && !window.confirm('Discard changes to this routine?')) return
+            if (dirty) {
+              setShowDiscardRoutineEditorConfirm(true)
+              return
+            }
             closeRoutineEditor()
           }
           return (
@@ -4444,7 +4509,7 @@ ${JSON.stringify(ctx)}`
                   >
                     Save
                   </ActionButton>
-                <ActionButton type="button" variant="tertiary" className="!min-h-0 py-3 text-xs" onClick={requestCloseRoutineEditor}>
+                <ActionButton type="button" variant="secondary" onClick={requestCloseRoutineEditor}>
                   Cancel
                 </ActionButton>
                 </div>
@@ -4491,6 +4556,50 @@ ${JSON.stringify(ctx)}`
           </>
           )
         })()}
+
+        {showDiscardRoutineEditorConfirm && (
+          <BottomSheet
+            align="center"
+            variant="card"
+            maxWidthClass="max-w-sm"
+            showHandle={false}
+            closeOnBackdrop
+            onClose={() => setShowDiscardRoutineEditorConfirm(false)}
+            zClass={Z_OVERLAY_STACKED}
+            backdropClassName="bg-black/60 backdrop-blur-sm"
+            layout="flex"
+            role="alertdialog"
+            ariaModal={true}
+            ariaLabelledBy="discard-routine-editor-title"
+          >
+            <h2 id="discard-routine-editor-title" className={`${TYPE_TITLE_MODAL} text-center mb-1`}>
+              Discard changes?
+            </h2>
+            <p className={`${TYPE_BODY} text-muted text-center mb-5`}>
+              Your changes to this routine will be lost.
+            </p>
+            <div className="flex gap-3">
+              <ActionButton
+                type="button"
+                variant="secondary"
+                fullWidth={false}
+                className="flex-1 !rounded-xl"
+                onClick={() => setShowDiscardRoutineEditorConfirm(false)}
+              >
+                Keep editing
+              </ActionButton>
+              <ActionButton
+                type="button"
+                variant="danger"
+                fullWidth={false}
+                className="flex-1 !rounded-xl"
+                onClick={confirmDiscardRoutineEditor}
+              >
+                Discard
+              </ActionButton>
+            </div>
+          </BottomSheet>
+        )}
 
         {/* Exercise Picker for Routine - reuse ExerciseLibrary in modal, onAdd adds to editing routine or create draft */}
         {showExercisePickerForRoutine && (
@@ -4862,7 +4971,7 @@ function WorkoutCompleteScreen({
               <div className={`${TYPE_OVERLINE_MID} mb-1`}>Volume</div>
               <div className="flex items-center gap-1 flex-wrap">
                 {volumeDiff > 0 && <span className="flex items-center gap-0.5 text-sm font-bold text-success"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-success"><polyline points="18 15 12 9 6 15"/></svg>+{formatDecimal ? formatDecimal(Math.round(volumeDiff), 0) : Math.round(volumeDiff)} {unitWeight}</span>}
-                {volumeDiff < 0 && <span className="flex items-center gap-0.5 text-sm font-bold text-[#ff6b6b]"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-[#ff6b6b]"><polyline points="6 9 12 15 18 9"/></svg>{formatDecimal ? formatDecimal(Math.round(volumeDiff), 0) : Math.round(volumeDiff)} {unitWeight}</span>}
+                {volumeDiff < 0 && <span className="flex items-center gap-0.5 text-sm font-bold text-negative"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5 stroke-negative"><polyline points="6 9 12 15 18 9"/></svg>{formatDecimal ? formatDecimal(Math.round(volumeDiff), 0) : Math.round(volumeDiff)} {unitWeight}</span>}
                 {volumeDiff === 0 && <span className="text-sm font-bold text-muted-strong">Same</span>}
               </div>
               <div className="text-xs text-muted-mid mt-0.5">{volStr} vs {formatDecimal ? formatDecimal(Math.round(lastVolume), 0) : Math.round(lastVolume)} {unitWeight}</div>

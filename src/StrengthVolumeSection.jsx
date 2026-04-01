@@ -290,7 +290,7 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
       <button
         type="button"
         onClick={onGoToStrength}
-        className="mt-0 mb-0 w-full text-left cursor-pointer hover:opacity-95 active:opacity-90 transition-opacity rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="mt-0 mb-0 w-full text-left cursor-pointer hover:opacity-95 active:opacity-90 transition-opacity rounded-2xl focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--a11y-focus-ring)]"
       >
         {content}
         <div className="flex items-center justify-between gap-3 mt-3">
