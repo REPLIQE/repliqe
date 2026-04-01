@@ -1,4 +1,4 @@
-import { ref, uploadString, getDownloadURL, getBlob } from 'firebase/storage'
+import { ref, uploadString, getDownloadURL, getBlob, deleteObject } from 'firebase/storage'
 import { storage } from './firebase'
 
 const PROGRESS_PHOTOS_PATH = 'progressPhotos'
@@ -44,4 +44,15 @@ export async function getProgressPhotoBlob(uid: string, filename: string): Promi
   const path = `users/${uid}/${PROGRESS_PHOTOS_PATH}/${filename}`
   const storageRef = ref(storage, path)
   return getBlob(storageRef)
+}
+
+/** Sletter ét progress-foto i Storage (web/sync). Ignorerer fejl hvis filen ikke findes. */
+export async function deleteProgressPhoto(uid: string, filename: string): Promise<void> {
+  const path = `users/${uid}/${PROGRESS_PHOTOS_PATH}/${filename}`
+  const storageRef = ref(storage, path)
+  try {
+    await deleteObject(storageRef)
+  } catch {
+    /* not found / allerede slettet */
+  }
 }

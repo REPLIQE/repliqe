@@ -3,9 +3,15 @@ import { getOldestMiddleNewestSessions, sortPhotoSessionsByDate } from './progre
 import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
 import ProgressPhoto from './ProgressPhoto'
 import ProgressPhotoEditor from './ProgressPhotoEditor'
-import { bakeProgressPhotoCropToJpegBase64, isDefaultCrop } from './progressPhotoBake'
+import ComparePhotoSlider from './ComparePhotoSlider'
+import { bakeProgressPhotoCropToJpegBase64, isDefaultCrop, normalizeCrop } from './progressPhotoBake'
 import { useAuth } from './lib/AuthContext'
-import { uploadProgressPhoto, getProgressPhotoUrl, getProgressPhotoBlob } from './lib/photoStorage'
+import {
+  uploadProgressPhoto,
+  getProgressPhotoUrl,
+  getProgressPhotoBlob,
+  deleteProgressPhoto,
+} from './lib/photoStorage'
 
 const ANGLES = [
   { key: 'front', label: 'Front' },
@@ -218,6 +224,32 @@ async function savePhoto(base64Data, filename, uid) {
   throw new Error('Could not save photo (sign in to sync photos)')
 }
 
+/** Sletter filer for en afbrudt capture-session (lokal + Storage). */
+async function deleteDraftCaptureFiles(uid, capturedSnapshot) {
+  if (!capturedSnapshot?._sessionId) return
+  for (const { key } of ANGLES) {
+    const fn = capturedSnapshot[key]
+    if (!fn) continue
+    if (isNativePlatform()) {
+      try {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem')
+        try {
+          await Filesystem.deleteFile({ path: fn, directory: Directory.Data })
+        } catch {
+          try {
+            await Filesystem.deleteFile({ path: fn, directory: Directory.Cache })
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (uid) await deleteProgressPhoto(uid, fn)
+  }
+}
+
 async function blobToImageBitmap(blob) {
   if (typeof createImageBitmap !== 'function') {
     throw new Error('createImageBitmap not supported')
@@ -379,7 +411,16 @@ export default function PhotosModal({
   /** Stabilt ved async save (undgår at captureCropEditorAngle er null i closure). */
   const captureCropSaveRef = useRef({ sid: null, angle: null })
   const [captureCropEditorAngle, setCaptureCropEditorAngle] = useState(null)
+  /** Efter kamera/upload: vis crop før fil gemmes (base64 = ren JPEG uden data:-præfiks). */
+  const [pendingPreSaveCrop, setPendingPreSaveCrop] = useState(null)
+  /** Crop-metadata under capture — først committet til photoSessions ved Done (ikke ved delvis capture). */
+  const [captureSessionCrops, setCaptureSessionCrops] = useState({})
+  const captureSessionCropsRef = useRef({})
+  useEffect(() => {
+    captureSessionCropsRef.current = captureSessionCrops
+  }, [captureSessionCrops])
   const [captureAnglePendingDelete, setCaptureAnglePendingDelete] = useState(null)
+  const [captureCancelConfirmOpen, setCaptureCancelConfirmOpen] = useState(false)
   /** Which angle's photo the user tapped to show crop/delete options (capture flow only). */
   const [captureAngleActionSheet, setCaptureAngleActionSheet] = useState(null)
 
@@ -427,6 +468,9 @@ export default function PhotosModal({
       setCaptureCropEditorAngle(null)
       setCaptureAnglePendingDelete(null)
       setCaptureAngleActionSheet(null)
+      setPendingPreSaveCrop(null)
+      setCaptureSessionCrops({})
+      setCaptureCancelConfirmOpen(false)
     }
   }, [openToAdd, canAddPhotos, atLimit])
 
@@ -435,7 +479,7 @@ export default function PhotosModal({
     JSON.stringify(photoSessions) !== initialPhotoSessionsRef.current
 
   const showCaptureUI =
-    capturing || (openToAdd && canAddPhotos && !atLimit)
+    capturing || pendingPreSaveCrop != null || (openToAdd && canAddPhotos && !atLimit)
 
   /** On native: opens camera or gallery. On web returns null (use file input instead). */
   async function takePhoto(source) {
@@ -461,8 +505,9 @@ export default function PhotosModal({
     }
   }
 
-  async function saveAndAdvanceWithBase64(base64) {
-    if (!base64) return
+  /** @returns {Promise<boolean>} */
+  async function saveAndAdvanceWithBase64(base64, cropFromEditor = null) {
+    if (!base64) return false
     const angle = ANGLES[captureStep]
     let normalized = base64.replace(/^data:image\/\w+;base64,/, '') || base64
     try {
@@ -477,40 +522,41 @@ export default function PhotosModal({
     } catch (err) {
       console.error('Save photo failed:', err)
       if (typeof alert !== 'undefined') alert('Could not save photo. Try again.')
-      return
+      return false
     }
+    const cropMeta = cropFromEditor ? normalizeCrop(cropFromEditor) : null
     const updated = { ...capturedImages, _sessionId: sessionId, [angle.key]: filename }
     setCapturedImages(updated)
     setCaptureStep((prev) => prev + 1)
-    // Persist session immediately so photo shows even if user leaves before clicking Done
-    if (typeof setPhotoSessions === 'function') {
-      setPhotoSessions((prev) => {
-        const existing = (prev || []).find((s) => s.id === sessionId)
-        const partial = {
-          id: sessionId,
-          date: existing?.date ?? captureSessionDate,
-          front: updated.front ?? null,
-          back: updated.back ?? null,
-          side: updated.side ?? null,
-          createdAt: existing?.createdAt ?? Date.now(),
-          crops: existing?.crops ? { ...existing.crops } : {},
-        }
-        const without = (prev || []).filter((s) => s.id !== sessionId)
-        return [...without, partial]
-      })
-    }
+    setCaptureSessionCrops((prev) => {
+      const next = { ...prev }
+      if (cropMeta && !isDefaultCrop(cropMeta)) next[angle.key] = cropMeta
+      else delete next[angle.key]
+      return next
+    })
     if (!progressQuotaAnglesRef.current.has(angle.key)) {
       progressQuotaAnglesRef.current.add(angle.key)
       onProgressPhotoAdded?.()
     }
+    return true
   }
 
   async function handleCaptureAngle(source) {
     setCapturing(true)
     if (isNative) {
-      const base64 = await takePhoto(source)
-      if (base64) await saveAndAdvanceWithBase64(base64)
+      const rawBase64 = await takePhoto(source)
       setCapturing(false)
+      if (!rawBase64) return
+      let normalized = rawBase64.replace(/^data:image\/\w+;base64,/, '') || rawBase64
+      try {
+        normalized = await normalizeImage(rawBase64)
+      } catch {
+        normalized = rawBase64.replace(/^data:image\/\w+;base64,/, '') || rawBase64
+      }
+      setPendingPreSaveCrop({
+        base64: normalized,
+        dataUrl: `data:image/jpeg;base64,${normalized}`,
+      })
       return
     }
     // Web: keep capturing view open and open file picker (camera or library)
@@ -523,7 +569,12 @@ export default function PhotosModal({
     if (!file || !file.type?.startsWith('image/')) return
     try {
       const base64 = await normalizeImage(file)
-      if (base64) await saveAndAdvanceWithBase64(base64)
+      if (base64) {
+        setPendingPreSaveCrop({
+          base64,
+          dataUrl: `data:image/jpeg;base64,${base64}`,
+        })
+      }
     } catch (err) {
       console.error('Photo handleFileSelected failed:', err)
       if (typeof alert !== 'undefined') alert('Could not add photo. Try again.')
@@ -533,6 +584,7 @@ export default function PhotosModal({
   }
 
   function skipAngle() {
+    setPendingPreSaveCrop(null)
     setCaptureStep((prev) => prev + 1)
   }
 
@@ -545,16 +597,11 @@ export default function PhotosModal({
     const nextCaptured = { ...capturedImages }
     delete nextCaptured[angleKey]
     setCapturedImages(nextCaptured)
-    if (typeof setPhotoSessions === 'function') {
-      setPhotoSessions((prev) =>
-        (prev || []).map((s) => {
-          if (s.id !== sessionId) return s
-          const nextCrops = { ...(s.crops || {}) }
-          delete nextCrops[angleKey]
-          return { ...s, [angleKey]: null, crops: nextCrops }
-        })
-      )
-    }
+    setCaptureSessionCrops((prev) => {
+      const n = { ...prev }
+      delete n[angleKey]
+      return n
+    })
     setCaptureStep(ANGLES.findIndex((a) => a.key === angleKey))
   }
 
@@ -570,16 +617,11 @@ export default function PhotosModal({
     const nextCaptured = { ...capturedImages }
     delete nextCaptured[angleKey]
     setCapturedImages(nextCaptured)
-    if (typeof setPhotoSessions === 'function') {
-      setPhotoSessions((prev) =>
-        (prev || []).map((s) => {
-          if (s.id !== sessionId) return s
-          const nextCrops = { ...(s.crops || {}) }
-          delete nextCrops[angleKey]
-          return { ...s, [angleKey]: null, crops: nextCrops }
-        })
-      )
-    }
+    setCaptureSessionCrops((prev) => {
+      const n = { ...prev }
+      delete n[angleKey]
+      return n
+    })
     const allFilled = ANGLES.every(({ key }) => nextCaptured[key])
     if (!allFilled) {
       const firstEmpty = ANGLES.findIndex(({ key }) => !nextCaptured[key])
@@ -587,15 +629,36 @@ export default function PhotosModal({
     }
   }
 
+  async function abortCaptureSession() {
+    const snap = capturedImages
+    setCaptureCancelConfirmOpen(false)
+    setPendingPreSaveCrop(null)
+    setCaptureCropEditorAngle(null)
+    setCaptureAnglePendingDelete(null)
+    setCaptureAngleActionSheet(null)
+    setCaptureSessionCrops({})
+    if (snap?._sessionId && (snap.front || snap.back || snap.side)) {
+      await deleteDraftCaptureFiles(uid, snap)
+      const quota = progressQuotaAnglesRef.current.size
+      if (quota > 0) onProgressPhotoRemoved?.(quota)
+      progressQuotaAnglesRef.current = new Set()
+    }
+    setCapturing(false)
+    setCaptureStep(0)
+    setCapturedImages({})
+  }
+
   function finishCapture() {
+    setPendingPreSaveCrop(null)
     const { _sessionId, ...angles } = capturedImages
     const sessionId = _sessionId ?? `ps_${Date.now()}`
+    const snapCrops = captureSessionCropsRef.current
+    const cleanedCrops = {}
+    ANGLES.forEach(({ key }) => {
+      if (angles[key] && snapCrops[key]) cleanedCrops[key] = snapCrops[key]
+    })
     setPhotoSessions((prev) => {
       const existing = (prev || []).find((s) => s.id === sessionId)
-      const cleanedCrops = { ...(existing?.crops || {}) }
-      ANGLES.forEach(({ key }) => {
-        if (!angles[key]) delete cleanedCrops[key]
-      })
       const newSession = {
         id: sessionId,
         date: captureSessionDate,
@@ -609,6 +672,7 @@ export default function PhotosModal({
       return [...without, newSession]
     })
     if (typeof onPhotoSessionCreated === 'function') onPhotoSessionCreated(sessionId)
+    setCaptureSessionCrops({})
     setCapturing(false)
     setCaptureStep(0)
     setCapturedImages({})
@@ -618,7 +682,6 @@ export default function PhotosModal({
   if (showCaptureUI) {
     const currentAngle = ANGLES[captureStep]
     const isDone = captureStep >= ANGLES.length
-    const captureSessionPartial = (photoSessions || []).find((s) => s.id === capturedImages._sessionId)
 
     const captureAngleSlot = (key, label) => {
       const has = !!capturedImages[key]
@@ -629,7 +692,7 @@ export default function PhotosModal({
         <div key={key} className="flex flex-col items-center gap-1.5">
           <ProgressPhoto
             src={has ? captureThumbSrcs[key] : null}
-            crop={captureSessionPartial?.crops?.[key]}
+            crop={captureSessionCrops[key]}
             className={`w-[64px] rounded-xl border-2 shrink-0 ring-offset-2 ring-offset-page ${
               isActiveStep ? 'border-accent ring-2 ring-accent/40' : 'border-border'
             } ${
@@ -661,10 +724,10 @@ export default function PhotosModal({
       captureThumbSrcs[captureCropEditorAngle] && (
         <ProgressPhotoEditor
           src={captureThumbSrcs[captureCropEditorAngle]}
-          initialCrop={captureSessionPartial?.crops?.[captureCropEditorAngle]}
+          initialCrop={captureSessionCrops[captureCropEditorAngle]}
           onSave={async (crop) => {
             const { sid, angle } = captureCropSaveRef.current
-            if (!sid || !angle || typeof setPhotoSessions !== 'function') return
+            if (!sid || !angle) return
             const filename = `${sid}_${angle}.jpg`
             const imageSrc = captureThumbSrcs[angle]
             try {
@@ -672,14 +735,11 @@ export default function PhotosModal({
               if (result.baked) {
                 setCaptureThumbSrcs((prev) => ({ ...prev, [angle]: result.dataUrl }))
               }
-              setPhotoSessions((prev) =>
-                (prev || []).map((s) => {
-                  if (s.id !== sid) return s
-                  const nextCrops = { ...(s.crops || {}) }
-                  delete nextCrops[angle]
-                  return { ...s, crops: nextCrops }
-                })
-              )
+              setCaptureSessionCrops((prev) => {
+                const n = { ...prev }
+                delete n[angle]
+                return n
+              })
             } catch (err) {
               console.error(err)
               if (typeof alert !== 'undefined') alert('Could not save crop. Try again.')
@@ -689,6 +749,20 @@ export default function PhotosModal({
           onClose={() => setCaptureCropEditorAngle(null)}
         />
       )
+
+    const pendingPreSaveEditor = pendingPreSaveCrop && (
+      <ProgressPhotoEditor
+        src={pendingPreSaveCrop.dataUrl}
+        stackClass="z-[125]"
+        onSave={async (crop) => {
+          const payload = pendingPreSaveCrop
+          if (!payload) return
+          const ok = await saveAndAdvanceWithBase64(payload.base64, crop)
+          if (ok) setPendingPreSaveCrop(null)
+        }}
+        onClose={() => setPendingPreSaveCrop(null)}
+      />
+    )
 
     const sheetAngleMeta = captureAngleActionSheet
       ? ANGLES.find((a) => a.key === captureAngleActionSheet)
@@ -747,6 +821,57 @@ export default function PhotosModal({
               onClick={() => setCaptureAngleActionSheet(null)}
             >
               Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+
+    const hasDraftCapturePhotos = () =>
+      !!(capturedImages.front || capturedImages.back || capturedImages.side)
+
+    async function handleCaptureCancelClick() {
+      if (hasDraftCapturePhotos()) {
+        setCaptureCancelConfirmOpen(true)
+        return
+      }
+      await abortCaptureSession()
+      if (openToAdd) onClose()
+    }
+
+    async function confirmAbortCaptureSession() {
+      await abortCaptureSession()
+      if (openToAdd) onClose()
+    }
+
+    const captureCancelConfirmModal = captureCancelConfirmOpen && (
+      <div
+        className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 z-[125]"
+        aria-modal="true"
+        role="alertdialog"
+        aria-labelledby="capture-cancel-title"
+      >
+        <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-xl relative z-[126]">
+          <div id="capture-cancel-title" className="text-[15px] font-bold text-text mb-1 text-center">
+            Discard this session?
+          </div>
+          <div className="text-[13px] text-muted mb-5 text-center">
+            You have added one or more photos. If you continue, they will be removed and not saved.
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setCaptureCancelConfirmOpen(false)}
+              className="flex-1 py-3 rounded-xl text-[13px] font-bold border border-border-strong bg-card-alt text-text"
+            >
+              Keep editing
+            </button>
+            <button
+              type="button"
+              onClick={() => confirmAbortCaptureSession()}
+              className="flex-1 py-3 rounded-xl text-[13px] font-bold bg-red-500/90 text-white hover:bg-red-500"
+            >
+              Discard
             </button>
           </div>
         </div>
@@ -853,6 +978,8 @@ export default function PhotosModal({
         </div>
         {capturePhotoActionSheet}
         {captureCropEditor}
+        {pendingPreSaveEditor}
+        {captureCancelConfirmModal}
         {captureAngleDeleteModal}
         </>
       )
@@ -988,18 +1115,8 @@ export default function PhotosModal({
             Skip {currentAngle.label}
           </button>
           <button
-            onClick={() => {
-              setCaptureCropEditorAngle(null)
-              setCaptureAnglePendingDelete(null)
-              setCaptureAngleActionSheet(null)
-              if (openToAdd) {
-                onClose()
-              } else {
-                setCapturing(false)
-                setCaptureStep(0)
-                setCapturedImages({})
-              }
-            }}
+            type="button"
+            onClick={() => handleCaptureCancelClick()}
             className="w-full py-3 text-sm font-semibold text-muted border border-border rounded-lg"
           >
             Cancel
@@ -1009,6 +1126,8 @@ export default function PhotosModal({
       </div>
         {capturePhotoActionSheet}
         {captureCropEditor}
+        {pendingPreSaveEditor}
+        {captureCancelConfirmModal}
         {captureAngleDeleteModal}
       </>
     )
@@ -1040,6 +1159,9 @@ export default function PhotosModal({
             setCaptureCropEditorAngle(null)
             setCaptureAnglePendingDelete(null)
             setCaptureAngleActionSheet(null)
+            setPendingPreSaveCrop(null)
+            setCaptureSessionCrops({})
+            setCaptureCancelConfirmOpen(false)
             setCapturing(true)
             setCaptureStep(0)
             setCapturedImages({})
@@ -1459,44 +1581,59 @@ export function PhotosViewContent({
                       ))}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      {[sessionA, sessionB].map((session, i) => {
-                        const weightEntry = Array.isArray(weightLog) && session?.date
-                          ? weightLog.find((e) => e.date === session.date)
+                    {(() => {
+                      const fileA = sessionA?.[compareAngle]
+                      const fileB = sessionB?.[compareAngle]
+                      const srcA = fileA && thumbs[fileA] ? thumbs[fileA] : null
+                      const srcB = fileB && thumbs[fileB] ? thumbs[fileB] : null
+                      const wA =
+                        Array.isArray(weightLog) && sessionA?.date
+                          ? weightLog.find((e) => e.date === sessionA.date)
                           : null
-                        const muscleEntry = Array.isArray(muscleMassLog) && session?.date
-                          ? muscleMassLog.find((e) => e.date === session.date)
+                      const wB =
+                        Array.isArray(weightLog) && sessionB?.date
+                          ? weightLog.find((e) => e.date === sessionB.date)
                           : null
-                        const statsLine = [weightEntry?.value != null && `Weight ${weightEntry.value} ${unitWeight}`, muscleEntry?.value != null && `Muscle ${muscleEntry.value}%`].filter(Boolean).join(' · ')
-                        const placeholderSvg = (
-                          <svg width="40" height="72" viewBox="0 0 50 90" fill="none" className="text-muted">
-                            <ellipse cx="25" cy="14" rx="10" ry="11" fill="currentColor" />
-                            <path d="M14 26 L36 26 L34 54 L34 90 L26 90 L26 54 L24 54 L24 90 L16 90 L16 54 Z" fill="currentColor" />
-                          </svg>
-                        )
-                        return (
-                          <div key={i} className="flex flex-col gap-1">
-                            <ProgressPhoto
-                              key={`${session?.id ?? i}-${compareAngle}-${session?.[compareAngle] ?? ''}`}
-                              src={session?.[compareAngle] && thumbs[session[compareAngle]] ? thumbs[session[compareAngle]] : null}
-                              crop={session?.crops?.[compareAngle]}
-                              className={`rounded-[12px] ${session?.[compareAngle] && canAddPhotos ? 'cursor-pointer' : ''}`}
-                              onClick={session?.[compareAngle] && canAddPhotos ? () => setEditingCrop({ sessionId: session.id, angle: compareAngle }) : undefined}
-                            >
-                              {placeholderSvg}
-                            </ProgressPhoto>
-                            <span className="text-[9px] font-bold text-muted text-center">
-                              {session ? fmtDate(session.date) : '—'}
-                            </span>
-                            {statsLine ? (
-                              <span className="text-[9px] text-muted text-center">
-                                {statsLine}
-                              </span>
-                            ) : null}
-                          </div>
-                        )
-                      })}
-                    </div>
+                      const mA =
+                        Array.isArray(muscleMassLog) && sessionA?.date
+                          ? muscleMassLog.find((e) => e.date === sessionA.date)
+                          : null
+                      const mB =
+                        Array.isArray(muscleMassLog) && sessionB?.date
+                          ? muscleMassLog.find((e) => e.date === sessionB.date)
+                          : null
+                      const line = (sess, w, m) => {
+                        if (!sess) return ''
+                        const bits = [
+                          w?.value != null && `${w.value} ${unitWeight}`,
+                          m?.value != null && `Muscle ${m.value}%`,
+                        ].filter(Boolean)
+                        return bits.length ? `${fmtDate(sess.date)}: ${bits.join(' · ')}` : ''
+                      }
+                      const statsLine = [line(sessionA, wA, mA), line(sessionB, wB, mB)].filter(Boolean).join('  —  ')
+                      return (
+                        <ComparePhotoSlider
+                          beforeSrc={srcA}
+                          beforeCrop={sessionA?.crops?.[compareAngle]}
+                          afterSrc={srcB}
+                          afterCrop={sessionB?.crops?.[compareAngle]}
+                          beforeDateLabel={sessionA ? `Before · ${fmtDate(sessionA.date)}` : 'Before'}
+                          afterDateLabel={sessionB ? `After · ${fmtDate(sessionB.date)}` : 'After'}
+                          statsLine={statsLine || null}
+                          canEdit={canAddPhotos}
+                          onEditBefore={
+                            fileA && sessionA && canAddPhotos
+                              ? () => setEditingCrop({ sessionId: sessionA.id, angle: compareAngle })
+                              : undefined
+                          }
+                          onEditAfter={
+                            fileB && sessionB && canAddPhotos
+                              ? () => setEditingCrop({ sessionId: sessionB.id, angle: compareAngle })
+                              : undefined
+                          }
+                        />
+                      )
+                    })()}
                   </div>
                 </>
               )}

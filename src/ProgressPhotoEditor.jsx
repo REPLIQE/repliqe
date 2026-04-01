@@ -6,7 +6,7 @@ const MIN_SCALE = 1
 const MAX_SCALE = 4
 const SCALE_STEP = 0.1
 
-export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose }) {
+export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose, stackClass = 'z-[100]' }) {
   const [current, setCurrent] = useState(() =>
     initialCrop ? normalizeCrop(initialCrop) : { ...DEFAULT_CROP }
   )
@@ -97,7 +97,7 @@ export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose 
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
+    <div className={`fixed inset-0 ${stackClass} flex items-end justify-center sm:items-center sm:p-4`}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[4px]" aria-hidden onClick={onClose} />
       <div className="relative w-full max-w-md max-h-[92vh] flex flex-col bg-page rounded-t-[20px] sm:rounded-[20px] border border-border overflow-hidden">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
