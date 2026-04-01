@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import MuscleIcon from './MuscleIcon'
 import { MUSCLE_GROUPS, EQUIPMENT_TYPES, TYPE_LABELS, filterExercises, groupByMuscle } from './exerciseLibrary'
 
 const MUSCLE_KEYS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'mobility']
@@ -113,7 +112,6 @@ export default function ExerciseLibrary({
           <div key={muscle}>
             {/* Section header */}
             <div className="flex items-center gap-2 mt-3 mb-2">
-              <MuscleIcon muscle={muscle} size={14} />
               <span className="text-sm font-bold uppercase tracking-wider" style={{ color: mg.color }}>{mg.label}</span>
               <span className="text-sm font-semibold text-muted-strong">{exs.length}</span>
             </div>
@@ -135,7 +133,6 @@ export default function ExerciseLibrary({
                     else if (onEditExercise && ex.isCustom) onEditExercise(ex)
                   }}
                   className={`flex items-center gap-3 bg-card border rounded-xl px-3 py-2.5 mb-1 cursor-pointer transition-all ${isSelected ? 'border-accent bg-accent/5' : 'border-border hover:border-accent'}`}>
-                  <MuscleIcon muscle={ex.muscle} size={16} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-base font-bold text-text truncate">{ex.name}</span>

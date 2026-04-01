@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
-import MuscleIcon from './MuscleIcon'
 import { MUSCLE_GROUPS, EQUIPMENT_TYPES, TYPE_LABELS } from './exerciseLibrary'
 
 const MUSCLE_KEYS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'mobility']
@@ -77,9 +76,8 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
               const active = muscle === m
               return (
                 <button key={m} onClick={() => setMuscle(m)}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold border-[1.5px] transition-all ${active ? 'border-transparent' : 'border-border-strong bg-card-alt'}`}
+                  className={`flex items-center justify-center px-3 py-2.5 rounded-xl text-xs font-semibold border-[1.5px] transition-all ${active ? 'border-transparent' : 'border-border-strong bg-card-alt'}`}
                   style={active ? { background: mg.bg, borderColor: mg.color + '66', color: mg.color } : { color: '#888' }}>
-                  <MuscleIcon muscle={m} size={12} />
                   {mg.label}
                 </button>
               )

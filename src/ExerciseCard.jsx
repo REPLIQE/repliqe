@@ -1,7 +1,6 @@
-import { useState, useRef, useLayoutEffect } from 'react'
+import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
-import MuscleIcon from './MuscleIcon'
 import { MUSCLE_GROUPS } from './exerciseLibrary'
 
 const REST_PRESETS = [0, 30, 60, 90, 120, 180]
@@ -21,52 +20,6 @@ function selectWorkoutFieldOnFocus(e) {
     }
   }
   requestAnimationFrame(run)
-}
-
-/**
- * Done-state tint behind value fields. Fade-out on undo uses CSS transition reliably; fade-in on done
- * needs a forced initial paint at opacity 0 (double rAF) or browsers skip the transition.
- */
-function DoneValueShell({ done, children }) {
-  const [layerOpacity, setLayerOpacity] = useState(0)
-
-  useLayoutEffect(() => {
-    const reduced =
-      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) {
-      setLayerOpacity(done ? 1 : 0)
-      return
-    }
-    if (!done) {
-      setLayerOpacity(0)
-      return
-    }
-    setLayerOpacity(0)
-    let innerRaf = 0
-    const outerRaf = requestAnimationFrame(() => {
-      innerRaf = requestAnimationFrame(() => setLayerOpacity(1))
-    })
-    return () => {
-      cancelAnimationFrame(outerRaf)
-      cancelAnimationFrame(innerRaf)
-    }
-  }, [done])
-
-  return (
-    <div className="relative w-full min-w-0 self-center">
-      <div
-        className={[
-          'absolute inset-0 z-[1] rounded-lg pointer-events-none',
-          'bg-success/12 shadow-[inset_0_0_0_1px_rgba(0,229,160,0.2)]',
-          'motion-reduce:transition-none motion-reduce:duration-0',
-          'transition-opacity duration-[1900ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
-        ].join(' ')}
-        style={{ opacity: layerOpacity }}
-        aria-hidden
-      />
-      <div className="relative z-0 min-w-0">{children}</div>
-    </div>
-  )
 }
 
 /**
@@ -246,8 +199,9 @@ function ExerciseCard({
 
   const gridStyle = { gridTemplateColumns: getGridCols() }
   const headers = getHeaders()
-  const doneStyle =
-    'border-success/35 bg-card-alt/90 text-text placeholder-muted-deep focus:border-success focus:shadow-[0_0_0_3px_rgba(0,229,160,0.2)]'
+  const doneFieldShell =
+    'border-transparent bg-transparent shadow-none rounded-none text-[var(--set-done-row-input-text)] placeholder:text-[color:var(--set-done-row-placeholder)] focus:border-transparent focus:shadow-none focus:ring-2 focus:ring-[var(--set-done-focus-ring)] focus:ring-inset'
+  const doneStyle = doneFieldShell
   const editStyle = 'border-border-strong text-text placeholder-muted-deep focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-primary)] focus:shadow-accent/20'
   /* text-base på små skærme: iOS zoomer ikke ind ved fokus (<16px giver layout-shift og vandret scroll) */
   const base = 'w-full min-w-0 bg-card-alt border rounded-lg px-1.5 py-1.5 text-center text-base sm:text-sm font-bold outline-none transition-all'
@@ -255,34 +209,33 @@ function ExerciseCard({
     'transition-all duration-[560ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none motion-reduce:duration-0'
 
   function renderInputs(set, j) {
-    const w = (node) => <DoneValueShell done={set.done}>{node}</DoneValueShell>
     switch (type) {
       case 'weight_reps': return (<>
-        {w(<input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)}
-        {w(<input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)}
+        <input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       </>)
       case 'bw_reps': return (<>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => onUpdateSet(exIndex, j, 'bwSign', (set.bwSign || '+') === '+' ? '-' : '+')}
-            className={`shrink-0 w-8 h-[34px] rounded-xl border-[1.5px] flex items-center justify-center text-sm font-extrabold transition-all ${set.done ? 'border-success/30 bg-success/8' : 'border-border-strong bg-card-alt hover:border-accent active:scale-90'} ${(set.bwSign || '+') === '+' ? 'text-success' : 'text-[#ff6b6b]'}`}
+            className={`shrink-0 w-8 h-[34px] rounded-xl border-[1.5px] flex items-center justify-center text-sm font-extrabold transition-all ${set.done ? 'border-transparent bg-white/10 shadow-none' : 'border-border-strong bg-card-alt hover:border-accent active:scale-90'} ${!set.done && (set.bwSign || '+') === '+' ? 'text-success' : ''} ${!set.done && (set.bwSign || '+') !== '+' ? 'text-[#ff6b6b]' : ''} ${set.done && (set.bwSign || '+') === '+' ? 'text-[var(--set-done-row-prev)]' : ''} ${set.done && (set.bwSign || '+') !== '+' ? 'text-[#ffb4b4]' : ''}`}
           >
             {(set.bwSign || '+') === '+' ? '+' : '−'}
           </button>
-          {w(<input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} flex-1 ${set.done ? doneStyle : editStyle}`} />)}
+          <input type="text" inputMode="decimal" placeholder={unitWeight} data-ex={exIndex} data-set={j} data-field="kg" value={displayKg(set.kg)} onChange={(e) => onUpdateSet(exIndex, j, 'kg', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} flex-1 ${set.done ? doneStyle : editStyle}`} />
         </div>
-        {w(<input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)}
+        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       </>)
       case 'reps_only': return (
-        w(<input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)
+        <input type="number" inputMode="numeric" placeholder="reps" data-ex={exIndex} data-set={j} data-field="reps" value={set.reps} onChange={(e) => onUpdateSet(exIndex, j, 'reps', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       )
       case 'time_only': return (
-        w(<input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)
+        <input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       )
       case 'distance_time': return (<>
-        {w(<input type="text" inputMode="decimal" placeholder={unitDistance} data-ex={exIndex} data-set={j} data-field="distance" value={displayDist(set.distance)} onChange={(e) => onUpdateSet(exIndex, j, 'distance', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)}
-        {w(<input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />)}
+        <input type="text" inputMode="decimal" placeholder={unitDistance} data-ex={exIndex} data-set={j} data-field="distance" value={displayDist(set.distance)} onChange={(e) => onUpdateSet(exIndex, j, 'distance', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />
+        <input type="text" inputMode="numeric" placeholder="m:ss" data-ex={exIndex} data-set={j} data-field="time" value={set.time} onChange={(e) => onUpdateSet(exIndex, j, 'time', e.target.value)} onFocus={selectWorkoutFieldOnFocus} className={`${base} ${set.done ? doneStyle : editStyle}`} />
       </>)
       default: return null
     }
@@ -308,35 +261,45 @@ function ExerciseCard({
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-2">
-            {libraryEntry ? <div className="mt-0.5 shrink-0"><MuscleIcon muscle={libraryEntry.muscle} size={14} /></div> : null}
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-lg font-bold tracking-tight">{displayName}</span>
-              </div>
-              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                {type === 'bw_reps' && <span className="text-xs text-muted-mid">BW: {bodyweight} {unitWeight}</span>}
-                {bestSet && type === 'weight_reps' && <span className="text-xs text-muted-mid">PR: {displayKg(bestSet.kg)}×{bestSet.reps}</span>}
-                {!isEditing && supersetRole !== 'A' && (
-                  <span className="flex items-center gap-1 text-xs text-muted-mid">
-                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    {currentRest === 0 ? 'None' : formatTime(currentRest)}
-                  </span>
-                )}
-              </div>
-            </div>
+          <span className="text-lg font-bold tracking-tight truncate block">{displayName}</span>
+          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+            {libraryEntry?.equipment ? (
+              <span className="text-xs font-semibold px-1.5 py-0.5 rounded-md bg-white/5 text-muted border border-white/[0.06] shrink-0">
+                {libraryEntry.equipment}
+              </span>
+            ) : null}
+            {!isEditing && supersetRole !== 'A' ? (
+              <span className="flex items-center gap-1 text-xs text-muted-mid tabular-nums whitespace-nowrap shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current shrink-0" aria-hidden>
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                {currentRest === 0 ? 'None' : formatTime(currentRest)}
+              </span>
+            ) : null}
+            {type === 'bw_reps' ? (
+              <span className="text-xs text-muted-mid">BW: {bodyweight} {unitWeight}</span>
+            ) : null}
+            {bestSet && type === 'weight_reps' ? (
+              <span className="text-xs text-muted-mid">PR: {displayKg(bestSet.kg)}×{bestSet.reps}</span>
+            ) : null}
           </div>
         </div>
-        <div className="flex items-center shrink-0">
-          {supersetRole && (
-            <span className="text-xs font-extrabold mr-1" style={{ color: supersetRole === 'A' ? 'var(--accent-primary)' : 'var(--success)' }}>
+        <div className="flex items-center gap-1.5 shrink-0 self-start pt-0.5">
+          {supersetRole ? (
+            <span className="text-xs font-extrabold" style={{ color: supersetRole === 'A' ? 'var(--accent-primary)' : 'var(--success)' }}>
               {supersetRole}
             </span>
-          )}
-          {supersetIsNext && (
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide bg-success/15 text-success border border-success/40 mr-1.5 animate-up-next-pulse">Next</span>
-          )}
-          <button onClick={() => setShowExerciseMenu(!showExerciseMenu)} className="p-2 rounded-lg hover:bg-card-alt border border-transparent hover:border-border-strong transition-colors" aria-label="Exercise options">
+          ) : null}
+          {supersetIsNext ? (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide bg-success/15 text-success border border-success/40 animate-up-next-pulse">Next</span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setShowExerciseMenu(!showExerciseMenu)}
+            className="p-2 rounded-lg hover:bg-card-alt border border-transparent hover:border-border-strong transition-colors"
+            aria-label="Exercise options"
+          >
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-5 h-5 stroke-muted-strong"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
           </button>
         </div>
@@ -422,7 +385,7 @@ function ExerciseCard({
 
       {exercise.note && !showNoteInput && (
         <div className="flex items-start gap-2 mt-2 px-3 py-2 bg-card-alt rounded-lg border border-border-strong min-w-0">
-          <span className="text-sm text-muted italic flex-1 min-w-0 break-words whitespace-pre-wrap">{exercise.note}</span>
+          <span className="text-sm text-muted-mid leading-relaxed flex-1 min-w-0 break-words whitespace-pre-wrap">{exercise.note}</span>
           <button
             type="button"
             onClick={() => setShowRemoveNoteConfirm(true)}
@@ -489,28 +452,53 @@ function ExerciseCard({
                 <DeleteTrashGlyph className="w-4 h-4 text-white mr-1 shrink-0" />
                 <span className="text-white text-sm font-bold">Delete</span>
               </button>
-              <div ref={(el) => { rowRefs.current[j] = el }} className={`gap-1.5 items-center relative z-10 bg-card ${isNextSet ? 'ring-2 ring-success/60 rounded-lg' : ''}`} style={{ display: 'grid', ...gridStyle, touchAction: 'pan-y', boxShadow: '2px 0 0 0 var(--bg-card)' }}
-                onTouchStart={(e) => { tapOutside(j); handleTouchStart(e, j) }} onTouchMove={(e) => handleTouchMove(e, j)} onTouchEnd={(e) => handleTouchEnd(e, j)}>
-                <span className="text-sm font-bold text-muted text-center">{j + 1}</span>
+              <div
+                ref={(el) => { rowRefs.current[j] = el }}
+                className={[
+                  'gap-1.5 items-center relative z-10 rounded-lg px-0.5 py-1 transition-[background-color,box-shadow] duration-300',
+                  set.done ? 'shadow-none' : `bg-card ${isNextSet && !set.done ? 'ring-2 ring-success/60' : ''}`,
+                ].join(' ')}
+                style={{
+                  display: 'grid',
+                  ...gridStyle,
+                  touchAction: 'pan-y',
+                  /* Done: solid row fill only — no edge shadow (avoids a slightly different stripe vs #0a4830). */
+                  ...(set.done
+                    ? { background: 'var(--set-done-row-bg)' }
+                    : { boxShadow: '2px 0 0 0 var(--bg-card)' }),
+                }}
+                onTouchStart={(e) => { tapOutside(j); handleTouchStart(e, j) }} onTouchMove={(e) => handleTouchMove(e, j)} onTouchEnd={(e) => handleTouchEnd(e, j)}
+              >
+                <span className={`text-sm font-bold text-center ${set.done ? 'text-[var(--set-done-row-input-text)]' : 'text-muted'}`}>{j + 1}</span>
                 {hasPrevious && (
                   <div className="flex flex-row items-center justify-center gap-1.5 flex-wrap-nowrap">
-                    <span className={`text-sm text-center font-medium italic shrink-0 ${prevChanged ? 'text-accent font-bold not-italic' : 'text-muted'}`}>{formatPrev(prevSet)}</span>
+                    <span
+                      className={`text-sm text-center font-medium italic shrink-0 ${
+                        prevChanged ? 'text-accent font-bold not-italic' : set.done ? 'text-[var(--set-done-row-prev)]' : 'text-muted'
+                      }`}
+                    >
+                      {formatPrev(prevSet)}
+                    </span>
                     {prevSet?.rir !== null && prevSet?.rir !== undefined && <RirBadge rir={prevSet.rir} />}
                   </div>
                 )}
                 {renderInputs(set, j)}
                 {showRirColumn && (
                   <div className="flex items-center justify-center min-h-[34px] shrink-0 whitespace-nowrap">
-                    {set.done && set.rir !== null && set.rir !== undefined ? <RirBadge rir={set.rir} /> : <span className="text-muted text-sm">—</span>}
+                    {set.done && set.rir !== null && set.rir !== undefined ? (
+                      <RirBadge rir={set.rir} />
+                    ) : (
+                      <span className={`text-sm ${set.done ? 'text-[var(--set-done-row-prev)]' : 'text-muted'}`}>—</span>
+                    )}
                   </div>
                 )}
                 {set.done ? (
                   <button
                     type="button"
                     onClick={() => onUndoneSet(exIndex, j)}
-                    className={`w-7 h-7 bg-success rounded-md flex items-center justify-center mx-auto hover:bg-success/80 active:scale-90 ${doneBtnTransition}`}
+                    className={`w-7 h-7 rounded-md flex items-center justify-center mx-auto active:scale-90 ${doneBtnTransition} bg-[var(--set-done-check-bg)] hover:brightness-110 motion-reduce:hover:brightness-100`}
                   >
-                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-3.5 h-3.5 stroke-page transition-opacity duration-300" aria-hidden><polyline points="20 6 9 17 4 12" /></svg>
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-3.5 h-3.5 stroke-[var(--check-done-icon)] transition-opacity duration-300" aria-hidden><polyline points="20 6 9 17 4 12" /></svg>
                   </button>
                 ) : (
                   <button

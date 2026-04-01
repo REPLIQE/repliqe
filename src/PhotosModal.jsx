@@ -3,6 +3,7 @@ import { getOldestMiddleNewestSessions, sortPhotoSessionsByDate } from './progre
 import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
 import ProgressPhoto from './ProgressPhoto'
 import ProgressPhotoEditor from './ProgressPhotoEditor'
+import { bakeProgressPhotoCropToJpegBase64, isDefaultCrop } from './progressPhotoBake'
 import { useAuth } from './lib/AuthContext'
 import { uploadProgressPhoto, getProgressPhotoUrl } from './lib/photoStorage'
 
@@ -12,10 +13,13 @@ const ANGLES = [
   { key: 'side', label: 'Side' },
 ]
 
-/** Max longest side in px – good for mobile, keeps file size down. */
-const MAX_PHOTO_PX = 720
-/** JPEG quality 0–1 – balanced for viewing on phone without excess size. */
-const PHOTO_QUALITY = 0.82
+/**
+ * Max longest side in px efter normalize og ved crop-bagning.
+ * 1280 giver mærkbart mindre gryn ved zoom end 720 uden at matche fuld kamerares.
+ */
+const MAX_PHOTO_PX = 1280
+/** JPEG quality 0–1 – lidt lavere end før for at kompensere for flere pixels vs 720. */
+const PHOTO_QUALITY = 0.8
 
 function getTodayEnGB() {
   return new Date().toLocaleDateString('en-GB')
@@ -205,6 +209,29 @@ async function savePhoto(base64Data, filename, uid) {
   throw new Error('Could not save photo (sign in to sync photos)')
 }
 
+function loadImageFromSrc(src) {
+  return new Promise((resolve, reject) => {
+    if (!src) {
+      reject(new Error('No image source'))
+      return
+    }
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('Image load failed'))
+    img.src = src
+  })
+}
+
+/** Ved ikke-default crop: erstat fil med baget udsnit (fuld MAX_PHOTO_PX), nulstil crop-metadata. */
+async function bakeAndReplaceProgressPhoto(filename, imageSrc, crop, uid) {
+  if (isDefaultCrop(crop)) return { baked: false }
+  const img = await loadImageFromSrc(imageSrc)
+  const clean = bakeProgressPhotoCropToJpegBase64(img, crop, MAX_PHOTO_PX, PHOTO_QUALITY)
+  await savePhoto(clean, filename, uid)
+  return { baked: true, dataUrl: `data:image/jpeg;base64,${clean}` }
+}
+
 export default function PhotosModal({
   photoSessions,
   setPhotoSessions,
@@ -297,7 +324,7 @@ export default function PhotosModal({
     try {
       const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
       const photo = await Camera.getPhoto({
-        quality: 80,
+        quality: 90,
         allowEditing: false,
         resultType: CameraResultType.Base64,
         source: source === 'library' ? CameraSource.Photos : CameraSource.Camera,
@@ -516,14 +543,30 @@ export default function PhotosModal({
         <ProgressPhotoEditor
           src={captureThumbSrcs[captureCropEditorAngle]}
           initialCrop={captureSessionPartial?.crops?.[captureCropEditorAngle]}
-          onSave={(crop) => {
+          onSave={async (crop) => {
             const sid = capturedImages._sessionId
-            if (!sid || typeof setPhotoSessions !== 'function') return
-            setPhotoSessions((prev) =>
-              (prev || []).map((s) =>
-                s.id === sid ? { ...s, crops: { ...(s.crops || {}), [captureCropEditorAngle]: crop } } : s
+            const angle = captureCropEditorAngle
+            if (!sid || !angle || typeof setPhotoSessions !== 'function') return
+            const filename = `${sid}_${angle}.jpg`
+            const imageSrc = captureThumbSrcs[angle]
+            try {
+              const result = await bakeAndReplaceProgressPhoto(filename, imageSrc, crop, uid)
+              if (result.baked) {
+                setCaptureThumbSrcs((prev) => ({ ...prev, [angle]: result.dataUrl }))
+              }
+              setPhotoSessions((prev) =>
+                (prev || []).map((s) => {
+                  if (s.id !== sid) return s
+                  const nextCrops = { ...(s.crops || {}) }
+                  delete nextCrops[angle]
+                  return { ...s, crops: nextCrops }
+                })
               )
-            )
+            } catch (err) {
+              console.error(err)
+              if (typeof alert !== 'undefined') alert('Could not save crop. Try again.')
+              throw err
+            }
           }}
           onClose={() => setCaptureCropEditorAngle(null)}
         />
@@ -1017,17 +1060,6 @@ export function PhotosViewContent({
     setEditingDateSessionId(null)
   }
 
-  function updateSessionCrop(sessionId, angle, crop) {
-    if (!setPhotoSessions) return
-    setPhotoSessions((prev) =>
-      (prev || []).map((s) =>
-        s.id === sessionId
-          ? { ...s, crops: { ...(s.crops || {}), [angle]: crop } }
-          : s
-      )
-    )
-  }
-
   const sessionA = (photoSessions || []).find((s) => s.id === compareA)
   const sessionB = (photoSessions || []).find((s) => s.id === compareB)
 
@@ -1338,7 +1370,28 @@ export function PhotosViewContent({
           <ProgressPhotoEditor
             src={editorSrc || null}
             initialCrop={session.crops?.[editingCrop.angle]}
-            onSave={(crop) => updateSessionCrop(editingCrop.sessionId, editingCrop.angle, crop)}
+            onSave={async (crop) => {
+              const sid = editingCrop.sessionId
+              const angle = editingCrop.angle
+              try {
+                const result = await bakeAndReplaceProgressPhoto(filename, editorSrc, crop, uid)
+                if (result.baked) {
+                  setThumbs((prev) => ({ ...prev, [filename]: result.dataUrl }))
+                }
+                setPhotoSessions((prev) =>
+                  (prev || []).map((s) => {
+                    if (s.id !== sid) return s
+                    const nextCrops = { ...(s.crops || {}) }
+                    delete nextCrops[angle]
+                    return { ...s, crops: nextCrops }
+                  })
+                )
+              } catch (err) {
+                console.error(err)
+                if (typeof alert !== 'undefined') alert('Could not save crop. Try again.')
+                throw err
+              }
+            }}
             onClose={() => setEditingCrop(null)}
           />
         )

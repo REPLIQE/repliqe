@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo, useRef, Component, lazy, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, Component, lazy, Suspense } from 'react'
 import ExerciseCard from './ExerciseCard'
 import ExerciseLibrary from './ExerciseLibraryUI'
 import CreateExerciseModal from './CreateExerciseModal'
 import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
-import MuscleIcon from './MuscleIcon'
 import { useSuperset } from './useSuperset'
 import SupersetWrapper from './SupersetWrapper'
 import LinkModeBanner from './LinkModeBanner'
@@ -197,8 +196,7 @@ function MusclePills({ exercises, getExerciseFromLibrary }) {
         const mg = MUSCLE_GROUPS[muscle]
         if (!mg) return <span key={muscle} className="text-xs font-semibold px-2 py-0.5 rounded-md bg-white/5 text-muted">Other × {count}</span>
         return (
-          <span key={muscle} className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md" style={{ background: mg.bg, color: mg.color }}>
-            <MuscleIcon muscle={muscle} size={10} bare />
+          <span key={muscle} className="text-xs font-semibold px-2 py-0.5 rounded-md" style={{ background: mg.bg, color: mg.color }}>
             {mg.label} × {count}
           </span>
         )
@@ -455,6 +453,8 @@ function AppContent() {
   const [selectedStartRoutineId, setSelectedStartRoutineId] = useState(null) // which routine is selected on Start (null = Up Next)
   const [showStartRecoveryInfo, setShowStartRecoveryInfo] = useState(false)
   const [showActiveWorkoutSheet, setShowActiveWorkoutSheet] = useState(false)
+  /** True kun når bruger trykker Continue fra minimeret WO — trigger scroll til aktiv øvelse når sheet åbnes. */
+  const [activeWorkoutSheetContinueIntent, setActiveWorkoutSheetContinueIntent] = useState(false)
   const [createProgrammeName, setCreateProgrammeName] = useState('')
   const [createProgrammeRoutines, setCreateProgrammeRoutines] = useState([])
   /** Show create-programme validation / empty-routines hint only after Save is pressed (not by default). */
@@ -501,6 +501,8 @@ function AppContent() {
     if (meta) meta.setAttribute('content', t === 'bone' ? '#FAF7F2' : '#0D0D1A')
   }
   const restStartRef = useRef(null)
+  /** Seneste completeRest — bruges af interval synk så vi ikke fanger forældet closure. */
+  const completeRestRef = useRef(() => {})
   const restAudioCtxRef = useRef(null)
   const routineEditorFirstInputRef = useRef(null)
   const currentRoutineIdRef = useRef(null)
@@ -930,13 +932,6 @@ function AppContent() {
     return () => clearInterval(interval)
   }, [workoutActive, workoutStartTime])
 
-  useEffect(() => {
-    if (!activeRest) return
-    if (restTime <= 0) { completeRest(); return }
-    const timer = setTimeout(() => setRestTime(restTime - 1), 1000)
-    return () => clearTimeout(timer)
-  }, [activeRest, restTime])
-
   function handleWorkoutScroll(e) {
     const el = e.currentTarget
     if (!el) return
@@ -961,17 +956,23 @@ function AppContent() {
         ctx = new AudioCtx()
         restAudioCtxRef.current = ctx
       }
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(880, ctx.currentTime)
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01)
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3)
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start()
-      osc.stop(ctx.currentTime + 0.35)
+      const now = ctx.currentTime
+      /** Dobbelt bip (660 Hz → 880 Hz), samme karakter som rest-sound-preview-2. */
+      const tone = (freq, start, duration) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(freq, start)
+        gain.gain.setValueAtTime(0.0001, start)
+        gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start(start)
+        osc.stop(start + duration + 0.02)
+      }
+      tone(660, now + 0.05, 0.12)
+      tone(880, now + 0.22, 0.14)
     } catch (_) {
       // ignore audio errors (e.g. autoplay restrictions)
     }
@@ -979,13 +980,44 @@ function AppContent() {
 
   function completeRest() {
     if (!activeRest) return
+    const start = restStartRef.current
+    if (start == null) return
     const { exIndex, setIndex } = activeRest
-    const elapsed = Math.max(1, Math.floor((Date.now() - restStartRef.current) / 1000))
+    restStartRef.current = null
+    const elapsed = Math.max(1, Math.floor((Date.now() - start) / 1000))
     const n = [...exercises]; n[exIndex].sets[setIndex].restTime = elapsed
-    setExercises(n); setActiveRest(null); setRestTime(0); restStartRef.current = null
+    setExercises(n); setActiveRest(null); setRestTime(0)
     if (navigator.vibrate) navigator.vibrate([200, 100, 200])
     playRestSound()
   }
+  completeRestRef.current = completeRest
+
+  // Nedtælling fra vægur (Date.now − start): virker når fanen er i baggrunden, hvor setTimeout throttles.
+  useEffect(() => {
+    if (!activeRest || restStartRef.current == null) return
+
+    const sync = () => {
+      const start = restStartRef.current
+      if (start == null) return
+      const elapsed = Math.floor((Date.now() - start) / 1000)
+      const remaining = Math.max(0, restDuration - elapsed)
+      setRestTime(remaining)
+      if (remaining <= 0) completeRestRef.current()
+    }
+
+    sync()
+    const intervalId = window.setInterval(sync, 1000)
+    const onResume = () => {
+      if (document.visibilityState === 'visible') sync()
+    }
+    document.addEventListener('visibilitychange', onResume)
+    window.addEventListener('focus', onResume)
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', onResume)
+      window.removeEventListener('focus', onResume)
+    }
+  }, [activeRest, restDuration])
   function tryStart(type, data) {
     if (workoutActive && exercises.length > 0) { setPendingStart({ type, data }); return }
     executeStart(type, data)
@@ -2012,6 +2044,36 @@ ${JSON.stringify(ctx)}`
     return null
   }
 
+  useLayoutEffect(() => {
+    if (!showActiveWorkoutSheet || !workoutActive || !activeWorkoutSheetContinueIntent) return
+    setActiveWorkoutSheetContinueIntent(false)
+    const next = getGlobalNextSet()
+    let exIndex = next?.exIndex
+    if (exIndex == null || exIndex < 0) {
+      if (activeRest != null && activeRest.exIndex != null && activeRest.exIndex >= 0) {
+        exIndex = activeRest.exIndex
+      } else {
+        exIndex = exercises.findIndex((ex) => (ex.sets || []).some((s) => !s.done))
+      }
+    }
+    if (exIndex < 0) return
+    const el = document.getElementById(`workout-exercise-${exIndex}`)
+    if (!el) return
+    const reduceMotion =
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+    })
+  }, [
+    showActiveWorkoutSheet,
+    workoutActive,
+    activeWorkoutSheetContinueIntent,
+    exercises,
+    activeRest,
+    restTime,
+    restDuration,
+  ])
+
   function getPreviousSets(exerciseName) {
     for (const w of history) for (const ex of w.exercises) if (ex.name === exerciseName) return ex.sets
     return null
@@ -2560,7 +2622,15 @@ ${JSON.stringify(ctx)}`
 
               {/* Continue workout bar when minimized */}
               {workoutActive && !showActiveWorkoutSheet && (
-                <button type="button" onClick={() => setShowActiveWorkoutSheet(true)} className="w-full mb-4 py-3.5 px-4 rounded-xl border-2 border-success bg-success/10 flex items-center justify-between gap-3" aria-label={`Continue workout: ${workoutName || 'Workout'}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveWorkoutSheetContinueIntent(true)
+                    setShowActiveWorkoutSheet(true)
+                  }}
+                  className="w-full mb-4 py-3.5 px-4 rounded-xl border-2 border-success bg-success/10 flex items-center justify-between gap-3"
+                  aria-label={`Continue workout: ${workoutName || 'Workout'}`}
+                >
                   <div className="flex items-center gap-2">
                     <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0 text-success overflow-visible" aria-hidden>
                       <circle cx="12" cy="12" r="8.5" className="fill-success animate-wo-clock-fill" />
@@ -3178,8 +3248,8 @@ ${JSON.stringify(ctx)}`
                               const supersetIsNext = isA ? focusA : focusB
                               const supersetNextSetIndex = supersetIsNext && nextSetInfo ? nextSetInfo.nextSetIndex : null
                               return (
+                            <div key={exercise.id} id={`workout-exercise-${exIndex}`} className="scroll-mt-[7rem]">
                             <ExerciseCard
-                              key={exercise.id}
                               exercise={exercise}
                               exIndex={exIndex}
                               isEditing={!!editingTemplate}
@@ -3227,6 +3297,7 @@ ${JSON.stringify(ctx)}`
                               onCoachTipYes={handleCoachTipYes}
                               onCoachTipNo={handleCoachTipNo}
                             />
+                            </div>
                           ); }}
                         />
                       )
@@ -3238,8 +3309,8 @@ ${JSON.stringify(ctx)}`
                     const nextSetIndexStandalone = (ex.sets || []).findIndex(s => !s.done)
                     const showNextFocusStandalone = globalNext && globalNext.exIndex === exIndex && globalNext.setIndex === nextSetIndexStandalone
                     return (
+                      <div key={ex.id} id={`workout-exercise-${exIndex}`} className="scroll-mt-[7rem]">
                       <ExerciseCard
-                        key={ex.id}
                         exercise={ex}
                         exIndex={exIndex}
                         isEditing={!!editingTemplate}
@@ -3288,6 +3359,7 @@ ${JSON.stringify(ctx)}`
                         onCoachTipYes={handleCoachTipYes}
                         onCoachTipNo={handleCoachTipNo}
                       />
+                      </div>
                     )
                   });
                   })()}
@@ -3916,7 +3988,6 @@ ${JSON.stringify(ctx)}`
                         <div key={ex.id} className={rowClass} onClick={isLinkTarget ? onTapAsTarget : undefined}>
                           <div className="flex justify-between items-start gap-2 mb-2">
                             <div className="flex items-start gap-2 min-w-0 flex-1">
-                              {lib ? <div className="mt-0.5"><MuscleIcon muscle={lib.muscle} size={14} /></div> : null}
                               <div className="min-w-0">
                                 <span className="text-lg font-bold tracking-tight text-text block truncate">{ex.exerciseId}</span>
                                 {lib && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/5 text-muted">{lib.equipment}</span>}

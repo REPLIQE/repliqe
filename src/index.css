@@ -87,6 +87,17 @@ body {
   --set-done-border: rgba(123, 123, 255, 0.25);
   --set-done-text: #B8B8FF;
 
+  /* Completed set row: full-width green bar + bare inputs (active workout) */
+  /* Solid fill so swipe-delete layer never bleeds through */
+  --set-done-row-bg: #0a4830;
+  --set-done-row-edge: #0a4830;
+  --set-done-row-input-text: #ffffff;
+  --set-done-row-placeholder: rgba(255, 255, 255, 0.4);
+  --set-done-row-prev: rgba(91, 245, 160, 0.58);
+  /* Opacity for prev label; solid fill = same perceived green as prev text on row */
+  --set-done-check-bg: color-mix(in srgb, var(--accent-secondary) 58%, var(--set-done-row-bg));
+  --set-done-focus-ring: rgba(255, 255, 255, 0.28);
+
   /* Check button */
   --check-border: #2A2A4A;
   --check-done-bg: #5BF5A0;
@@ -172,6 +183,14 @@ body {
   --set-done-bg: rgba(42, 37, 32, 0.04);
   --set-done-border: rgba(42, 37, 32, 0.15);
   --set-done-text: #5A5040;
+
+  --set-done-row-bg: #d0ecd7;
+  --set-done-row-edge: #d0ecd7;
+  --set-done-row-input-text: #143822;
+  --set-done-row-placeholder: rgba(20, 56, 34, 0.42);
+  --set-done-row-prev: rgba(58, 101, 53, 0.72);
+  --set-done-check-bg: color-mix(in srgb, var(--accent-secondary) 72%, var(--set-done-row-bg));
+  --set-done-focus-ring: rgba(58, 101, 53, 0.35);
 
   --check-border: #DDD8CE;
   --check-done-bg: #3A6535;

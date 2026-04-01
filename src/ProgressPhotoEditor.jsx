@@ -10,6 +10,7 @@ export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose 
     ? { ...initialCrop }
     : { ...DEFAULT_CROP }
   const [current, setCurrent] = useState(crop)
+  const [saving, setSaving] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const dragStart = useRef({ x: 0, y: 0, cropX: 0, cropY: 0 })
   const pointers = useRef({})
@@ -81,16 +82,22 @@ export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose 
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[4px]" aria-hidden onClick={onClose} />
       <div className="relative w-full max-w-md max-h-[92vh] flex flex-col bg-page rounded-t-[20px] sm:rounded-[20px] border border-border overflow-hidden">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
-          <button type="button" onClick={onClose} className="text-[14px] font-bold text-muted hover:text-text transition-colors">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="text-[14px] font-bold text-muted hover:text-text transition-colors disabled:opacity-40"
+          >
             Cancel
           </button>
           <h2 className="text-[18px] font-extrabold text-text">Adjust crop</h2>
           <button
             type="button"
             onClick={handleSave}
-            className="py-2 px-4 rounded-xl text-[13px] font-bold bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25"
+            disabled={saving}
+            className="py-2 px-4 rounded-xl text-[13px] font-bold bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25 disabled:opacity-50"
           >
-            Save
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
         <div
