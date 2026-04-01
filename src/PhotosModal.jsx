@@ -1091,6 +1091,16 @@ export function PhotosViewContent({
     [photoSessions],
   )
 
+  /** Stabil nøgle for filnavne (ikke kun id) — undgår stale thumbs-skip når photoSessions får ny reference. */
+  const sessionsFilesKey = useMemo(
+    () =>
+      (photoSessions || [])
+        .map((s) => [s?.id, s?.front, s?.back, s?.side].filter(Boolean).join(':'))
+        .sort()
+        .join('|'),
+    [photoSessions],
+  )
+
   useEffect(() => {
     const sorted = sortPhotoSessionsByDate(photoSessions || [])
     if (sorted.length < 2) {
@@ -1120,6 +1130,7 @@ export function PhotosViewContent({
   const [sessionToDelete, setSessionToDelete] = useState(null)
   const [editingCrop, setEditingCrop] = useState(null)
   const [thumbs, setThumbs] = useState({})
+  const thumbLoadGenRef = useRef(0)
   const dateEditInputRef = useRef(null)
 
   const canAddPhotos = typeof setPhotoSessions === 'function'
@@ -1132,26 +1143,39 @@ export function PhotosViewContent({
 
   useEffect(() => {
     if (!Array.isArray(photoSessions) || !uid) return
-    photoSessions.forEach((session) => {
-      ANGLES.forEach(({ key }) => {
-        const filename = session?.[key]
-        if (!filename || thumbs[filename]) return
-        loadPhotoSrc(filename, uid)
-          .then((src) => src && setThumbs((prev) => ({ ...prev, [filename]: src })))
-          .catch(() => {})
-      })
+    const gen = ++thumbLoadGenRef.current
+    const filenames = new Set()
+    for (const session of photoSessions) {
+      for (const { key } of ANGLES) {
+        const f = session?.[key]
+        if (f) filenames.add(f)
+      }
+    }
+    filenames.forEach((filename) => {
+      loadPhotoSrc(filename, uid)
+        .then((src) => {
+          if (!src || gen !== thumbLoadGenRef.current) return
+          setThumbs((prev) => {
+            if (prev[filename]) return prev
+            return { ...prev, [filename]: src }
+          })
+        })
+        .catch(() => {})
     })
-  }, [uid, photoSessions])
+  }, [uid, sessionsFilesKey])
 
   useEffect(() => {
     if (!editingCrop || !uid) return
     const session = (photoSessions || []).find((s) => s.id === editingCrop.sessionId)
     const filename = session?.[editingCrop.angle]
-    if (!filename || thumbs[filename]) return
+    if (!filename) return
     loadPhotoSrc(filename, uid)
-      .then((src) => src && setThumbs((prev) => ({ ...prev, [filename]: src })))
+      .then((src) => {
+        if (!src) return
+        setThumbs((prev) => (prev[filename] ? prev : { ...prev, [filename]: src }))
+      })
       .catch(() => {})
-  }, [uid, editingCrop, photoSessions, thumbs])
+  }, [uid, editingCrop, photoSessions])
 
   useEffect(() => {
     if (editingDateSessionId && dateEditInputRef.current) dateEditInputRef.current.focus()

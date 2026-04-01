@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "firebase": "firebase"
+    "firebase": "firebase",
+    "storage:cors": "gcloud storage buckets update gs://repliqe-710d2.firebasestorage.app --cors-file=storage-cors.json"
   },
   "dependencies": {
     "@capacitor/camera": "^8.0.2",
