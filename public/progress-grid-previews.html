@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>REPLIQE — Progress grid layout previews</title>
+  <style>
+    :root {
+      --bg: #0d0d1a;
+      --card: #13132a;
+      --cell: #1a1a30;
+      --muted: #444;
+      --accent: #7b7bff;
+      --today: rgba(91, 245, 160, 0.65);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px 16px 48px;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: var(--bg);
+      color: #e8e8f0;
+      line-height: 1.5;
+      max-width: 440px;
+      margin-inline: auto;
+    }
+    h1 {
+      font-size: 1.125rem;
+      font-weight: 800;
+      margin: 0 0 8px;
+    }
+    .url-note {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 24px;
+      word-break: break-all;
+    }
+    .url-note code {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #b8b8ff;
+    }
+    section {
+      background: var(--card);
+      border: 1px solid #1e1e35;
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 18px;
+    }
+    section h2 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #888;
+      margin: 0 0 10px;
+    }
+    section p.desc {
+      font-size: 12px;
+      color: #777;
+      margin: -4px 0 12px;
+    }
+    /* Fælles: venstre + højre har samme højde; stat-bokse fylder kolonnen ligeligt */
+    .activity-body {
+      display: flex;
+      gap: 12px;
+      align-items: stretch;
+    }
+    .grid-wrap {
+      flex: 1;
+      min-width: 0;
+      align-self: stretch;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .stats {
+      width: 76px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-self: stretch;
+    }
+    .stat-box {
+      background: rgba(255, 255, 255, 0.025);
+      border-radius: 9px;
+      padding: 6px 4px;
+      text-align: center;
+      flex: 1 1 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .stat-v { font-size: 15px; font-weight: 800; color: #fff; }
+    .stat-l { font-size: 7px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 2px; }
+    .stat-box.green .stat-v { color: #5bf5a0; }
+
+    /* cells */
+    .cell {
+      border-radius: 3px;
+      background: var(--cell);
+    }
+    .cell.active {
+      background: radial-gradient(circle at center, var(--accent) 0%, rgba(123, 123, 255, 0.3) 50%, var(--cell) 100%);
+    }
+    .cell.today {
+      outline: 1px solid var(--today);
+      box-shadow: 0 0 0 1px rgba(91, 245, 160, 0.2);
+    }
+
+    /* A: 3×10 — grid øverst i venstre kolonne; kolonne matcher højre højde */
+    .layout-a .grid-wrap {
+      justify-content: flex-start;
+    }
+    .layout-a .meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 7px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .layout-a .grid {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 2px;
+    }
+    .layout-a .cell { aspect-ratio: 1; }
+
+    /* B: 5×7 week calendar, smaller cells & tighter */
+    .layout-b .day-row {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      margin-bottom: 2px;
+    }
+    .layout-b .day-row span {
+      text-align: center;
+      font-size: 6px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .layout-b .grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+    }
+    .layout-b .cell {
+      aspect-ratio: 1;
+      border-radius: 3px;
+      max-width: 100%;
+    }
+
+    /* C: én vandret linje prikker, centreret vertikalt mod de 3 bokse */
+    .layout-c .grid-wrap {
+      justify-content: center;
+    }
+    .layout-c .meta {
+      font-size: 7px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .layout-c .strip {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 3px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-bottom: 2px;
+      -webkit-overflow-scrolling: touch;
+      flex: 0 0 auto;
+      width: 100%;
+      min-width: 0;
+    }
+    .layout-c .cell {
+      width: 7px;
+      height: 7px;
+      flex-shrink: 0;
+      border-radius: 2px;
+    }
+    .layout-c .cell.today {
+      width: 9px;
+      height: 9px;
+      border-radius: 2px;
+      margin: -1px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Progress grid — 3 forslag</h1>
+  <p class="url-note">
+    Åbn denne side når dev-server kører:<br />
+    <code>http://localhost:5173/progress-grid-previews.html</code><br />
+    (Eller dit domæne + <code>/progress-grid-previews.html</code>)
+  </p>
+
+  <!-- Mock: 30 days, index 29 = today; several trained days -->
+  <script>
+    const trained = new Set([1, 2, 5, 8, 9, 12, 15, 18, 22, 26, 28, 29])
+    window.mockCells = Array.from({ length: 30 }, (_, i) => ({
+      trained: trained.has(i),
+      istoday: i === 29,
+    }))
+  </script>
+
+  <section>
+    <h2>Forslag A — 3×10 (30 dage, kronologisk)</h2>
+    <p class="desc">Ingen ugedage. Række for række: dag 1–10, 11–20, 21–30; i dag er nederst til højre. Venstre kolonne og de tre stat-bokse har samme ydre højde (højre strækker sig til gitteret hvis gitteret er højest).</p>
+    <div class="activity-body layout-a">
+      <div class="grid-wrap">
+        <div class="meta"><span>−30d</span><span>I dag</span></div>
+        <div class="grid" id="grid-a"></div>
+      </div>
+      <div class="stats">
+        <div class="stat-box"><div class="stat-v">1</div><div class="stat-l">Workouts</div></div>
+        <div class="stat-box"><div class="stat-v">1h</div><div class="stat-l">Total time</div></div>
+        <div class="stat-box green"><div class="stat-v">10k</div><div class="stat-l">Volume</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Forslag B — Stadig 5 uger × 7 dage, men mindre</h2>
+    <p class="desc">Samme logik som nu, men smallere gaps og mindre celler (komprimeret “kalender”).</p>
+    <div class="activity-body layout-b">
+      <div class="grid-wrap">
+        <div class="day-row"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+        <div class="grid" id="grid-b"></div>
+      </div>
+      <div class="stats">
+        <div class="stat-box"><div class="stat-v">1</div><div class="stat-l">Workouts</div></div>
+        <div class="stat-box"><div class="stat-v">1h</div><div class="stat-l">Total time</div></div>
+        <div class="stat-box green"><div class="stat-v">10k</div><div class="stat-l">Volume</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Forslag C — Én “tidslinje” (30 prikker)</h2>
+    <p class="desc">Én vandret linje (30 prikker); venstre kolonne strækker sig til samme højde som stat-boksene — prikkerne er centreret på den akse. Scroll vandret på smal skærm.</p>
+    <div class="activity-body layout-c">
+      <div class="grid-wrap">
+        <div class="meta">Sidste 30 dage · grøn ring = i dag</div>
+        <div class="strip" id="grid-c"></div>
+      </div>
+      <div class="stats">
+        <div class="stat-box"><div class="stat-v">1</div><div class="stat-l">Workouts</div></div>
+        <div class="stat-box"><div class="stat-v">1h</div><div class="stat-l">Total time</div></div>
+        <div class="stat-box green"><div class="stat-v">10k</div><div class="stat-l">Volume</div></div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const cells = window.mockCells
+    const gridA = document.getElementById('grid-a')
+    cells.forEach((d, i) => {
+      const el = document.createElement('div')
+      el.className = 'cell' + (d.trained ? ' active' : '') + (d.istoday ? ' today' : '')
+      el.title = 'Dag ' + (i + 1) + (d.istoday ? ' (i dag)' : '')
+      gridA.appendChild(el)
+    })
+
+    // B: 35 cells like current app (pad demo with same trained pattern extended)
+    const gridB = document.getElementById('grid-b')
+    const trainedB = new Set([3, 5, 10, 12, 18, 22, 25, 28, 31, 33])
+    for (let i = 0; i < 35; i++) {
+      const el = document.createElement('div')
+      const trained = trainedB.has(i)
+      const today = i === 33
+      el.className = 'cell' + (trained ? ' active' : '') + (today ? ' today' : '')
+      gridB.appendChild(el)
+    }
+
+    const strip = document.getElementById('grid-c')
+    cells.forEach((d, i) => {
+      const el = document.createElement('div')
+      el.className = 'cell' + (d.trained ? ' active' : '') + (d.istoday ? ' today' : '')
+      el.title = 'Dag ' + (i + 1) + (d.istoday ? ' (i dag)' : '')
+      strip.appendChild(el)
+    })
+  </script>
+</body>
+</html>

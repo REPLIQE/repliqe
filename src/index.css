@@ -134,6 +134,15 @@ body {
 
   /* Font */
   --font-sans: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+
+  /* Top 10 #8 — focus ring (keyboard) */
+  --a11y-focus-ring: #c4c4ff;
+  --a11y-focus-ring-offset: var(--bg-app);
+
+  /* Top 10 #9 — motion: korte interaktioner + sheets (warm ease-out) */
+  --motion-duration: 180ms;
+  --motion-duration-slow: 220ms;
+  --motion-ease: cubic-bezier(0.33, 1, 0.68, 1);
 }
 
 /* Bone theme */
@@ -220,6 +229,37 @@ body {
   --summary-stat-bg: #F5F1EB;
 
   --handle: #DDD8CE;
+
+  --a11y-focus-ring: var(--accent-primary);
+  --a11y-focus-ring-offset: var(--bg-card);
+}
+
+/* Raw buttons/links without ActionButton’s data-action-button + ring */
+button:focus-visible:not([data-action-button]),
+a:focus-visible,
+summary:focus-visible,
+[role='button']:focus-visible:not([data-action-button]) {
+  outline: 2px solid var(--a11y-focus-ring);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--a11y-focus-ring);
+  outline-offset: 2px;
+}
+
+.theme-option:focus-visible {
+  outline: 2px solid var(--a11y-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: 0ms;
+    --motion-duration-slow: 0ms;
+  }
 }
 
 /* Tailwind @theme: map spec variables to utility classes */
@@ -244,6 +284,59 @@ body {
   --color-on-success: var(--on-success);
   --color-handle: var(--handle);
   --font-sans: var(--font-sans);
+}
+
+/* Top 10 #9 — modal/bottom sheet entrance (BottomSheet.jsx) */
+@keyframes repl-sheet-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes repl-sheet-panel-bottom-enter {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    /* `none` — not translateY(0): any non-none transform makes this panel a containing block for
+       position:fixed descendants (breaks file picker / camera layers in PhotosModal etc.). */
+    transform: none;
+  }
+}
+@keyframes repl-sheet-panel-center-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    /* same as bottom — scale(1) still establishes a fixed containing block */
+    transform: none;
+  }
+}
+
+.repl-sheet-backdrop-enter {
+  animation: repl-sheet-backdrop-enter var(--motion-duration-slow) var(--motion-ease) both;
+}
+
+.repl-sheet-panel-bottom-enter {
+  animation: repl-sheet-panel-bottom-enter var(--motion-duration-slow) var(--motion-ease) both;
+}
+
+.repl-sheet-panel-center-enter {
+  animation: repl-sheet-panel-center-enter var(--motion-duration-slow) var(--motion-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .repl-sheet-backdrop-enter,
+  .repl-sheet-panel-bottom-enter,
+  .repl-sheet-panel-center-enter {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 /* Plan tab: section labels — explicit hex per theme (bypasses any stray var()/inherit from cached CSS) */
@@ -413,6 +506,12 @@ input:focus:invalid {
   border-color: var(--border-input);
 }
 
+/* Restore visible focus for invalid fields when keyboard-focused (still no error glow box) */
+input:focus-visible:invalid {
+  outline: 2px solid var(--a11y-focus-ring) !important;
+  outline-offset: 2px !important;
+}
+
 /* ========== Theme selector (Profile → Appearance) ========== */
 .settings-label {
   color: var(--text-secondary);
@@ -558,40 +657,46 @@ input:focus:invalid {
   border: 1px solid #1e1e35;
 }
 
+/* Last 30 days block: kompakt 5×7 kalender (forslag B) + højre stat-kolonner samme ydre højde */
 .activity-body {
   display: flex;
-  gap: 14px;
-  align-items: flex-start;
+  gap: 12px;
+  align-items: stretch;
 }
 
 .activity-grid-side {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
 }
 
 .activity-grid-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
-  margin-bottom: 3px;
+  gap: 2px;
+  margin-bottom: 2px;
 }
 
 .activity-grid-day-label {
   text-align: center;
   color: #444;
-  font-size: 7px;
+  font-size: 6px;
   font-weight: 600;
 }
 
 .activity-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
+  gap: 2px;
 }
 
 .activity-cell {
   aspect-ratio: 1;
-  border-radius: 4px;
+  border-radius: 3px;
   background: #1a1a30;
+  max-width: 100%;
 }
 
 .activity-cell.active {
@@ -609,21 +714,21 @@ input:focus:invalid {
 }
 
 .activity-stats-side {
-  width: 80px;
+  width: 76px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  justify-content: space-between;
   align-self: stretch;
 }
 
 .activity-stat-box {
   background: rgba(255, 255, 255, 0.025);
   border-radius: 9px;
-  padding: 8px 6px;
+  padding: 6px 4px;
   text-align: center;
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -632,18 +737,18 @@ input:focus:invalid {
 
 .activity-stat-v {
   color: #fff;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1;
 }
 
 .activity-stat-l {
   color: #555;
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  margin-top: 3px;
+  margin-top: 2px;
   line-height: 1;
 }
 

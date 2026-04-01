@@ -3710,8 +3710,18 @@ ${JSON.stringify(ctx)}`
                         <div className="text-sm font-bold text-text">RIR Tracking</div>
                         <div className="text-xs text-muted-strong mt-0.5">Log reps in reserve per set</div>
                       </div>
-                      <button type="button" onClick={() => setRirEnabled(prev => !prev)} className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${rirEnabled ? 'bg-accent' : 'bg-border-strong'}`}>
-                        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${rirEnabled ? 'left-5' : 'left-0.5'}`} />
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={rirEnabled}
+                        aria-label="RIR tracking"
+                        onClick={() => setRirEnabled((prev) => !prev)}
+                        className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${rirEnabled ? 'bg-accent' : 'bg-border-strong'}`}
+                      >
+                        <div
+                          className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${rirEnabled ? 'left-5' : 'left-0.5'}`}
+                          aria-hidden
+                        />
                       </button>
                     </div>
                   </div>
@@ -3865,7 +3875,14 @@ ${JSON.stringify(ctx)}`
                 <div key={i} className="flex justify-between items-center py-3 px-3 rounded-[10px] border border-white/[0.07] bg-white/[0.02] mb-1.5">
                   <span className="text-white text-sm font-semibold">{r.name}</span>
                   <span className="text-white/35 text-xs">{r.exercises?.length ?? 0} exercises</span>
-                  <button type="button" onClick={() => setCreateProgrammeRoutines(prev => prev.filter((_, j) => j !== i))} className="text-[rgba(255,85,85,0.5)] p-1">✕</button>
+                  <button
+                    type="button"
+                    onClick={() => setCreateProgrammeRoutines(prev => prev.filter((_, j) => j !== i))}
+                    className="text-[rgba(255,85,85,0.5)] p-1"
+                    aria-label={`Remove routine ${r.name} from draft`}
+                  >
+                    ✕
+                  </button>
                 </div>
               ))}
               <button type="button" onClick={() => { setEditingRoutineProgrammeId(null); setEditingRoutineId(null); setEditRoutineName(''); setEditRoutineExercises([]); setShowCreateRoutine(true); setShowCreateProgramme(false) }} className="w-full py-3 border border-dashed border-border-strong rounded-xl text-accent text-sm font-semibold mb-4">+ Add Routine</button>
@@ -4699,11 +4716,11 @@ ${JSON.stringify(ctx)}`
         )}
 
         {/* BOTTOM NAV */}
-        <div className="fixed bottom-0 left-0 right-0 z-30 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-2.5 pb-4 flex justify-around max-w-md mx-auto">
-          <button onClick={() => setPage('progress')} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-accent' : 'stroke-text'}`}><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-xs font-semibold ${page === 'progress' ? 'text-accent' : 'text-text'}`}>Progress</span></button>
-          <button onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-accent' : 'stroke-text'}`}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-xs font-semibold ${page === 'workout' ? 'text-accent' : 'text-text'}`}>Workout</span></button>
-          <button type="button" onClick={() => setPage('coach')} className={`flex flex-col items-center gap-1 ${page === 'coach' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'coach' ? 'text-accent' : 'text-text'}`}><path d="M12 3a6 6 0 0 0 4.5 9.97A5 5 0 0 1 12 21a5 5 0 0 1-4.5-8.03A6 6 0 0 0 12 3z" /></svg><span className={`text-xs font-semibold ${page === 'coach' ? 'text-accent' : 'text-text'}`}>Coach</span></button>
-          <button onClick={() => setPage('profile')} className={`flex flex-col items-center gap-1 ${page === 'profile' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'profile' ? 'stroke-accent' : 'stroke-text'}`}><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg><span className={`text-xs font-semibold ${page === 'profile' ? 'text-accent' : 'text-text'}`}>Profile</span></button>
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-2.5 pb-4 flex justify-around max-w-md mx-auto" role="navigation" aria-label="Main">
+          <button type="button" onClick={() => setPage('progress')} aria-current={page === 'progress' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-accent' : 'stroke-text'}`} aria-hidden><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-xs font-semibold ${page === 'progress' ? 'text-accent' : 'text-text'}`}>Progress</span></button>
+          <button type="button" onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} aria-current={page === 'workout' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-accent' : 'stroke-text'}`} aria-hidden><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-xs font-semibold ${page === 'workout' ? 'text-accent' : 'text-text'}`}>Workout</span></button>
+          <button type="button" onClick={() => setPage('coach')} aria-current={page === 'coach' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'coach' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'coach' ? 'text-accent' : 'text-text'}`} aria-hidden><path d="M12 3a6 6 0 0 0 4.5 9.97A5 5 0 0 1 12 21a5 5 0 0 1-4.5-8.03A6 6 0 0 0 12 3z" /></svg><span className={`text-xs font-semibold ${page === 'coach' ? 'text-accent' : 'text-text'}`}>Coach</span></button>
+          <button type="button" onClick={() => setPage('profile')} aria-current={page === 'profile' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'profile' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'profile' ? 'stroke-accent' : 'stroke-text'}`} aria-hidden><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg><span className={`text-xs font-semibold ${page === 'profile' ? 'text-accent' : 'text-text'}`}>Profile</span></button>
         </div>
       </div>
     </>

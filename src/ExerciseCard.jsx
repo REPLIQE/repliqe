@@ -223,6 +223,7 @@ function ExerciseCard({
           <button
             type="button"
             onClick={() => onUpdateSet(exIndex, j, 'bwSign', (set.bwSign || '+') === '+' ? '-' : '+')}
+            aria-label={(set.bwSign || '+') === '+' ? 'Switch to subtracted bodyweight' : 'Switch to added bodyweight'}
             className={`shrink-0 w-8 h-[34px] rounded-xl border-[1.5px] flex items-center justify-center text-sm font-extrabold transition-all ${set.done ? 'border-transparent bg-white/10 shadow-none' : 'border-border-strong bg-card-alt hover:border-accent active:scale-90'} ${!set.done && (set.bwSign || '+') === '+' ? 'text-success' : ''} ${!set.done && (set.bwSign || '+') !== '+' ? 'text-[#ff6b6b]' : ''} ${set.done && (set.bwSign || '+') === '+' ? 'text-[var(--set-done-row-prev)]' : ''} ${set.done && (set.bwSign || '+') !== '+' ? 'text-[#ffb4b4]' : ''}`}
           >
             {(set.bwSign || '+') === '+' ? '+' : '−'}
@@ -452,7 +453,7 @@ function ExerciseCard({
         return (
           <div key={j} className="mb-1">
             <div className="relative overflow-hidden rounded-lg" style={{ isolation: 'isolate' }}>
-              <button onClick={() => confirmDelete(j)} className="absolute right-0 top-0 bottom-0 w-20 flex items-center justify-center bg-red-500 rounded-r-lg z-0" style={{ backfaceVisibility: 'hidden' }}>
+              <button type="button" onClick={() => confirmDelete(j)} aria-label={`Delete set ${j + 1}`} className="absolute right-0 top-0 bottom-0 w-20 flex items-center justify-center bg-red-500 rounded-r-lg z-0" style={{ backfaceVisibility: 'hidden' }}>
                 <DeleteTrashGlyph className="w-4 h-4 text-white mr-1 shrink-0" />
                 <span className="text-white text-sm font-bold">Delete</span>
               </button>
@@ -500,6 +501,7 @@ function ExerciseCard({
                   <button
                     type="button"
                     onClick={() => onUndoneSet(exIndex, j)}
+                    aria-label={`Mark set ${j + 1} as not done`}
                     className={`w-7 h-7 rounded-md flex items-center justify-center mx-auto active:scale-90 ${doneBtnTransition} bg-[var(--set-done-check-bg)] hover:brightness-110 motion-reduce:hover:brightness-100`}
                   >
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className="w-3.5 h-3.5 stroke-[var(--check-done-icon)] transition-opacity duration-300" aria-hidden><polyline points="20 6 9 17 4 12" /></svg>
@@ -508,6 +510,7 @@ function ExerciseCard({
                   <button
                     type="button"
                     onClick={() => onDoneSet(exIndex, j)}
+                    aria-label={`Mark set ${j + 1} done`}
                     className={`w-7 h-7 border-2 rounded-md flex items-center justify-center mx-auto active:scale-90 ${doneBtnTransition} ${isNextSet ? 'border-success bg-success/10 ring-2 ring-success/50 animate-up-next-pulse' : 'border-border-strong hover:border-success'}`}
                   >
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" className={`w-3.5 h-3.5 transition-colors duration-300 ${isNextSet ? 'stroke-success' : 'stroke-muted-strong'}`} aria-hidden><polyline points="20 6 9 17 4 12" /></svg>

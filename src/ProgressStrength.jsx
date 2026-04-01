@@ -167,7 +167,7 @@ export default function ProgressStrength({
           className={`bg-transparent ${TYPE_BODY} placeholder-muted outline-none flex-1 font-medium`}
         />
         {search && (
-          <button onClick={() => setSearch('')} className="text-muted text-sm">
+          <button type="button" onClick={() => setSearch('')} className="text-muted text-sm" aria-label="Clear search">
             ✕
           </button>
         )}

@@ -3,11 +3,13 @@
  * Importer og sæt sammen med padding fra `spacingTokens.js` (fx `CARD_PADDING`).
  */
 
+import { MOTION_TRANSITION_COLORS } from './motionTokens'
+
 /** Standard indholdskort (Progress, Plan-lignende flader) */
 export const CARD_SURFACE = 'rounded-[14px] border border-border bg-card'
 
 /** Klikbart kort / række */
-export const CARD_SURFACE_INTERACTIVE = `${CARD_SURFACE} transition-colors hover:border-accent/30`
+export const CARD_SURFACE_INTERACTIVE = `${CARD_SURFACE} ${MOTION_TRANSITION_COLORS} hover:border-accent/30`
 
 /** Kompakt række inde i lister (bevarer eksisterende visuelle mål) */
 export const CARD_ROW_PAD = 'p-[13px_14px]'

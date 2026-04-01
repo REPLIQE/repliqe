@@ -102,6 +102,8 @@ function getPhotoSessionsAround(photoSessions, dateStr, max = 3) {
   return nearby.slice(0, max)
 }
 
+/** Live grid: kompakt 5×7 (se styring i index.css `.activity-*`). Mockups: `/progress-grid-previews.html`. */
+
 /** Build exactly 35 cells (5 weeks × 7 days); weekStart 0=Mon..6=Sun. Window chosen so it includes today. */
 function getLast30DaysGrid(workoutHistory, weekStart = 0) {
   const today = new Date()
@@ -268,12 +270,12 @@ export default function ProgressOverview({
           onClick={() => onGoToTab?.('Strength', { strengthSection: 'volume' })}
           className="progress-section-label text-left w-full cursor-pointer hover:opacity-80 transition-opacity"
         >
-          Last 30 Days
+          Last 5 weeks
         </button>
         <button
           type="button"
           onClick={() => onGoToTab?.('Strength', { strengthSection: 'volume' })}
-          className={`${CARD_SURFACE} w-full text-left cursor-pointer hover:opacity-95 transition-opacity p-[14px]`}
+          className={`${CARD_SURFACE} w-full text-left cursor-pointer hover:opacity-95 transition-opacity p-3`}
         >
         <div className="activity-body">
           <div className="activity-grid-side">

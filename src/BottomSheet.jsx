@@ -4,6 +4,7 @@ import { BOTTOM_SHEET_INSET, CENTER_SHEET_INSET } from './spacingTokens'
 /**
  * Top 10 #1 — Fælles modal/bottom-sheet skal: backdrop + panel + (valgfri) handle.
  * Top 10 #3 — Standard `zClass` er over bundmenu (`z-30`); se `zLayers.js`.
+ * Top 10 #9 — `repl-sheet-*-enter` animationer i `index.css` (`prefers-reduced-motion`-sikre).
  *
  * @param {'bottom'|'center'} align — bund-sheet vs centreret dialog (max-w-sm typisk via maxWidthClass).
  * @param {'scrollable'|'flex'} layout
@@ -60,14 +61,16 @@ export default function BottomSheet({
 
   const safePb = 'pb-[max(1.25rem,env(safe-area-inset-bottom))]'
 
+  const panelEnter = align === 'center' ? 'repl-sheet-panel-center-enter' : 'repl-sheet-panel-bottom-enter'
+
   return (
     <div
-      className={`fixed inset-0 ${backdropClassName} ${zClass} flex ${alignOuter} ${outerClassName}`.trim()}
+      className={`fixed inset-0 repl-sheet-backdrop-enter ${backdropClassName} ${zClass} flex ${alignOuter} ${outerClassName}`.trim()}
       onClick={closeOnBackdrop && onClose ? onClose : undefined}
       role="presentation"
     >
       <div
-        className={`${maxWidthClass} w-full ${panelBg} ${panelShape} ${paddingCls} ${safePb} ${layoutCls} ${panelClassName}`.trim()}
+        className={`${maxWidthClass} w-full ${panelBg} ${panelShape} ${paddingCls} ${safePb} ${layoutCls} ${panelEnter} ${panelClassName}`.trim()}
         onClick={(e) => e.stopPropagation()}
         role={role}
         aria-modal={ariaModal}
