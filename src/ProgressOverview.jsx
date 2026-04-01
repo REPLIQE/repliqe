@@ -10,6 +10,35 @@ import ProgressPhoto from './ProgressPhoto'
 import { TransformCard } from './TransformCard'
 import { useAuth } from './lib/AuthContext'
 import { defaultPlanUsage, photoAtLimit, countProgressPhotoSlots } from './lib/planUsage'
+import BottomSheet from './BottomSheet'
+import {
+  CARD_SURFACE,
+  CARD_SURFACE_INTERACTIVE,
+  CARD_SURFACE_SM,
+  CARD_ROW_PAD,
+  CARD_ROW_PAD_TIGHT,
+} from './cardTokens'
+import {
+  TYPE_CAPTION,
+  TYPE_LABEL_UPPER,
+  TYPE_LABEL_MICRO,
+  TYPE_META,
+  TYPE_MICRO,
+  TYPE_MICRO_TIGHT,
+  TYPE_BODY,
+  TYPE_BODY_SM,
+  TYPE_BODY_SM_SEMIBOLD,
+  TYPE_TITLE_ROW,
+  TYPE_NUMBER_COMPACT,
+  TYPE_SHEET_TITLE,
+  TYPE_DISPLAY,
+  TYPE_STAT_NUMBER,
+  TYPE_UNIT_SUFFIX,
+  TYPE_SUBTITLE,
+  TYPE_EMPHASIS_SM,
+  TYPE_OVERLINE,
+  TYPE_RING_PCT,
+} from './typographyTokens'
 
 const PHOTO_ANGLES = [{ key: 'front', label: 'Front' }, { key: 'back', label: 'Back' }, { key: 'side', label: 'Side' }]
 
@@ -244,7 +273,7 @@ export default function ProgressOverview({
         <button
           type="button"
           onClick={() => onGoToTab?.('Strength', { strengthSection: 'volume' })}
-          className="activity-card w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 rounded-[14px]"
+          className={`${CARD_SURFACE} w-full text-left cursor-pointer hover:opacity-95 transition-opacity p-[14px]`}
         >
         <div className="activity-body">
           <div className="activity-grid-side">
@@ -287,13 +316,13 @@ export default function ProgressOverview({
           <div className="sec text-left w-full">
             Motivation
           </div>
-          <div className="w-full bg-card border border-border rounded-[14px] p-4 text-left">
+          <div className={`w-full ${CARD_SURFACE} p-4 text-left`}>
             <div className="flex items-end justify-between gap-1 mb-2">
               {lastRating != null && (
-                <span className="text-[11px] text-muted">Latest: <span className="font-bold text-accent">{getRatingLabel(lastRating)}</span></span>
+                <span className={TYPE_MICRO}>Latest: <span className="font-bold text-accent">{getRatingLabel(lastRating)}</span></span>
               )}
               {avgRating != null && (
-                <span className="text-[11px] text-muted">Avg: <span className="font-bold text-text">{avgRating.toFixed(1)}</span></span>
+                <span className={TYPE_MICRO}>Avg: <span className="font-bold text-text">{avgRating.toFixed(1)}</span></span>
               )}
             </div>
             <div className="flex items-end gap-[3px] h-10" style={{ minHeight: '40px' }}>
@@ -306,7 +335,7 @@ export default function ProgressOverview({
                 />
               ))}
             </div>
-            <p className="text-[9px] text-muted mt-1.5 uppercase tracking-wider">Change over time (last {ratingChartData.length} workouts)</p>
+            <p className={`${TYPE_CAPTION} mt-1.5 uppercase tracking-wider`}>Change over time (last {ratingChartData.length} workouts)</p>
           </div>
         </div>
       )}
@@ -397,15 +426,15 @@ export default function ProgressOverview({
               key={m.name}
               type="button"
               onClick={() => onGoToTab?.('Strength', { strengthSection: 'topMovers' })}
-              className="w-full bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] flex items-center justify-between text-left cursor-pointer hover:border-accent/30 transition-colors last:mb-0"
+              className={`w-full ${CARD_SURFACE_INTERACTIVE} ${CARD_ROW_PAD} mb-[6px] flex items-center justify-between text-left cursor-pointer last:mb-0`}
             >
               <div>
-                <div className="text-[14px] font-bold text-text">{m.name}</div>
-                <div className="text-[10px] text-muted mt-0.5">
+                <div className={TYPE_TITLE_ROW}>{m.name}</div>
+                <div className={`${TYPE_META} mt-0.5`}>
                   {m.currentE1RM} {unitWeight} · est. max
                 </div>
               </div>
-              <div className={`rounded-[6px] px-[10px] py-[4px] text-[12px] font-extrabold ${
+              <div className={`rounded-[6px] px-[10px] py-[4px] ${TYPE_BODY_SM} font-extrabold ${
                 m.pct > 0 ? 'bg-[rgba(91,245,160,0.09)] border border-[rgba(91,245,160,0.2)] text-success' : 'bg-card-alt border border-border text-muted'
               }`}>
                 {m.pct > 0 ? `↑ +${m.pct}%` : m.pct < 0 ? `↓ ${m.pct}%` : '—'}
@@ -435,7 +464,7 @@ export default function ProgressOverview({
           return (
             <div
               key={slug}
-              className="bg-card border border-border rounded-[12px] py-[10px] px-[5px] flex flex-col items-center gap-[5px]"
+              className={`${CARD_SURFACE_SM} py-[10px] px-[5px] flex flex-col items-center gap-[5px]`}
             >
               <div className="relative w-[40px] h-[40px]">
                 <svg width="40" height="40" viewBox="0 0 40 40">
@@ -453,11 +482,11 @@ export default function ProgressOverview({
                     transform="rotate(-90 20 20)"
                   />
                 </svg>
-                <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] font-extrabold text-white">
+                <span className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${TYPE_RING_PCT}`}>
                   {pct}%
                 </span>
               </div>
-              <span className="text-[8px] font-bold text-muted uppercase tracking-[0.4px] text-center">
+              <span className={TYPE_LABEL_MICRO}>
                 {formatMuscleLabel(slug)}
               </span>
             </div>
@@ -492,7 +521,7 @@ export default function ProgressOverview({
           {safeHistory.length > 5 && (
             <button
               onClick={() => setShowAllHistory(true)}
-              className="w-full py-2.5 text-[12px] font-semibold text-accent text-center mb-2"
+              className={`w-full py-2.5 ${TYPE_BODY_SM_SEMIBOLD} text-accent text-center mb-2`}
             >
               See full workout history ({safeHistory.length})
             </button>
@@ -557,14 +586,14 @@ function StatTile({ val, unit, label, delta, deltaLabel, invertDelta, formatDeci
   const isGood = invertDelta ? !isPositive : isPositive
   const fmtDelta = formatDecimal ? (n) => formatDecimal(n, 1) : (n) => Number(n).toFixed(1)
   return (
-    <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
-      <div className="text-[20px] font-extrabold text-text leading-none">
+    <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
+      <div className={TYPE_DISPLAY}>
         {val}
-        <span className="text-[10px] text-muted font-semibold ml-0.5">{unit}</span>
+        <span className={`${TYPE_UNIT_SUFFIX} ml-0.5`}>{unit}</span>
       </div>
-      <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">{label}</div>
+      <div className={`${TYPE_LABEL_UPPER} mt-1`}>{label}</div>
       {delta != null && delta !== 0 && (
-        <div className={`text-[10px] font-bold mt-1 ${isGood ? 'text-success' : 'text-[#ff6b6b]'}`}>
+        <div className={`${TYPE_EMPHASIS_SM} mt-1 ${isGood ? 'text-success' : 'text-[#ff6b6b]'}`}>
           {delta > 0 ? '↑' : '↓'} {fmtDelta(Math.abs(delta))} {unit} {deltaLabel}
         </div>
       )}
@@ -604,22 +633,22 @@ function WorkoutHistoryRow({ workout, unitWeight, formatDecimal, toNum, formatDa
     <button
       type="button"
       onClick={onClick}
-      className="w-full bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] text-left"
+      className={`w-full ${CARD_SURFACE_INTERACTIVE} ${CARD_ROW_PAD} mb-[6px] text-left`}
     >
       <div className="flex gap-3 items-baseline pb-1.5 border-b border-border">
-        <span className="text-[11px] text-muted shrink-0 w-[72px] tabular-nums" style={{ fontVariantNumeric: 'tabular-nums' }}>
+        <span className={`${TYPE_MICRO} shrink-0 w-[72px] tabular-nums`} style={{ fontVariantNumeric: 'tabular-nums' }}>
           {displayDate}
         </span>
-        <span className="text-[14px] font-bold text-text truncate min-w-0 flex-1">
+        <span className={`${TYPE_TITLE_ROW} truncate min-w-0 flex-1`}>
           {workout.name || displayDate}
         </span>
       </div>
-      <div className="grid grid-cols-[3rem_2.5rem_4rem_5rem_1fr] gap-x-3 gap-y-0 mt-1.5 text-[11px] text-muted items-center">
+      <div className={`grid grid-cols-[3rem_2.5rem_4rem_5rem_1fr] gap-x-3 gap-y-0 mt-1.5 ${TYPE_MICRO} items-center`}>
         {mins != null && <span className="tabular-nums text-right">{mins} min</span>}
         <span className="tabular-nums text-right">{doneSets} sets</span>
         {volume > 0 ? <span className="tabular-nums text-right">{volStr} {unitWeight}</span> : <span />}
         {restMins > 0 ? <span className="tabular-nums text-right">{restMins} min rest</span> : <span />}
-        {ratingLabel ? <span className="text-accent font-semibold truncate">Motivation: {ratingLabel}</span> : <span />}
+        {ratingLabel ? <span className={`${TYPE_SUBTITLE} truncate`}>Motivation: {ratingLabel}</span> : <span />}
       </div>
     </button>
   )
@@ -638,7 +667,7 @@ function PhotoThumbSmall({ filename, date }) {
         <img src={src} alt="" className="max-h-full max-w-full object-contain" />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
-          <span className="text-[9px] text-muted">{date || '—'}</span>
+          <span className={TYPE_CAPTION}>{date || '—'}</span>
         </div>
       )}
     </div>
@@ -661,7 +690,7 @@ function SessionPhotosCropped({ session, dateLabel }) {
   }, [user?.uid, session?.id, session?.front, session?.back, session?.side])
   return (
     <div className="shrink-0">
-      <div className="text-[8px] font-bold text-muted uppercase tracking-[0.5px] mb-1 text-center">{dateLabel}</div>
+      <div className={`${TYPE_MICRO_TIGHT} font-bold uppercase tracking-[0.5px] mb-1 text-center`}>{dateLabel}</div>
       <div className="flex gap-1.5">
         {PHOTO_ANGLES.map(({ key, label }) => {
           const file = session?.[key]
@@ -674,11 +703,11 @@ function SessionPhotosCropped({ session, dateLabel }) {
                   <ProgressPhoto key={`${session?.id}-${key}-${file}`} src={src} crop={crop} className="w-full rounded-lg" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-[8px] text-muted">—</span>
+                    <span className={TYPE_MICRO_TIGHT}>—</span>
                   </div>
                 )}
               </div>
-              <span className="text-[8px] text-muted">{label}</span>
+              <span className={TYPE_MICRO_TIGHT}>{label}</span>
             </div>
           )
         })}
@@ -735,16 +764,15 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
   const hasContext = weightThen || muscleThen || bodyFatThen || weightTrend.length > 1 || photosThen.length > 0
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-50 flex items-end justify-center">
-      <div className="w-full max-w-md bg-page rounded-t-[20px] max-h-[90vh] flex flex-col">
+    <BottomSheet onClose={onClose} zClass="z-50" variant="page" layout="flex" padding="none" closeOnBackdrop={false} showHandle={false} panelClassName="max-h-[90vh]">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
           <div>
-            <h2 className="text-[17px] font-extrabold text-text">
+            <h2 className={TYPE_SHEET_TITLE}>
               {workout.name || displayDate}
             </h2>
-            <p className="text-[11px] text-muted mt-0.5">{displayDate}</p>
+            <p className={`${TYPE_MICRO} mt-0.5`}>{displayDate}</p>
             {hasValidRating(workout) && (
-              <p className="text-[12px] font-semibold text-accent mt-1">Motivation: {getRatingLabel(workout.rating)}</p>
+              <p className={`${TYPE_SUBTITLE} mt-1`}>Motivation: {getRatingLabel(workout.rating)}</p>
             )}
           </div>
           <button
@@ -758,27 +786,27 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
 
         <div className="overflow-y-auto flex-1 min-h-0 flex flex-col">
           <div className="grid grid-cols-4 gap-2 px-5 py-4 shrink-0">
-            <div className="bg-card border border-border rounded-[12px] p-3 text-center">
-              <div className="text-[18px] font-extrabold text-text">{exerciseCount}</div>
-              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">Exercises</div>
+            <div className={`${CARD_SURFACE_SM} p-3 text-center`}>
+              <div className={TYPE_STAT_NUMBER}>{exerciseCount}</div>
+              <div className={`${TYPE_LABEL_UPPER} mt-0.5`}>Exercises</div>
             </div>
-            <div className="bg-card border border-border rounded-[12px] p-3 text-center">
-              <div className="text-[18px] font-extrabold text-text">{doneSets}</div>
-              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">Sets</div>
+            <div className={`${CARD_SURFACE_SM} p-3 text-center`}>
+              <div className={TYPE_STAT_NUMBER}>{doneSets}</div>
+              <div className={`${TYPE_LABEL_UPPER} mt-0.5`}>Sets</div>
             </div>
-            <div className="bg-card border border-border rounded-[12px] p-3 text-center">
-              <div className="text-[18px] font-extrabold text-text">{mins != null ? mins : '—'}</div>
-              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">Min</div>
+            <div className={`${CARD_SURFACE_SM} p-3 text-center`}>
+              <div className={TYPE_STAT_NUMBER}>{mins != null ? mins : '—'}</div>
+              <div className={`${TYPE_LABEL_UPPER} mt-0.5`}>Min</div>
             </div>
-            <div className="bg-card border border-border rounded-[12px] p-3 text-center">
-              <div className="text-[18px] font-extrabold text-text">{volume > 0 ? volStr : '—'}</div>
-              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-0.5">{unitWeight} vol</div>
+            <div className={`${CARD_SURFACE_SM} p-3 text-center`}>
+              <div className={TYPE_STAT_NUMBER}>{volume > 0 ? volStr : '—'}</div>
+              <div className={`${TYPE_LABEL_UPPER} mt-0.5`}>{unitWeight} vol</div>
             </div>
           </div>
 
           {muscleSlugs.length > 0 && (
           <div className="px-5 pb-4 shrink-0">
-            <div className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">Muscles trained</div>
+            <div className={`${TYPE_OVERLINE} mb-2`}>Muscles trained</div>
             <div className="flex flex-wrap gap-1.5">
               {muscleSlugs.map((slug) => {
                 const colour = MUSCLE_COLOURS_HEX[slug] ?? '#888'
@@ -791,7 +819,7 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
                 return (
                   <span
                     key={slug}
-                    className="flex items-center justify-center rounded-full py-[7px] px-2.5 text-[11px] font-bold border truncate"
+                    className={`flex items-center justify-center rounded-full py-[7px] px-2.5 ${TYPE_MICRO} font-bold border truncate`}
                     style={{ backgroundColor: bg, borderColor: border, color: colour }}
                   >
                     {formatMuscleLabel(slug)}
@@ -804,30 +832,30 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
 
           {hasContext && (
           <div className="px-5 pb-4 shrink-0 border-b border-border">
-            <div className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">At that time</div>
+            <div className={`${TYPE_OVERLINE} mb-2`}>At that time</div>
             <div className="flex gap-2 flex-wrap items-start">
               {weightThen && (
-                <div className="bg-card border border-border rounded-[12px] px-3 py-2 min-w-[72px]">
-                  <div className="text-[14px] font-extrabold text-text">{fmt(weightThen.value)}</div>
-                  <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px]">{unitWeight}</div>
+                <div className={`${CARD_SURFACE_SM} px-3 py-2 min-w-[72px]`}>
+                  <div className={TYPE_NUMBER_COMPACT}>{fmt(weightThen.value)}</div>
+                  <div className={TYPE_LABEL_UPPER}>{unitWeight}</div>
                 </div>
               )}
               {muscleThen && (
-                <div className="bg-card border border-border rounded-[12px] px-3 py-2 min-w-[72px]">
-                  <div className="text-[14px] font-extrabold text-text">{fmt(muscleThen.value)}%</div>
-                  <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px]">Muscle</div>
+                <div className={`${CARD_SURFACE_SM} px-3 py-2 min-w-[72px]`}>
+                  <div className={TYPE_NUMBER_COMPACT}>{fmt(muscleThen.value)}%</div>
+                  <div className={TYPE_LABEL_UPPER}>Muscle</div>
                 </div>
               )}
               {bodyFatThen && (
-                <div className="bg-card border border-border rounded-[12px] px-3 py-2 min-w-[72px]">
-                  <div className="text-[14px] font-extrabold text-text">{fmt(bodyFatThen.value)}%</div>
-                  <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px]">Body fat</div>
+                <div className={`${CARD_SURFACE_SM} px-3 py-2 min-w-[72px]`}>
+                  <div className={TYPE_NUMBER_COMPACT}>{fmt(bodyFatThen.value)}%</div>
+                  <div className={TYPE_LABEL_UPPER}>Body fat</div>
                 </div>
               )}
             </div>
             {weightTrend.length > 1 && (
               <div className="mt-3">
-                <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1">Weight trend</div>
+                <div className={`${TYPE_LABEL_UPPER} mb-1`}>Weight trend</div>
                 <div className="flex items-end gap-0.5 h-[44px]">
                   {weightTrend.map((p, i) => {
                     const heightPct = 15 + ((weightMax - p.value) / weightRange) * 70
@@ -845,14 +873,14 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
                   })}
                 </div>
                 <div className="flex justify-between mt-0.5">
-                  <span className="text-[8px] text-muted">{weightTrend[0]?.date != null && formatDateForDisplay ? formatDateForDisplay(weightTrend[0].date) : weightTrend[0]?.date}</span>
-                  <span className="text-[8px] text-muted">{weightTrend[weightTrend.length - 1]?.date != null && formatDateForDisplay ? formatDateForDisplay(weightTrend[weightTrend.length - 1].date) : weightTrend[weightTrend.length - 1]?.date}</span>
+                  <span className={TYPE_MICRO_TIGHT}>{weightTrend[0]?.date != null && formatDateForDisplay ? formatDateForDisplay(weightTrend[0].date) : weightTrend[0]?.date}</span>
+                  <span className={TYPE_MICRO_TIGHT}>{weightTrend[weightTrend.length - 1]?.date != null && formatDateForDisplay ? formatDateForDisplay(weightTrend[weightTrend.length - 1].date) : weightTrend[weightTrend.length - 1]?.date}</span>
                 </div>
               </div>
             )}
             {photosThen.length > 0 && (
               <div className="mt-3">
-                <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-2">Photos</div>
+                <div className={`${TYPE_LABEL_UPPER} mb-2`}>Photos</div>
                 <div className="flex flex-col gap-3">
                   {photosThen.map((s) => (
                     <SessionPhotosCropped
@@ -868,13 +896,13 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
           )}
 
           <div className="px-5 pb-8 pt-3 shrink-0">
-          <div className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">Exercises</div>
+          <div className={`${TYPE_OVERLINE} mb-2`}>Exercises</div>
           {(workout.exercises || []).map((ex, i) => {
             const done = (ex.sets || []).filter((s) => s.done)
             if (!done.length) return null
             return (
               <div key={i} className="mb-4">
-                <div className="text-[13px] font-bold text-text mb-1.5">{ex.name}</div>
+                <div className={`${TYPE_BODY} font-bold mb-1.5`}>{ex.name}</div>
                 {done.map((s, j) => {
                   const restSec = Number(s.restTime ?? s.rest_time ?? 0) || 0
                   const restTimeStr = restSec > 0
@@ -886,15 +914,15 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
                       key={j}
                       className="grid grid-cols-[1.5rem_1fr_3.5rem_2.5rem] gap-x-3 items-center py-1 border-b border-border last:border-0"
                     >
-                      <span className="text-[11px] text-muted">{j + 1}</span>
-                      <span className="text-[12px] font-semibold text-text min-w-0 truncate">
+                      <span className={TYPE_MICRO}>{j + 1}</span>
+                      <span className={`${TYPE_BODY_SM_SEMIBOLD} min-w-0 truncate`}>
                         {s.kg != null && s.kg !== '' ? `${(formatDecimal && formatDecimal(num(s.kg), 2)) ?? fmt(num(s.kg))} ${unitWeight}` : ''}
                         {s.kg != null && s.kg !== '' && s.reps ? ' × ' : ''}
                         {s.reps ? `${s.reps} reps` : ''}
                         {s.time ? s.time : ''}
                         {s.distance ? `${s.distance} km` : ''}
                       </span>
-                      <span className="flex items-center gap-1 text-[10px] text-muted min-w-0">
+                      <span className={`flex items-center gap-1 ${TYPE_META} min-w-0`}>
                         {restTimeStr ? (
                           <>
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="opacity-70 shrink-0">
@@ -907,7 +935,7 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
                           <span className="text-muted/60">—</span>
                         )}
                       </span>
-                      <span className="text-[10px] text-muted">
+                      <span className={TYPE_META}>
                         {hasRir ? `RIR ${s.rir}` : <span className="text-muted/60">—</span>}
                       </span>
                     </div>
@@ -918,8 +946,7 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
           })}
           </div>
         </div>
-      </div>
-    </div>
+    </BottomSheet>
   )
 }
 
@@ -950,10 +977,9 @@ function AllHistorySheet({ history = [], unitWeight, formatDecimal, toNum, forma
   const virtualItems = scrollReady ? virtualizer.getVirtualItems() : []
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-50 flex items-end justify-center">
-      <div className="w-full max-w-md bg-page rounded-t-[20px] max-h-[92vh] flex flex-col">
+    <BottomSheet onClose={onClose} zClass="z-50" variant="page" layout="flex" padding="none" closeOnBackdrop={false} showHandle={false} panelClassName="max-h-[92vh]">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
-          <h2 className="text-[17px] font-extrabold text-text">Workout history</h2>
+          <h2 className={TYPE_SHEET_TITLE}>Workout history</h2>
           <button
             type="button"
             onClick={onClose}
@@ -964,7 +990,7 @@ function AllHistorySheet({ history = [], unitWeight, formatDecimal, toNum, forma
         </div>
 
         <div className="px-5 py-3 shrink-0">
-          <div className="bg-card border border-border rounded-[12px] p-[10px_14px] flex items-center gap-2">
+          <div className={`${CARD_SURFACE_SM} p-[10px_14px] flex items-center gap-2`}>
             <svg
               width="14"
               height="14"
@@ -983,7 +1009,7 @@ function AllHistorySheet({ history = [], unitWeight, formatDecimal, toNum, forma
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search workouts..."
-              className="bg-transparent text-[13px] text-text placeholder-muted outline-none flex-1"
+              className={`bg-transparent ${TYPE_BODY} placeholder-muted outline-none flex-1`}
             />
             {search && (
               <button type="button" onClick={() => setSearch('')} className="text-muted text-sm">
@@ -1040,7 +1066,6 @@ function AllHistorySheet({ history = [], unitWeight, formatDecimal, toNum, forma
             })
           )}
         </div>
-      </div>
-    </div>
+    </BottomSheet>
   )
 }

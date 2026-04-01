@@ -11,6 +11,8 @@ import {
 } from 'chart.js'
 import { Line, Doughnut } from 'react-chartjs-2'
 import { MUSCLE_GROUPS, SLUG_TO_GROUP, getExerciseSlugs } from './exerciseLibrary'
+import { CARD_SURFACE_LG } from './cardTokens'
+import { TYPE_BODY_SM, TYPE_OVERLINE_STRONG, TYPE_TAB } from './typographyTokens'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip)
 
@@ -193,7 +195,7 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
 
   const content = (
     <>
-      <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider mb-2">Volume over time</p>
+      <p className={`${TYPE_OVERLINE_STRONG} mb-2`}>Volume over time</p>
 
       {!isCompact && (
         <>
@@ -206,7 +208,7 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
                   key={g}
                   type="button"
                   onClick={() => setMuscleGroup(g)}
-                  className={`shrink-0 min-h-[36px] px-3 py-2 rounded-lg border text-[11px] font-bold flex items-center justify-center transition-colors ${
+                  className={`shrink-0 min-h-[36px] px-3 py-2 rounded-lg border ${TYPE_TAB} flex items-center justify-center transition-colors ${
                     isActive
                       ? 'border-accent bg-accent/10 text-accent'
                       : 'border-border-strong bg-card-alt text-muted-strong hover:border-accent/50'
@@ -226,7 +228,7 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
                 type="button"
                 onClick={() => setPeriod(p)}
                 className={
-                  'flex-1 min-h-[36px] py-2 px-3 rounded-lg border text-[11px] font-bold flex items-center justify-center transition-colors ' +
+                  `flex-1 min-h-[36px] py-2 px-3 rounded-lg border ${TYPE_TAB} flex items-center justify-center transition-colors ` +
                   (period === p
                     ? 'border-accent bg-accent/10 text-accent'
                     : 'border-border-strong bg-card-alt text-muted-strong hover:border-accent/50')
@@ -240,7 +242,7 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
       )}
 
       {/* Hero card */}
-      <div className="bg-card border border-border rounded-2xl p-4 mb-4">
+      <div className={`${CARD_SURFACE_LG} p-4 mb-4`}>
         <p className="text-2xl font-extrabold text-text">{totalFormatted} {unitWeight}</p>
         <p className="text-xs text-muted mt-0.5">Total volume · {PERIOD_LABELS[period]}</p>
         <p className={`text-xs font-semibold mt-1 ${delta >= 0 ? 'text-success' : 'text-red-400'}`}>
@@ -257,8 +259,8 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
 
       {/* Breakdown */}
       {breakdown.length > 0 && (
-        <div className="bg-card border border-border rounded-2xl p-4 mb-4">
-          <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider mb-3">Volume by muscle group</p>
+        <div className={`${CARD_SURFACE_LG} p-4 mb-4`}>
+          <p className={`${TYPE_OVERLINE_STRONG} mb-3`}>Volume by muscle group</p>
           <div className="flex items-center gap-4">
             <div className="w-24 h-24 shrink-0">
               <Doughnut
@@ -293,7 +295,7 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
         {content}
         <div className="flex items-center justify-between gap-3 mt-3">
           <p className="text-xs text-muted">Tap to filter by period and muscle group</p>
-          <span className="shrink-0 text-accent text-[12px] leading-none" aria-hidden>
+          <span className={`shrink-0 text-accent ${TYPE_BODY_SM} leading-none`} aria-hidden>
             →
           </span>
         </div>

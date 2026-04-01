@@ -1,4 +1,6 @@
 import { MUSCLE_COLOURS_HEX, getMuscleRecoveryPct, formatMuscleLabel } from './utils'
+import { CARD_SURFACE, CARD_SURFACE_SM } from './cardTokens'
+import { TYPE_BODY_SM_SEMIBOLD, TYPE_META, TYPE_MICRO, TYPE_RING_PCT, TYPE_TITLE_ROW } from './typographyTokens'
 
 const ALL_SLUGS = [
   'chest',
@@ -70,7 +72,7 @@ export default function ProgressRecovery({ muscleLastWorked, history, allLibrary
           return (
             <div
               key={slug}
-              className="bg-card border border-border rounded-[12px] py-[10px] px-[5px] flex flex-col items-center gap-[5px]"
+              className={`${CARD_SURFACE_SM} py-[10px] px-[5px] flex flex-col items-center gap-[5px]`}
             >
               <div className="relative w-[40px] h-[40px]">
                 <svg width="40" height="40" viewBox="0 0 40 40">
@@ -88,7 +90,7 @@ export default function ProgressRecovery({ muscleLastWorked, history, allLibrary
                     transform="rotate(-90 20 20)"
                   />
                 </svg>
-                <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] font-extrabold text-white">
+                <span className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${TYPE_RING_PCT}`}>
                   {pct}%
                 </span>
               </div>
@@ -102,9 +104,14 @@ export default function ProgressRecovery({ muscleLastWorked, history, allLibrary
 
       <div className="sec">Frequency · last 4 weeks</div>
       {freqEntries.length === 0 ? (
-        <div className="text-sm text-muted italic mb-4">No data yet — complete some workouts first</div>
+        <div className={`${CARD_SURFACE} p-4 mb-8`}>
+          <div className={TYPE_TITLE_ROW}>No volume logged yet</div>
+          <p className={`${TYPE_META} mt-1.5`}>
+            Complete workouts with logged sets in the last four weeks to see how often each muscle group was trained.
+          </p>
+        </div>
       ) : (
-        <div className="bg-card border border-border rounded-[14px] overflow-hidden mb-8">
+        <div className={`${CARD_SURFACE} overflow-hidden mb-8`}>
           {freqEntries.map(([slug, count], i) => {
             const colour = MUSCLE_COLOURS_HEX[slug] ?? '#888'
             const fillPct = Math.round((count / maxFreq) * 100)
@@ -121,7 +128,7 @@ export default function ProgressRecovery({ muscleLastWorked, history, allLibrary
                     className="w-[7px] h-[7px] rounded-full shrink-0"
                     style={{ background: colour }}
                   />
-                  <span className="text-[12px] font-semibold text-text capitalize">
+                  <span className={`${TYPE_BODY_SM_SEMIBOLD} text-text capitalize`}>
                     {formatMuscleLabel(slug)}
                   </span>
                 </div>
@@ -133,7 +140,7 @@ export default function ProgressRecovery({ muscleLastWorked, history, allLibrary
                     />
                   </div>
                   <span
-                    className="text-[11px] font-extrabold min-w-[22px] text-right"
+                    className={`${TYPE_MICRO} font-extrabold min-w-[22px] text-right`}
                     style={{ color: isLow ? '#ff6b6b' : '#fff' }}
                   >
                     {count}×

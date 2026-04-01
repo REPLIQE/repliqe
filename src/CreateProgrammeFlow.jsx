@@ -6,11 +6,8 @@ import { app } from './lib/firebase'
 import { RepliqeLogoBuilding } from './RepliqeLogo'
 import { DEFAULT_EXERCISES } from './exerciseLibrary'
 import { invokeCoachGenerate } from './lib/invokeCoachGenerate'
-
-const primaryCta =
-  'w-full py-3.5 sm:py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25 disabled:opacity-50 disabled:pointer-events-none transition-[opacity,transform] active:scale-[0.99]'
-
-const secondaryGhost = 'w-full py-2.5 text-sm font-semibold text-muted-strong hover:text-text transition-colors'
+import ActionButton from './ActionButton'
+import { TYPE_EMPHASIS_SM, TYPE_OVERLINE_STRONG, TYPE_TAB } from './typographyTokens'
 
 const warningIcon = (className = 'w-4 h-4 text-amber-400 shrink-0 mt-0.5') => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
@@ -177,7 +174,7 @@ function SheetFrame({ label, title, subtitle, onBack, onClose, children, showFlo
           {hasProgress && <CoachFlowProgressBar current={flowProgressCurrent} total={COACH_FLOW_STEP_COUNT} />}
           <div className="px-4">
             {label && (
-              <p className={`text-[10px] font-bold text-muted-strong uppercase tracking-wider mb-1 ${hasProgress ? 'mt-1' : 'mt-4'}`}>{label}</p>
+              <p className={`${TYPE_OVERLINE_STRONG} mb-1 ${hasProgress ? 'mt-1' : 'mt-4'}`}>{label}</p>
             )}
             <h1 className={`text-xl font-bold text-text mb-1 ${hasProgress && !label ? 'mt-1' : ''}`}>{title}</h1>
             {subtitle && <p className="text-sm text-muted-strong mb-6">{subtitle}</p>}
@@ -211,7 +208,7 @@ export function CreateProgrammeChoiceScreen({ onCoach, onManual, onClose }) {
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-2 bg-accent/15 text-accent">Coach</span>
+            <span className={`inline-block ${TYPE_EMPHASIS_SM} px-2 py-0.5 rounded-full mb-2 bg-accent/15 text-accent`}>Coach</span>
             <div className="text-base font-bold text-text">Create with Coach</div>
             <p className="text-xs text-muted-strong mt-0.5">Answer a few questions. Coach builds a programme tailored to your goals, level and equipment.</p>
           </div>
@@ -309,12 +306,12 @@ export function CreateProgrammeExplainerScreen({ onGotIt, onSkip, onBack, onClos
     >
       <ProgrammeStructureExplainerCards className="mb-8" />
       <div className="space-y-2">
-        <button type="button" onClick={onGotIt} className={primaryCta}>
+        <ActionButton type="button" onClick={onGotIt} variant="primary">
           Got it — create my programme
-        </button>
-        <button type="button" onClick={onSkip} className={secondaryGhost}>
+        </ActionButton>
+        <ActionButton type="button" onClick={onSkip} variant="tertiary" className="!min-h-0 py-2.5 active:scale-100">
           Skip for now
-        </button>
+        </ActionButton>
       </div>
     </SheetFrame>
   )
@@ -651,9 +648,9 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
           <p className="text-muted-strong text-sm mb-4">
             This can happen if there's a connection issue. Try again — your answers are saved.
           </p>
-          <button type="button" onClick={() => setPhase('consent')} className={primaryCta}>
+          <ActionButton type="button" onClick={() => setPhase('consent')} variant="primary">
             Try again
-          </button>
+          </ActionButton>
         </div>
       </SheetFrame>
     )
@@ -701,12 +698,12 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
         </div>
 
         <div className="space-y-2">
-          <button type="button" disabled={saving} onClick={() => handleSaveAndActivate(true)} className={primaryCta}>
+          <ActionButton type="button" disabled={saving} onClick={() => handleSaveAndActivate(true)} variant="primary">
             {saving ? 'Saving…' : 'Save & make active'}
-          </button>
-          <button type="button" disabled={saving} onClick={() => handleSaveAndActivate(false)} className={secondaryGhost}>
+          </ActionButton>
+          <ActionButton type="button" disabled={saving} onClick={() => handleSaveAndActivate(false)} variant="tertiary" className="!min-h-0 py-2.5 active:scale-100">
             Save without activating
-          </button>
+          </ActionButton>
         </div>
       </SheetFrame>
     )
@@ -754,12 +751,12 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
         </label>
 
         <div className="space-y-2">
-          <button type="button" onClick={startBuilding} disabled={!coachConsentAccepted} className={primaryCta}>
+          <ActionButton type="button" onClick={startBuilding} disabled={!coachConsentAccepted} variant="primary">
             + Create programme
-          </button>
-          <button type="button" onClick={handleConsentBack} className={secondaryGhost}>
+          </ActionButton>
+          <ActionButton type="button" onClick={handleConsentBack} variant="tertiary" className="!min-h-0 py-2.5 active:scale-100">
             Back to answers
-          </button>
+          </ActionButton>
         </div>
       </SheetFrame>
     )
@@ -852,7 +849,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
         {step === 5 && (
           <div className="space-y-0">
             <div>
-              <p className="text-[11px] font-bold text-muted-strong uppercase tracking-wider mb-2">Muscle groups</p>
+              <p className={`${TYPE_TAB} text-muted-strong uppercase tracking-wider mb-2`}>Muscle groups</p>
               <div className="flex flex-wrap gap-2">
                 {QORE_MUSCLE_TAGS.map((tag) => {
                   const on = focusTags.includes(tag)
@@ -873,7 +870,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
             </div>
             <div className="border-t border-border my-4" />
             <div>
-              <p className="text-[11px] font-bold text-muted-strong uppercase tracking-wider mb-2">Programme structure</p>
+              <p className={`${TYPE_TAB} text-muted-strong uppercase tracking-wider mb-2`}>Programme structure</p>
               <div className="flex flex-wrap gap-2">
                 {QORE_STRUCTURE_TAGS.map((tag) => {
                   const on = focusTags.includes(tag)
@@ -894,7 +891,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
             </div>
             <div className="border-t border-border my-4" />
             <div>
-              <p className="text-[11px] font-bold text-muted-strong uppercase tracking-wider mb-2">Preferences</p>
+              <p className={`${TYPE_TAB} text-muted-strong uppercase tracking-wider mb-2`}>Preferences</p>
               <div className="flex flex-wrap gap-2">
                 {QORE_PREFERENCE_TAGS.map((tag) => {
                   const on = focusTags.includes(tag)
@@ -933,9 +930,9 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
         )}
       </div>
       <div className="mt-8">
-        <button type="button" onClick={handleQuizNext} disabled={!canNext} className={primaryCta}>
+        <ActionButton type="button" onClick={handleQuizNext} disabled={!canNext} variant="primary">
           Continue
-        </button>
+        </ActionButton>
       </div>
     </SheetFrame>
   )

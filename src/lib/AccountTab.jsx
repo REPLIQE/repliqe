@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from './AuthContext'
+import BottomSheet from '../BottomSheet'
+import ActionButton from '../ActionButton'
 import {
   auth,
   reauthenticateWithPassword,
@@ -15,6 +17,8 @@ import {
   countCoachProgrammes,
   countProgressPhotoSlots,
 } from './planUsage'
+import { CARD_SURFACE_LG } from '../cardTokens'
+import { TYPE_EMPHASIS_SM, TYPE_META, TYPE_OVERLINE_STRONG } from '../typographyTokens'
 
 function UsageMeter({ label, used, cap, unlimited, extraText, hint }) {
   const capNum = unlimited ? null : cap
@@ -43,7 +47,7 @@ function UsageMeter({ label, used, cap, unlimited, extraText, hint }) {
           <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
         </div>
       )}
-      {hint ? <p className="text-[10px] text-muted-mid leading-snug">{hint}</p> : null}
+      {hint ? <p className={`${TYPE_META} text-muted-mid leading-snug`}>{hint}</p> : null}
     </div>
   )
 }
@@ -118,7 +122,7 @@ export function AboutTab({ setShowPrivacy, setShowTerms }) {
   return (
     <div className="mt-1 space-y-4">
       {/* App info */}
-      <div className="bg-card border border-border rounded-2xl p-5">
+      <div className={`${CARD_SURFACE_LG} p-5`}>
         <div className="text-sm text-muted-mid">
           <div className="mb-1 font-semibold text-text">REPLIQE v1.7</div>
           <div>Simple tracking. Real progress.</div>
@@ -127,8 +131,8 @@ export function AboutTab({ setShowPrivacy, setShowTerms }) {
 
       {/* Support & feedback */}
       <div>
-        <div className="text-[10px] font-bold text-muted-strong uppercase tracking-wider px-1 mb-2">Support & feedback</div>
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className={`${TYPE_OVERLINE_STRONG} px-1 mb-2`}>Support & feedback</div>
+        <div className={`${CARD_SURFACE_LG} overflow-hidden`}>
           <button
             type="button"
             onClick={() =>
@@ -184,8 +188,8 @@ export function AboutTab({ setShowPrivacy, setShowTerms }) {
 
       {/* Community */}
       <div>
-        <div className="text-[10px] font-bold text-muted-strong uppercase tracking-wider px-1 mb-2">Community</div>
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className={`${TYPE_OVERLINE_STRONG} px-1 mb-2`}>Community</div>
+        <div className={`${CARD_SURFACE_LG} overflow-hidden`}>
           <button
             type="button"
             onClick={() =>
@@ -225,8 +229,8 @@ export function AboutTab({ setShowPrivacy, setShowTerms }) {
 
       {/* Legal */}
       <div>
-        <div className="text-[10px] font-bold text-muted-strong uppercase tracking-wider px-1 mb-2">Legal</div>
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className={`${TYPE_OVERLINE_STRONG} px-1 mb-2`}>Legal</div>
+        <div className={`${CARD_SURFACE_LG} overflow-hidden`}>
           <button
             type="button"
             onClick={() => setShowPrivacy?.(true)}
@@ -261,18 +265,19 @@ export function AboutTab({ setShowPrivacy, setShowTerms }) {
       </div>
 
       {showFeedback && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center"
-          onClick={() => setShowFeedback(false)}
-          role="presentation"
+        <BottomSheet
+          onClose={() => setShowFeedback(false)}
+          variant="card"
+          zClass="z-50"
+          layout="scrollable"
+          padding="none"
+          showHandle
+          backdropClassName="bg-black/60 backdrop-blur-sm"
+          panelClassName="p-5 pb-8 border-t border-border shadow-xl"
+          role="dialog"
+          ariaModal={true}
+          ariaLabelledBy="feedback-sheet-title"
         >
-          <div
-            className="w-full max-w-md bg-card rounded-t-3xl p-5 pb-8 border-t border-border shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="feedback-sheet-title"
-          >
             <div className="flex items-center justify-between mb-4">
               <h2 id="feedback-sheet-title" className="text-base font-bold text-text">
                 Send feedback
@@ -295,7 +300,7 @@ export function AboutTab({ setShowPrivacy, setShowTerms }) {
               rows={4}
               className="w-full bg-card-alt border-[1.5px] border-border-strong rounded-xl px-4 py-3 text-sm text-text placeholder:text-muted-deep outline-none focus:border-accent transition-colors resize-none mb-4"
             />
-            <button
+            <ActionButton
               type="button"
               disabled={!feedbackText.trim()}
               onClick={() => {
@@ -307,12 +312,11 @@ export function AboutTab({ setShowPrivacy, setShowTerms }) {
                 setFeedbackText('')
                 setShowFeedback(false)
               }}
-              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent disabled:opacity-40 disabled:pointer-events-none"
+              variant="primary"
             >
               Send feedback
-            </button>
-          </div>
-        </div>
+            </ActionButton>
+        </BottomSheet>
       )}
     </div>
   )
@@ -448,7 +452,7 @@ export default function AccountTab({
   return (
     <div className="mt-1 space-y-4">
       {/* Avatar / profile row */}
-      <div className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
+      <div className={`${CARD_SURFACE_LG} p-4 flex items-center gap-3`}>
         <div className="w-12 h-12 rounded-full bg-card-alt border border-border flex items-center justify-center text-accent font-bold text-lg shrink-0">
           {initials}
         </div>
@@ -460,11 +464,11 @@ export default function AccountTab({
 
       {/* Subscription / upgrade */}
       <div>
-        <div className="text-[10px] font-bold text-muted-strong uppercase tracking-wider px-1 mb-2">Subscription</div>
-        <div className="bg-card border border-border rounded-2xl p-4 space-y-4">
+        <div className={`${TYPE_OVERLINE_STRONG} px-1 mb-2`}>Subscription</div>
+        <div className={`${CARD_SURFACE_LG} p-4 space-y-4`}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider mb-1">Current plan</p>
+              <p className={`${TYPE_OVERLINE_STRONG} mb-1`}>Current plan</p>
               <p className="text-lg font-bold text-text tracking-tight">
                 {userPlan === 'free' && 'Free'}
                 {userPlan === 'pro' && 'Pro'}
@@ -480,7 +484,7 @@ export default function AccountTab({
               </p>
             </div>
             <span
-              className={`shrink-0 text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-lg border ${
+              className={`shrink-0 ${TYPE_EMPHASIS_SM} uppercase tracking-wide px-2.5 py-1 rounded-lg border ${
                 userPlan === 'free'
                   ? 'border-border-strong text-muted-strong bg-card-alt'
                   : userPlan === 'pro'
@@ -493,8 +497,8 @@ export default function AccountTab({
           </div>
 
           <div className="border-t border-border pt-4 space-y-4">
-            <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider">Plan usage</p>
-            <p className="text-[10px] text-muted-mid -mt-2 mb-1">
+            <p className={TYPE_OVERLINE_STRONG}>Plan usage</p>
+            <p className={`${TYPE_META} text-muted-mid -mt-2 mb-1`}>
               Monthly counters reset on the 1st of each month (UTC). Progress photos on Free and Pro count toward a total storage cap, not per month.
             </p>
 
@@ -551,22 +555,14 @@ export default function AccountTab({
           </div>
 
           {userPlan === 'free' && (
-            <button
-              type="button"
-              onClick={() => setShowPricing?.(true)}
-              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25"
-            >
+            <ActionButton type="button" variant="primary" className="shadow-lg shadow-accent/25" onClick={() => setShowPricing?.(true)}>
               Upgrade to Pro
-            </button>
+            </ActionButton>
           )}
           {userPlan === 'pro' && (
-            <button
-              type="button"
-              onClick={() => setShowPricing?.(true)}
-              className="w-full py-3.5 rounded-2xl font-bold text-sm bg-success text-on-success shadow-lg"
-            >
+            <ActionButton type="button" variant="success" className="shadow-lg" onClick={() => setShowPricing?.(true)}>
               Upgrade to Elite
-            </button>
+            </ActionButton>
           )}
           {userPlan === 'elite' && (
             <button
@@ -593,8 +589,8 @@ export default function AccountTab({
 
       {/* Security */}
       <div>
-        <div className="text-[10px] font-bold text-muted-strong uppercase tracking-wider px-1 mb-2">Security</div>
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className={`${TYPE_OVERLINE_STRONG} px-1 mb-2`}>Security</div>
+        <div className={`${CARD_SURFACE_LG} overflow-hidden`}>
           {canChangePassword && (
             <>
               <button
@@ -643,14 +639,15 @@ export default function AccountTab({
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full bg-card-alt border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder:text-muted-mid outline-none focus:border-accent"
                   />
-                  <button
+                  <ActionButton
                     type="button"
+                    className="sm:!py-4 shadow-lg shadow-accent/25"
                     onClick={handleChangePassword}
                     disabled={loading}
-                    className="w-full py-3.5 sm:py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25 disabled:opacity-50 disabled:pointer-events-none"
+                    variant="primary"
                   >
                     {loading ? 'Saving…' : 'Save new password'}
-                  </button>
+                  </ActionButton>
                 </div>
               )}
             </>
@@ -665,8 +662,8 @@ export default function AccountTab({
 
       {/* Account actions */}
       <div>
-        <div className="text-[10px] font-bold text-muted-strong uppercase tracking-wider px-1 mb-2">Account actions</div>
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className={`${TYPE_OVERLINE_STRONG} px-1 mb-2`}>Account actions</div>
+        <div className={`${CARD_SURFACE_LG} overflow-hidden`}>
           <button
             type="button"
             onClick={handleLogOut}

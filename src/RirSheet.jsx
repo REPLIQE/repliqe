@@ -1,17 +1,17 @@
+import BottomSheet from './BottomSheet'
+
 const RIR_THEME = { color: '#2DD4BF', bg: 'rgba(45,212,191,.14)', border: 'rgba(45,212,191,.3)' }
 
 const RIR_OPTIONS = [
   { value: 0, label: 'Failure', sub: 'No reps left' },
   { value: 1, label: '1 rep left', sub: '' },
   { value: 2, label: '2 reps left', sub: '' },
-  { value: 3, label: '3+ reps left', sub: '' }
+  { value: 3, label: '3+ reps left', sub: '' },
 ]
 
 export default function RirSheet({ setInfo, onSelect, onSkip }) {
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50" onClick={onSkip}>
-      <div className="w-full max-w-md bg-card rounded-t-3xl px-5 pt-5 pb-10" onClick={e => e.stopPropagation()}>
-        <div className="w-9 h-1 bg-border-strong rounded-full mx-auto mb-5" />
+    <BottomSheet onClose={onSkip} variant="card" zClass="z-50" layout="scrollable" padding="none" showHandle closeOnBackdrop backdropClassName="bg-black/60 backdrop-blur-sm" panelClassName="px-5 pt-2 pb-10">
         <div className="text-lg font-extrabold text-text mb-1">
           Set {setInfo.setNumber} — {setInfo.exerciseName}
         </div>
@@ -19,7 +19,7 @@ export default function RirSheet({ setInfo, onSelect, onSkip }) {
           {setInfo.kg} kg × {setInfo.reps} reps · How close to failure?
         </div>
         <div className="grid grid-cols-2 gap-3 mb-4">
-          {RIR_OPTIONS.map(opt => (
+          {RIR_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
@@ -43,7 +43,6 @@ export default function RirSheet({ setInfo, onSelect, onSkip }) {
         >
           Skip
         </button>
-      </div>
-    </div>
+    </BottomSheet>
   )
 }

@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import { MUSCLE_GROUPS, EQUIPMENT_TYPES, TYPE_LABELS, filterExercises, groupByMuscle } from './exerciseLibrary'
+import BottomSheet from './BottomSheet'
+import ActionButton from './ActionButton'
+import { MODAL_SHEET_HEADER, MODAL_SHEET_SCROLL, MODAL_SHEET_FOOTER } from './spacingTokens'
+import { CARD_SURFACE_MD } from './cardTokens'
 
 const MUSCLE_KEYS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'mobility']
 
@@ -132,7 +136,7 @@ export default function ExerciseLibrary({
                     if (mode === 'modal') toggleSelected(ex.name)
                     else if (onEditExercise && ex.isCustom) onEditExercise(ex)
                   }}
-                  className={`flex items-center gap-3 bg-card border rounded-xl px-3 py-2.5 mb-1 cursor-pointer transition-all ${isSelected ? 'border-accent bg-accent/5' : 'border-border hover:border-accent'}`}>
+                  className={`flex items-center gap-3 ${CARD_SURFACE_MD} px-3 py-2.5 mb-1 cursor-pointer transition-all ${isSelected ? 'border-accent bg-accent/5' : 'hover:border-accent'}`}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-base font-bold text-text truncate">{ex.name}</span>
@@ -166,30 +170,30 @@ export default function ExerciseLibrary({
   // MODAL mode
   if (mode === 'modal') {
     return (
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-        <div className="w-full max-w-md bg-page rounded-t-3xl flex flex-col" style={{ maxHeight: '88vh' }}>
+      <BottomSheet onClose={onClose} variant="page" zClass="z-50" layout="flex" padding="none" showHandle closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="max-h-[88vh]">
           {/* Header */}
-          <div className="flex justify-between items-center px-5 pt-5 pb-2 shrink-0">
+          <div className={`flex justify-between items-center shrink-0 ${MODAL_SHEET_HEADER}`}>
             <h2 className="text-lg font-bold">{replaceMode ? 'Replace exercise' : 'Add Exercise'}</h2>
-            <button onClick={onClose} className="text-sm font-semibold text-muted-mid">Cancel</button>
+            <ActionButton type="button" variant="tertiary" fullWidth={false} className="!min-h-0 py-1 px-2 -mr-1 !text-sm !font-semibold" onClick={onClose}>
+              Cancel
+            </ActionButton>
           </div>
 
           {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto px-5 pb-4" style={{ scrollbarWidth: 'none' }}>
+          <div className={`flex-1 overflow-y-auto ${MODAL_SHEET_SCROLL}`} style={{ scrollbarWidth: 'none' }}>
             {content}
           </div>
 
           {/* Floating add bar */}
           {!replaceMode && selected.length > 0 && (
-            <div className="px-5 pb-8 pt-3 shrink-0 border-t border-border">
-              <button onClick={confirmAdd} className="w-full py-4 bg-gradient-to-r from-accent to-accent-end text-on-accent rounded-2xl font-bold text-sm shadow-lg shadow-accent/25 flex items-center justify-center gap-2">
+            <div className={`shrink-0 border-t border-border ${MODAL_SHEET_FOOTER}`}>
+              <ActionButton onClick={confirmAdd} variant="primary">
                 Add {selected.length} exercise{selected.length !== 1 ? 's' : ''}
                 <span className="bg-white/20 text-on-accent text-sm font-extrabold px-2 py-0.5 rounded-md">{selected.length}</span>
-              </button>
+              </ActionButton>
             </div>
           )}
-        </div>
-      </div>
+      </BottomSheet>
     )
   }
 

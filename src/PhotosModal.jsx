@@ -1,4 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
+import BottomSheet from './BottomSheet'
+import ActionButton from './ActionButton'
 import { getOldestMiddleNewestSessions, sortPhotoSessionsByDate } from './progressUtils'
 import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
 import ProgressPhoto from './ProgressPhoto'
@@ -12,6 +14,24 @@ import {
   getProgressPhotoBlob,
   deleteProgressPhoto,
 } from './lib/photoStorage'
+import { CARD_SURFACE_LG, CARD_SURFACE_SM } from './cardTokens'
+import {
+  TYPE_BODY,
+  TYPE_BODY_SM,
+  TYPE_BODY_SM_SEMIBOLD,
+  TYPE_BODY_SEMIBOLD,
+  TYPE_EMPHASIS_SM,
+  TYPE_CAPTION,
+  TYPE_HEADING_PAGE,
+  TYPE_RING_PCT,
+  TYPE_LABEL_UPPER,
+  TYPE_META,
+  TYPE_OVERLINE,
+  TYPE_SHEET_TITLE,
+  TYPE_SUBTITLE,
+  TYPE_TITLE_MODAL,
+  TYPE_TAB,
+} from './typographyTokens'
 
 const ANGLES = [
   { key: 'front', label: 'Front' },
@@ -31,7 +51,7 @@ function withTimeout(promise, ms, message) {
   return Promise.race([
     promise,
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(message || `Timeout efter ${ms} ms`)), ms)
+      setTimeout(() => reject(new Error(message || `Timeout after ${ms} ms`)), ms)
     ),
   ])
 }
@@ -178,7 +198,7 @@ async function syncPhotoToCloud(uid, filename, clean) {
     await uploadProgressPhoto(uid, filename, clean)
   } catch (err) {
     console.error(
-      '[REPLIQE] Photo cloud sync failed — billedet findes på enheden men andre enheder får det ikke:',
+      '[REPLIQE] Photo cloud sync failed — file exists on device but other devices may not receive it:',
       err
     )
   }
@@ -218,7 +238,7 @@ async function savePhoto(base64Data, filename, uid) {
     }
   }
   if (uid) {
-    await withTimeout(uploadProgressPhoto(uid, filename, clean), 120000, 'Upload timeout — prøv igen')
+    await withTimeout(uploadProgressPhoto(uid, filename, clean), 120000, 'Upload timeout — try again')
     return filename
   }
   throw new Error('Could not save photo (sign in to sync photos)')
@@ -291,7 +311,7 @@ async function decodeBlobToDrawable(blob) {
   }
   const url = URL.createObjectURL(blob)
   try {
-    return await withTimeout(loadImageElement(url), 25000, 'Billedindlæsning (blob)')
+    return await withTimeout(loadImageElement(url), 25000, 'Image load (blob) timeout')
   } finally {
     URL.revokeObjectURL(url)
   }
@@ -307,7 +327,7 @@ async function decodeImageForBake(imageSrc, uid, filename) {
   if (imageSrc.startsWith('data:') || imageSrc.startsWith('blob:')) {
     /* Safari / iOS PWA / Capacitor: fetch(data:) + createImageBitmap fejler oftere end <img> → canvas */
     try {
-      return await withTimeout(loadImageElement(imageSrc), 30000, 'Billedindlæsning (lokal URL)')
+      return await withTimeout(loadImageElement(imageSrc), 30000, 'Image load (local URL) timeout')
     } catch (e) {
       console.warn('[REPLIQE] decodeImageForBake data/blob via img:', e?.message || e)
     }
@@ -317,7 +337,7 @@ async function decodeImageForBake(imageSrc, uid, filename) {
         return r.blob()
       }),
       30000,
-      'Kunne ikke læse billeddata'
+      'Could not read image data'
     )
     return decodeBlobToDrawable(blob)
   }
@@ -325,7 +345,7 @@ async function decodeImageForBake(imageSrc, uid, filename) {
   /* HTTPS: samme kilde som ProgressPhoto-editor — ofte øjeblikkelig fra disk-/HTTP-cache */
   if (imageSrc.startsWith('http')) {
     try {
-      return await withTimeout(loadImageElement(imageSrc), 25000, 'Billedindlæsning timeout')
+      return await withTimeout(loadImageElement(imageSrc), 25000, 'Image load timeout')
     } catch (e) {
       console.warn('[REPLIQE] decodeImageForBake img https first:', e?.message || e)
     }
@@ -336,7 +356,7 @@ async function decodeImageForBake(imageSrc, uid, filename) {
           return r.blob()
         }),
         30000,
-        'Download af foto timeout'
+        'Photo download timeout'
       )
       return decodeBlobToDrawable(blob)
     } catch (e) {
@@ -353,7 +373,7 @@ async function decodeImageForBake(imageSrc, uid, filename) {
     }
   }
 
-  return withTimeout(loadImageElement(imageSrc), 35000, 'Billedindlæsning timeout')
+  return withTimeout(loadImageElement(imageSrc), 35000, 'Image load timeout')
 }
 
 /** Ved ikke-default crop: erstat fil med baget udsnit (fuld MAX_PHOTO_PX), nulstil crop-metadata. */
@@ -405,6 +425,7 @@ export default function PhotosModal({
   const [captureThumbSrcs, setCaptureThumbSrcs] = useState({ front: null, back: null, side: null })
   const inputCameraRef = useRef(null)
   const inputLibraryRef = useRef(null)
+  const captureDateInputRef = useRef(null)
   const initialPhotoSessionsRef = useRef(null)
   /** Angles that already triggered onProgressPhotoAdded this capture (retake does not re-add). */
   const progressQuotaAnglesRef = useRef(new Set())
@@ -679,9 +700,39 @@ export default function PhotosModal({
     if (openToAdd) onClose()
   }
 
+  function openCaptureDatePicker() {
+    const el = captureDateInputRef.current
+    if (!el) return
+    if (typeof el.showPicker === 'function') {
+      try {
+        el.showPicker()
+        return
+      } catch {
+        /* NotAllowedError or unsupported */
+      }
+    }
+    try {
+      el.focus({ preventScroll: true })
+    } catch {
+      el.focus()
+    }
+    el.click()
+  }
+
   if (showCaptureUI) {
     const currentAngle = ANGLES[captureStep]
     const isDone = captureStep >= ANGLES.length
+
+    const handleCaptureSessionDateChange = (e) => {
+      const newDate = dateInputToEnGB(e.target.value)
+      setCaptureSessionDate(newDate)
+      const sid = capturedImages._sessionId
+      if (sid && typeof setPhotoSessions === 'function') {
+        setPhotoSessions((prev) =>
+          (prev || []).map((s) => (s.id === sid ? { ...s, date: newDate } : s))
+        )
+      }
+    }
 
     const captureAngleSlot = (key, label) => {
       const has = !!capturedImages[key]
@@ -707,10 +758,10 @@ export default function PhotosModal({
               else setCaptureStep(idx)
             }}
           >
-            <span className="text-[11px] font-semibold text-muted">{label}</span>
+            <span className={`${TYPE_MICRO} font-semibold text-muted`}>{label}</span>
           </ProgressPhoto>
           <span
-            className={`text-[11px] font-bold ${isActiveStep ? 'text-accent' : 'text-muted'}`}
+            className={`${TYPE_MICRO} font-bold ${isActiveStep ? 'text-accent' : 'text-muted'}`}
           >
             {label}
           </span>
@@ -779,11 +830,12 @@ export default function PhotosModal({
           onClick={() => setCaptureAngleActionSheet(null)}
         />
         <div className="relative w-full max-w-md rounded-t-[20px] sm:rounded-[20px] bg-page border border-border border-b-0 sm:border-b shadow-xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <div className="text-[17px] font-extrabold text-text text-center mb-5">{sheetAngleMeta.label} photo</div>
+          <div className={`${TYPE_SHEET_TITLE} text-center mb-5`}>{sheetAngleMeta.label} photo</div>
           <div className="flex flex-col gap-2">
-            <button
+            <ActionButton
               type="button"
-              className="w-full py-3.5 rounded-xl text-[15px] font-bold bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/20"
+              variant="primary"
+              className="!rounded-xl !py-3.5 !text-[15px] shadow-lg shadow-accent/20"
               onClick={() => {
                 const k = captureAngleActionSheet
                 setCaptureAngleActionSheet(null)
@@ -792,10 +844,11 @@ export default function PhotosModal({
               }}
             >
               Adjust crop
-            </button>
-            <button
+            </ActionButton>
+            <ActionButton
               type="button"
-              className="w-full py-3.5 rounded-xl text-[15px] font-bold border border-border-strong bg-card-alt text-text"
+              variant="secondary"
+              className="!rounded-xl !py-3.5 !text-[15px] !text-text"
               onClick={() => {
                 const k = captureAngleActionSheet
                 setCaptureAngleActionSheet(null)
@@ -803,10 +856,10 @@ export default function PhotosModal({
               }}
             >
               Take new photo
-            </button>
+            </ActionButton>
             <button
               type="button"
-              className="w-full py-3.5 rounded-xl text-[15px] font-bold border-2 border-red-500/40 text-red-500 bg-red-500/[0.06]"
+              className={`w-full py-3.5 rounded-xl ${TYPE_TITLE_MODAL} border-2 border-red-500/40 text-red-500 bg-red-500/[0.06]`}
               onClick={() => {
                 const k = captureAngleActionSheet
                 setCaptureAngleActionSheet(null)
@@ -817,7 +870,7 @@ export default function PhotosModal({
             </button>
             <button
               type="button"
-              className="w-full py-3 rounded-xl text-[15px] font-semibold text-muted border border-border-strong bg-card-alt"
+              className={`w-full py-3 rounded-xl ${TYPE_BODY_SEMIBOLD} text-muted border border-border-strong bg-card-alt`}
               onClick={() => setCaptureAngleActionSheet(null)}
             >
               Cancel
@@ -851,25 +904,25 @@ export default function PhotosModal({
         role="alertdialog"
         aria-labelledby="capture-cancel-title"
       >
-        <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-xl relative z-[126]">
-          <div id="capture-cancel-title" className="text-[15px] font-bold text-text mb-1 text-center">
+        <div className={`${CARD_SURFACE_LG} p-5 w-full max-w-sm shadow-xl relative z-[126]`}>
+          <div id="capture-cancel-title" className={`${TYPE_TITLE_MODAL} mb-1 text-center`}>
             Discard this session?
           </div>
-          <div className="text-[13px] text-muted mb-5 text-center">
+          <div className={`${TYPE_BODY} text-muted mb-5 text-center`}>
             You have added one or more photos. If you continue, they will be removed and not saved.
           </div>
           <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setCaptureCancelConfirmOpen(false)}
-              className="flex-1 py-3 rounded-xl text-[13px] font-bold border border-border-strong bg-card-alt text-text"
+              className={`flex-1 py-3 rounded-xl ${TYPE_BODY} font-bold border border-border-strong bg-card-alt text-text`}
             >
               Keep editing
             </button>
             <button
               type="button"
               onClick={() => confirmAbortCaptureSession()}
-              className="flex-1 py-3 rounded-xl text-[13px] font-bold bg-red-500/90 text-white hover:bg-red-500"
+              className={`flex-1 py-3 rounded-xl ${TYPE_BODY} font-bold bg-red-500/90 text-white hover:bg-red-500`}
             >
               Discard
             </button>
@@ -883,10 +936,10 @@ export default function PhotosModal({
         className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 z-[110]"
         aria-modal="true"
       >
-        <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-xl relative z-[111]">
+        <div className={`${CARD_SURFACE_LG} p-5 w-full max-w-sm shadow-xl relative z-[111]`}>
           <DeleteTrashBadge />
-          <div className="text-[15px] font-bold text-text mb-1 text-center">Remove photo?</div>
-          <div className="text-[13px] text-muted mb-5 text-center">
+          <div className={`${TYPE_TITLE_MODAL} mb-1 text-center`}>Remove photo?</div>
+          <div className={`${TYPE_BODY} text-muted mb-5 text-center`}>
             {ANGLES.find((a) => a.key === captureAnglePendingDelete)?.label ?? 'This'} shot will be cleared. You can add
             it again later.
           </div>
@@ -894,7 +947,7 @@ export default function PhotosModal({
             <button
               type="button"
               onClick={() => setCaptureAnglePendingDelete(null)}
-              className="flex-1 py-3 rounded-xl text-[13px] font-bold border border-border-strong bg-card-alt text-text"
+              className={`flex-1 py-3 rounded-xl ${TYPE_BODY} font-bold border border-border-strong bg-card-alt text-text`}
             >
               Cancel
             </button>
@@ -904,7 +957,7 @@ export default function PhotosModal({
                 removeCapturedAngle(captureAnglePendingDelete)
                 setCaptureAnglePendingDelete(null)
               }}
-              className="flex-1 py-3 rounded-xl text-[13px] font-bold bg-red-500/90 text-white hover:bg-red-500 inline-flex items-center justify-center gap-2"
+              className={`flex-1 py-3 rounded-xl ${TYPE_BODY} font-bold bg-red-500/90 text-white hover:bg-red-500 inline-flex items-center justify-center gap-2`}
             >
               <DeleteTrashGlyph className="w-4 h-4 text-white" />
               Remove
@@ -933,23 +986,24 @@ export default function PhotosModal({
             {ANGLES.map(({ key, label }) => captureAngleSlot(key, label))}
           </div>
           <div className="w-full max-w-sm mb-6">
-            <label className="relative flex w-full cursor-pointer flex-col rounded-2xl border-2 border-dashed border-border-strong bg-card-alt p-4 transition-colors hover:border-accent/50 hover:bg-card">
+            <div className="relative flex w-full flex-col rounded-2xl border-2 border-dashed border-border-strong bg-card-alt p-4 transition-colors hover:border-accent/50 hover:bg-card">
               <input
+                ref={captureDateInputRef}
                 type="date"
                 value={enGBToDateInput(captureSessionDate)}
-                onChange={(e) => {
-                  const newDate = dateInputToEnGB(e.target.value)
-                  setCaptureSessionDate(newDate)
-                  const sid = capturedImages._sessionId
-                  if (sid && typeof setPhotoSessions === 'function') {
-                    setPhotoSessions((prev) =>
-                      (prev || []).map((s) => (s.id === sid ? { ...s, date: newDate } : s))
-                    )
-                  }
-                }}
-                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                onChange={handleCaptureSessionDateChange}
+                className="sr-only"
                 style={{ fontSize: 16 }}
+                tabIndex={-1}
+              />
+              <button
+                type="button"
+                className="absolute inset-0 z-10 rounded-2xl cursor-pointer"
                 aria-label="Change session date"
+                onClick={(e) => {
+                  e.preventDefault()
+                  openCaptureDatePicker()
+                }}
               />
               <div className="flex items-center gap-3 pointer-events-none">
                 <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
@@ -961,19 +1015,16 @@ export default function PhotosModal({
                   </svg>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-0.5">Session date</div>
+                  <div className={`${TYPE_OVERLINE} mb-0.5`}>Session date</div>
                   <div className="text-base font-bold text-text">{captureSessionDate}</div>
-                  <div className="text-[11px] text-accent font-semibold mt-0.5">Tap to change date</div>
+                  <div className={`${TYPE_SUBTITLE} mt-0.5`}>Tap to change date</div>
                 </div>
               </div>
-            </label>
-             </div>
-          <button
-            onClick={finishCapture}
-            className="w-full max-w-sm py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
-          >
+            </div>
+          </div>
+          <ActionButton className="max-w-sm" onClick={finishCapture} variant="primary">
             Done
-          </button>
+          </ActionButton>
           </div>
         </div>
         {capturePhotoActionSheet}
@@ -1016,23 +1067,24 @@ export default function PhotosModal({
           })}
         </div>
         <div className="px-6 pb-3">
-          <label className="relative flex w-full cursor-pointer flex-col rounded-xl border-2 border-dashed border-border-strong bg-card-alt p-3 transition-colors hover:border-accent/50 hover:bg-card">
+          <div className="relative flex w-full flex-col rounded-xl border-2 border-dashed border-border-strong bg-card-alt p-3 transition-colors hover:border-accent/50 hover:bg-card">
             <input
+              ref={captureDateInputRef}
               type="date"
               value={enGBToDateInput(captureSessionDate)}
-              onChange={(e) => {
-                const newDate = dateInputToEnGB(e.target.value)
-                setCaptureSessionDate(newDate)
-                const sid = capturedImages._sessionId
-                if (sid && typeof setPhotoSessions === 'function') {
-                  setPhotoSessions((prev) =>
-                    (prev || []).map((s) => (s.id === sid ? { ...s, date: newDate } : s))
-                  )
-                }
-              }}
-              className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+              onChange={handleCaptureSessionDateChange}
+              className="sr-only"
               style={{ fontSize: 16 }}
+              tabIndex={-1}
+            />
+            <button
+              type="button"
+              className="absolute inset-0 z-10 rounded-xl cursor-pointer"
               aria-label="Change session date"
+              onClick={(e) => {
+                e.preventDefault()
+                openCaptureDatePicker()
+              }}
             />
             <div className="flex items-center gap-3 pointer-events-none">
               <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
@@ -1044,12 +1096,12 @@ export default function PhotosModal({
                 </svg>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-0.5">Session date</div>
+                <div className={`${TYPE_OVERLINE} mb-0.5`}>Session date</div>
                 <div className="text-sm font-bold text-text">{captureSessionDate}</div>
-                <div className="text-[11px] text-accent font-semibold mt-0.5">Tap to change date</div>
+                <div className={`${TYPE_SUBTITLE} mt-0.5`}>Tap to change date</div>
               </div>
             </div>
-          </label>
+          </div>
         </div>
         <div className="px-6 pb-3">
           <div className="flex gap-2 justify-center">
@@ -1065,20 +1117,12 @@ export default function PhotosModal({
         <div className="px-6 pb-12 flex flex-col gap-3">
           {isNative ? (
             <>
-              <button
-                type="button"
-                onClick={() => handleCaptureAngle('camera')}
-                className="w-full py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
-              >
+              <ActionButton type="button" onClick={() => handleCaptureAngle('camera')} variant="primary">
                 Take {currentAngle.label} photo
-              </button>
-              <button
-                type="button"
-                onClick={() => handleCaptureAngle('library')}
-                className="w-full py-4 rounded-2xl font-bold text-sm bg-card border border-border-strong text-text"
-              >
+              </ActionButton>
+              <ActionButton type="button" variant="secondary" className="!text-text !bg-card" onClick={() => handleCaptureAngle('library')}>
                 Choose from library
-              </button>
+              </ActionButton>
             </>
           ) : (
             <>
@@ -1111,16 +1155,12 @@ export default function PhotosModal({
               </label>
             </>
           )}
-          <button onClick={skipAngle} className="w-full py-3 text-sm font-semibold text-muted">
+          <ActionButton variant="tertiary" onClick={skipAngle} className="!min-h-0 !py-3 !text-muted !font-semibold">
             Skip {currentAngle.label}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleCaptureCancelClick()}
-            className="w-full py-3 text-sm font-semibold text-muted border border-border rounded-lg"
-          >
+          </ActionButton>
+          <ActionButton type="button" variant="secondary" className="!rounded-lg !min-h-0 !py-3 !font-semibold !text-muted" onClick={() => handleCaptureCancelClick()}>
             Cancel
-          </button>
+          </ActionButton>
         </div>
         </div>
       </div>
@@ -1134,42 +1174,48 @@ export default function PhotosModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-50 flex items-end justify-center">
-      <div className="w-full max-w-md bg-page rounded-t-[20px] max-h-[92vh] flex flex-col">
-        <div className="px-5 pt-4 pb-3 border-b border-border shrink-0">
-          <h2 className="text-[18px] font-extrabold text-text">Photos</h2>
-        </div>
-        <PhotosViewContent
-          photoSessions={photoSessions}
-          setPhotoSessions={setPhotoSessions}
-          totalPhotos={totalPhotos}
-          atLimit={atLimit}
-          progressPhotoBarUsed={barUsed}
-          progressPhotoBarCap={barCap}
-          weightLog={weightLog}
-          muscleMassLog={muscleMassLog}
-          unitWeight={unitWeight}
-          formatDateForDisplay={formatDateForDisplay}
-          showExitCTA={true}
-          onClose={onClose}
-          hasChanges={hasChanges}
-          onProgressPhotoRemoved={onProgressPhotoRemoved}
-          onOpenAddPhotos={() => {
-            progressQuotaAnglesRef.current = new Set()
-            setCaptureCropEditorAngle(null)
-            setCaptureAnglePendingDelete(null)
-            setCaptureAngleActionSheet(null)
-            setPendingPreSaveCrop(null)
-            setCaptureSessionCrops({})
-            setCaptureCancelConfirmOpen(false)
-            setCapturing(true)
-            setCaptureStep(0)
-            setCapturedImages({})
-            setCaptureSessionDate(getTodayEnGB())
-          }}
-        />
+    <BottomSheet
+      onClose={onClose}
+      zClass="z-50"
+      layout="flex"
+      padding="none"
+      showHandle={false}
+      maxWidthClass="max-w-md"
+      panelClassName="max-h-[92vh] min-h-0"
+    >
+      <div className="px-5 pt-4 pb-3 border-b border-border shrink-0">
+        <h2 className={TYPE_HEADING_PAGE}>Photos</h2>
       </div>
-    </div>
+      <PhotosViewContent
+        photoSessions={photoSessions}
+        setPhotoSessions={setPhotoSessions}
+        totalPhotos={totalPhotos}
+        atLimit={atLimit}
+        progressPhotoBarUsed={barUsed}
+        progressPhotoBarCap={barCap}
+        weightLog={weightLog}
+        muscleMassLog={muscleMassLog}
+        unitWeight={unitWeight}
+        formatDateForDisplay={formatDateForDisplay}
+        showExitCTA={true}
+        onClose={onClose}
+        hasChanges={hasChanges}
+        onProgressPhotoRemoved={onProgressPhotoRemoved}
+        onOpenAddPhotos={() => {
+          progressQuotaAnglesRef.current = new Set()
+          setCaptureCropEditorAngle(null)
+          setCaptureAnglePendingDelete(null)
+          setCaptureAngleActionSheet(null)
+          setPendingPreSaveCrop(null)
+          setCaptureSessionCrops({})
+          setCaptureCancelConfirmOpen(false)
+          setCapturing(true)
+          setCaptureStep(0)
+          setCapturedImages({})
+          setCaptureSessionDate(getTodayEnGB())
+        }}
+      />
+    </BottomSheet>
   )
 }
 
@@ -1344,7 +1390,7 @@ export function PhotosViewContent({
               }
               setView(v)
             }}
-            className={`flex-1 py-2 rounded-lg border text-[11px] font-bold capitalize transition-colors ${
+            className={`flex-1 py-2 rounded-lg border ${TYPE_TAB} capitalize transition-colors ${
               view === v
                 ? 'border-accent bg-accent/10 text-accent'
                 : 'border-border-strong bg-card-alt text-text'
@@ -1357,12 +1403,9 @@ export function PhotosViewContent({
 
       {showExitCTA && (
         <div className={`shrink-0 ${padX} pb-3`}>
-          <button
-            onClick={onClose}
-            className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-accent to-accent-end text-on-accent"
-          >
+          <ActionButton onClick={onClose} variant="primary">
             {hasChanges ? 'Save to progress' : 'Exit'}
-          </button>
+          </ActionButton>
         </div>
       )}
 
@@ -1379,12 +1422,12 @@ export function PhotosViewContent({
               }
               onOpenAddPhotos?.()
             }}
-            className="w-full py-3 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-text"
+            className={`w-full py-3 border border-dashed border-border-strong rounded-[12px] ${TYPE_BODY_SM_SEMIBOLD} text-text`}
           >
             + Add photos
           </button>
-          <div className="flex items-center gap-3 bg-card border border-border rounded-[12px] p-[11px_14px]">
-            <span className="text-[10px] text-muted font-semibold whitespace-nowrap">
+          <div className={`flex items-center gap-3 ${CARD_SURFACE_SM} p-[11px_14px]`}>
+            <span className={`${TYPE_META} font-semibold whitespace-nowrap`}>
               {barUsed} / {barCap == null ? '∞' : barCap}
             </span>
             <div className="flex-1 h-[3px] bg-card-alt rounded-full overflow-hidden">
@@ -1393,7 +1436,7 @@ export function PhotosViewContent({
             {atLimit && (
               <button
                 disabled
-                className="text-[10px] font-bold text-accent border border-accent/25 rounded-[6px] px-2 py-1 cursor-not-allowed"
+                className={`${TYPE_EMPHASIS_SM} text-accent border border-accent/25 rounded-[6px] px-2 py-1 cursor-not-allowed`}
               >
                 Unlock ∞
               </button>
@@ -1418,13 +1461,13 @@ export function PhotosViewContent({
                         value={enGBToDateInput(session.date)}
                         onChange={(e) => updateSessionDate(session.id, dateInputToEnGB(e.target.value))}
                         onBlur={() => setEditingDateSessionId(null)}
-                        className="text-[10px] font-bold text-text uppercase tracking-[0.8px] bg-card-alt border border-border-strong rounded-lg px-2 py-1 outline-none focus:border-accent"
+                        className={`${TYPE_EMPHASIS_SM} text-text uppercase tracking-[0.8px] bg-card-alt border border-border-strong rounded-lg px-2 py-1 outline-none focus:border-accent`}
                       />
                     ) : (
                       <button
                         type="button"
                         onClick={() => canAddPhotos && setEditingDateSessionId(session.id)}
-                        className={`text-[10px] font-bold uppercase tracking-[0.8px] text-left ${canAddPhotos ? 'text-muted hover:text-accent active:opacity-80' : 'text-muted'}`}
+                        className={`${TYPE_EMPHASIS_SM} uppercase tracking-[0.8px] text-left ${canAddPhotos ? 'text-muted hover:text-accent active:opacity-80' : 'text-muted'}`}
                       >
                         {fmtDate(session.date)}
                       </button>
@@ -1433,7 +1476,7 @@ export function PhotosViewContent({
                       <button
                         type="button"
                         onClick={() => setSessionToDelete(session.id)}
-                        className="text-[10px] text-red-400 font-semibold inline-flex items-center gap-1"
+                        className={`${TYPE_META} text-red-400 font-semibold inline-flex items-center gap-1`}
                       >
                         <DeleteTrashGlyph className="w-3 h-3 shrink-0" />
                         Delete session
@@ -1455,11 +1498,11 @@ export function PhotosViewContent({
                               <div className="w-5 h-5 border-2 border-muted border-t-transparent rounded-full animate-spin" />
                             </div>
                           ) : (
-                            <span className="text-[9px] text-muted font-semibold">—</span>
+                            <span className={`${TYPE_CAPTION} font-semibold`}>—</span>
                           )}
                         </ProgressPhoto>
                         <div className="absolute bottom-0 left-0 right-0 bg-black/50 py-1.5 px-1 text-center pointer-events-none rounded-b-[10px]">
-                          <span className="text-[8px] font-bold text-white uppercase tracking-[0.5px]">
+                          <span className={`${TYPE_RING_PCT} uppercase tracking-[0.5px]`}>
                             {label}
                           </span>
                         </div>
@@ -1472,7 +1515,7 @@ export function PhotosViewContent({
                 <button
                   type="button"
                   onClick={() => setShowAllSessions((v) => !v)}
-                  className="w-full py-3 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-accent"
+                  className={`w-full py-3 border border-dashed border-border-strong rounded-[12px] ${TYPE_BODY_SM_SEMIBOLD} text-accent`}
                 >
                   {showAllSessions ? 'Show only 3 (newest, middle, oldest)' : `See all ${(photoSessions || []).length} sessions`}
                 </button>
@@ -1504,7 +1547,7 @@ export function PhotosViewContent({
                               setComparePickerOpen(null)
                             }
                           }}
-                          className={`w-full py-3 rounded-xl border text-[13px] font-bold mb-3 transition-colors ${
+                          className={`w-full py-3 rounded-xl border ${TYPE_BODY} font-bold mb-3 transition-colors ${
                             isOldestNewestSelected
                               ? 'border-accent bg-accent/10 text-accent'
                               : 'border-border bg-card-alt text-text hover:border-accent/50 hover:bg-card'
@@ -1512,7 +1555,7 @@ export function PhotosViewContent({
                         >
                           Compare oldest → newest
                         </button>
-                        <div className="text-[10px] font-bold text-muted uppercase tracking-[0.8px] mb-2">
+                        <div className={`${TYPE_OVERLINE} tracking-[0.8px] mb-2`}>
                           Or choose dates
                         </div>
                         <div className="flex gap-2 mb-3">
@@ -1521,13 +1564,13 @@ export function PhotosViewContent({
                             { key: 'B', label: 'After', currentId: compareB, setCurrent: setCompareB, session: sessionB },
                           ].map(({ key, label, currentId, setCurrent, session }) => (
                             <div key={key} className="flex-1 min-w-0 relative">
-                              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mb-1">
+                              <div className={`${TYPE_LABEL_UPPER} mb-1`}>
                                 {label}
                               </div>
                               <button
                                 type="button"
                                 onClick={() => setComparePickerOpen((v) => (v === key ? null : key))}
-                                className={`w-full py-2.5 px-3 rounded-lg border text-[12px] font-semibold text-left flex items-center justify-between transition-colors ${
+                                className={`w-full py-2.5 px-3 rounded-lg border ${TYPE_BODY_SM_SEMIBOLD} text-left flex items-center justify-between transition-colors ${
                                   !isOldestNewestSelected
                                     ? 'border-accent bg-accent/10 text-accent'
                                     : 'border-border bg-card text-text'
@@ -1548,7 +1591,7 @@ export function PhotosViewContent({
                                         setCurrent(s.id)
                                         setComparePickerOpen(null)
                                       }}
-                                      className={`w-full px-3 py-2.5 text-left text-[12px] font-medium border-b border-border last:border-0 transition-colors ${
+                                      className={`w-full px-3 py-2.5 text-left ${TYPE_BODY_SM} font-medium border-b border-border last:border-0 transition-colors ${
                                         currentId === s.id ? 'bg-accent/10 text-accent border-l-2 border-l-accent' : 'text-text hover:bg-card-alt'
                                       }`}
                                     >
@@ -1565,7 +1608,7 @@ export function PhotosViewContent({
                   })()}
 
                   <div className="border-t border-border pt-3 mt-3">
-                    <div className="text-[10px] font-bold text-muted uppercase tracking-[0.8px] mb-2">
+                    <div className={`${TYPE_OVERLINE} tracking-[0.8px] mb-2`}>
                       View angle (when dates chosen)
                     </div>
                     <div className="flex gap-2 mb-3">
@@ -1574,7 +1617,7 @@ export function PhotosViewContent({
                           key={key}
                           type="button"
                           onClick={() => setCompareAngle(key)}
-                          className={`flex-1 py-2 rounded-lg border text-[11px] font-bold transition-colors ${
+                          className={`flex-1 py-2 rounded-lg border ${TYPE_TAB} transition-colors ${
                             compareAngle === key
                               ? 'border-accent bg-accent/10 text-accent'
                               : 'border-border-strong bg-card-alt text-text'
@@ -1683,17 +1726,17 @@ export function PhotosViewContent({
 
       {sessionToDelete && (
         <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 z-[100]" aria-modal="true">
-          <div className="bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-xl relative z-[101]">
+          <div className={`${CARD_SURFACE_LG} p-5 w-full max-w-sm shadow-xl relative z-[101]`}>
             <DeleteTrashBadge />
-            <div className="text-[15px] font-bold text-text mb-1 text-center">Delete session?</div>
-            <div className="text-[13px] text-muted mb-5 text-center">
+            <div className={`${TYPE_TITLE_MODAL} mb-1 text-center`}>Delete session?</div>
+            <div className={`${TYPE_BODY} text-muted mb-5 text-center`}>
               All photos from this date will be removed. This cannot be undone.
             </div>
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setSessionToDelete(null)}
-                className="flex-1 py-3 rounded-xl text-[13px] font-bold border border-border-strong bg-card-alt text-text"
+                className={`flex-1 py-3 rounded-xl ${TYPE_BODY} font-bold border border-border-strong bg-card-alt text-text`}
               >
                 Cancel
               </button>
@@ -1703,7 +1746,7 @@ export function PhotosViewContent({
                   deleteSession(sessionToDelete)
                   setSessionToDelete(null)
                 }}
-                className="flex-1 py-3 rounded-xl text-[13px] font-bold bg-red-500/90 text-white hover:bg-red-500 inline-flex items-center justify-center gap-2"
+                className={`flex-1 py-3 rounded-xl ${TYPE_BODY} font-bold bg-red-500/90 text-white hover:bg-red-500 inline-flex items-center justify-center gap-2`}
               >
                 <DeleteTrashGlyph className="w-4 h-4 text-white" />
                 Delete

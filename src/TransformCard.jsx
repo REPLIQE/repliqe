@@ -3,6 +3,17 @@ import { loadPhotoSrc } from './PhotosModal'
 import { groupPhotoSessionsByMonth } from './progressUtils'
 import ProgressPhoto from './ProgressPhoto'
 import { useAuth } from './lib/AuthContext'
+import { CARD_SURFACE } from './cardTokens'
+import {
+  TYPE_BODY,
+  TYPE_BODY_SM,
+  TYPE_CAPTION,
+  TYPE_EMPHASIS_SM,
+  TYPE_LABEL_MICRO,
+  TYPE_META,
+  TYPE_OVERLINE,
+  TYPE_TAB,
+} from './typographyTokens'
 
 const ANGLES = [
   { key: 'front', label: 'Front' },
@@ -63,11 +74,11 @@ export function PhotoThumb({ session, label, angle = 'front', weightLog, muscleM
       </ProgressPhoto>
       <div className="absolute bottom-0 left-0 right-0 bg-black/50 pt-2 pb-2 px-2 text-center pointer-events-none min-h-[44px] flex flex-col justify-end">
         {label && (
-          <span className="block text-[8px] font-bold text-white uppercase tracking-[0.5px]">
+          <span className={`block ${TYPE_LABEL_MICRO} text-white`}>
             {label}
           </span>
         )}
-        <span className="block text-[9px] font-semibold text-white/95 mt-0.5 min-h-[14px]">
+        <span className={`block ${TYPE_CAPTION} font-semibold text-white/95 mt-0.5 min-h-[14px]`}>
           {statsLine || '\u00A0'}
         </span>
       </div>
@@ -105,7 +116,7 @@ export function TransformCard({
     return (
       <div
         onClick={onGoToBody || onOpen ? () => { if (onGoToBody) onGoToBody(); else onOpen?.() } : undefined}
-        className={`bg-card border border-border rounded-[14px] overflow-hidden mb-2 relative ${fixedCompare ? 'transform-card-overview' : ''} ${onGoToBody || onOpen ? 'cursor-pointer' : ''}`}
+        className={`${CARD_SURFACE} overflow-hidden mb-2 relative ${fixedCompare ? 'transform-card-overview' : ''} ${onGoToBody || onOpen ? 'cursor-pointer' : ''}`}
       >
         <div className="grid grid-cols-2 gap-[2px]">
           {['Before', 'After'].map((label) => (
@@ -113,7 +124,7 @@ export function TransformCard({
               <div className="w-full h-full bg-card-deep flex items-center justify-center overflow-hidden">
                 {PLACEHOLDER_SVG}
               </div>
-              <span className="absolute bottom-2 text-[8px] font-bold text-muted uppercase tracking-[0.5px]">
+              <span className={`absolute bottom-2 ${TYPE_LABEL_MICRO}`}>
                 {label}
               </span>
             </div>
@@ -121,10 +132,10 @@ export function TransformCard({
         </div>
         <div className="flex items-center justify-between p-[12px_14px] border-t border-border">
           <div>
-            <div className="text-[13px] font-bold text-text">Start tracking</div>
-            <div className="text-[10px] text-muted mt-0.5">Add your first photos</div>
+            <div className={`${TYPE_BODY} font-bold`}>Start tracking</div>
+            <div className={`${TYPE_META} mt-0.5`}>Add your first photos</div>
           </div>
-          <button type="button" onClick={(e) => { e.stopPropagation(); handleArrowClick() }} className="shrink-0 text-accent text-[12px] leading-none px-1 py-0.5 rounded-lg flex items-center justify-center active:opacity-70">
+          <button type="button" onClick={(e) => { e.stopPropagation(); handleArrowClick() }} className={`shrink-0 text-accent ${TYPE_BODY_SM} leading-none px-1 py-0.5 rounded-lg flex items-center justify-center active:opacity-70`}>
             →
           </button>
         </div>
@@ -133,7 +144,7 @@ export function TransformCard({
   }
 
   return (
-    <div className={`bg-card border border-border rounded-[14px] overflow-hidden mb-2 relative ${fixedCompare ? 'transform-card-overview' : ''}`}>
+    <div className={`${CARD_SURFACE} overflow-hidden mb-2 relative ${fixedCompare ? 'transform-card-overview' : ''}`}>
       <div
         onClick={fixedCompare ? undefined : onOpen}
         className={`grid grid-cols-2 gap-[2px] ${!fixedCompare ? 'cursor-pointer' : ''}`}
@@ -144,15 +155,15 @@ export function TransformCard({
       <div className="p-[12px_14px] border-t border-border space-y-2">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[13px] font-bold text-text">Your transformation</div>
-            <div className="text-[10px] text-muted mt-0.5">
+            <div className={`${TYPE_BODY} font-bold`}>Your transformation</div>
+            <div className={`${TYPE_META} mt-0.5`}>
               {fmtDate(sessionA?.date) || '—'} → {fmtDate(sessionB?.date ?? sessionA?.date) || '—'}
             </div>
           </div>
           <button
             type="button"
             onClick={handleArrowClick}
-            className="shrink-0 text-accent text-[12px] leading-none px-1 py-0.5 rounded-lg flex items-center justify-center active:opacity-70"
+            className={`shrink-0 text-accent ${TYPE_BODY_SM} leading-none px-1 py-0.5 rounded-lg flex items-center justify-center active:opacity-70`}
           >
             →
           </button>
@@ -165,7 +176,7 @@ export function TransformCard({
                 key={key}
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setAngle(key) }}
-                className={`flex-1 py-2 rounded-lg border text-[11px] font-bold ${
+                className={`flex-1 py-2 rounded-lg border ${TYPE_TAB} ${
                   angle === key ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-text'
                 }`}
               >
@@ -180,14 +191,14 @@ export function TransformCard({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onShowComparePicker?.(showComparePicker === 'A' ? null : 'A') }}
-                className="flex-1 py-2 rounded-lg border border-border-strong bg-card-alt text-[11px] font-bold text-text"
+                className={`flex-1 py-2 rounded-lg border border-border-strong bg-card-alt ${TYPE_TAB} text-text`}
               >
                 Before: {fmtDate(sessionA?.date) || '—'}
               </button>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onShowComparePicker?.(showComparePicker === 'B' ? null : 'B') }}
-                className="flex-1 py-2 rounded-lg border border-border-strong bg-card-alt text-[11px] font-bold text-text"
+                className={`flex-1 py-2 rounded-lg border border-border-strong bg-card-alt ${TYPE_TAB} text-text`}
               >
                 After: {fmtDate(sessionB?.date) || '—'}
               </button>
@@ -196,7 +207,7 @@ export function TransformCard({
               <div className="space-y-3 pt-1 max-h-[200px] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                 {groupPhotoSessionsByMonth(sortedSessions).map(({ monthLabel, sessions }) => (
                   <div key={monthLabel}>
-                    <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-1.5 sticky top-0 bg-page py-0.5">
+                    <div className={`${TYPE_OVERLINE} mb-1.5 sticky top-0 bg-page py-0.5`}>
                       {monthLabel}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -209,7 +220,7 @@ export function TransformCard({
                             else onSelectB(s.id)
                             onShowComparePicker(null)
                           }}
-                          className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border ${
+                          className={`px-2.5 py-1.5 rounded-lg ${TYPE_EMPHASIS_SM} border ${
                             (showComparePicker === 'A' && s.id === compareAId) || (showComparePicker === 'B' && s.id === compareBId)
                               ? 'border-accent bg-accent/10 text-accent'
                               : 'border-border bg-card-alt text-muted'

@@ -1,6 +1,30 @@
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react'
 import { getTopMovers, getTrainedExercises, getRecentlyTrainedExercises, getE1RMHistory, getBestE1RM } from './progressUtils'
 import StrengthVolumeSection from './StrengthVolumeSection'
+import {
+  CARD_SURFACE,
+  CARD_SURFACE_INTERACTIVE,
+  CARD_SURFACE_SM,
+  CARD_ROW_PAD,
+  CARD_ROW_PAD_TIGHT,
+} from './cardTokens'
+import {
+  TYPE_OVERLINE,
+  TYPE_CAPTION,
+  TYPE_LABEL_UPPER,
+  TYPE_META,
+  TYPE_MICRO,
+  TYPE_MICRO_TIGHT,
+  TYPE_BODY,
+  TYPE_BODY_SM,
+  TYPE_BODY_SM_SEMIBOLD,
+  TYPE_TITLE_ROW,
+  TYPE_TITLE_BLOCK,
+  TYPE_DISPLAY,
+  TYPE_UNIT_SUFFIX,
+  TYPE_STAT_EMPHASIS,
+  TYPE_EMPHASIS_SM,
+} from './typographyTokens'
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 
@@ -85,7 +109,12 @@ export default function ProgressStrength({
       <div ref={topMoversSectionRef} className="scroll-mt-28">
       <div className="sec">Top movers</div>
       {movers.length === 0 && (
-        <div className="text-sm text-muted italic mb-4">Train each exercise at least 2 times to see top movers</div>
+        <div className={`${CARD_SURFACE} p-4 mb-4`}>
+          <div className={TYPE_TITLE_ROW}>No top movers yet</div>
+          <p className={`${TYPE_META} mt-1.5`}>
+            Train an exercise at least twice with completed sets. Your largest estimated 1RM gains will appear here.
+          </p>
+        </div>
       )}
       {movers.map((m) => (
         <button
@@ -94,15 +123,15 @@ export default function ProgressStrength({
             setSelected(m.name)
             setSearch('')
           }}
-          className="w-full bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] flex items-center justify-between text-left"
+          className={`w-full ${CARD_SURFACE_INTERACTIVE} ${CARD_ROW_PAD} mb-[6px] flex items-center justify-between text-left`}
         >
           <div>
-            <div className="text-[14px] font-bold text-text">{m.name}</div>
-            <div className="text-[10px] text-muted mt-0.5">
+            <div className={TYPE_TITLE_ROW}>{m.name}</div>
+            <div className={`${TYPE_META} mt-0.5`}>
               {m.prevE1RM} → {m.currentE1RM} {unitWeight} est. max
             </div>
           </div>
-          <div className={`rounded-[6px] px-[10px] py-[4px] text-[12px] font-extrabold ${
+          <div className={`rounded-[6px] px-[10px] py-[4px] ${TYPE_BODY_SM} font-extrabold ${
             m.pct > 0 ? 'bg-[rgba(91,245,160,0.09)] border border-[rgba(91,245,160,0.2)] text-success' : 'bg-card-alt border border-border text-muted'
           }`}>
             {m.pct > 0 ? `↑ +${m.pct}%` : m.pct < 0 ? `↓ ${m.pct}%` : '—'}
@@ -113,7 +142,7 @@ export default function ProgressStrength({
 
       <div ref={deepDiveSectionRef} className="scroll-mt-28">
       <div className="sec">Exercise deep-dive</div>
-      <div className="bg-card border border-border rounded-[12px] p-[11px_14px] flex items-center gap-[9px] mb-3">
+      <div className={`${CARD_SURFACE_SM} p-[11px_14px] flex items-center gap-[9px] mb-3`}>
         <svg
           width="14"
           height="14"
@@ -135,7 +164,7 @@ export default function ProgressStrength({
             setSelected(null)
           }}
           placeholder="Search your exercises..."
-          className="bg-transparent text-[13px] text-text placeholder-muted outline-none flex-1 font-medium"
+          className={`bg-transparent ${TYPE_BODY} placeholder-muted outline-none flex-1 font-medium`}
         />
         {search && (
           <button onClick={() => setSearch('')} className="text-muted text-sm">
@@ -146,7 +175,7 @@ export default function ProgressStrength({
 
       {recentExercises.length > 0 && (
         <div className="mb-3">
-          <div className="text-[10px] font-bold text-muted uppercase tracking-[0.5px] mb-2">Recent</div>
+          <div className={`${TYPE_OVERLINE} mb-2`}>Recent</div>
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-1" style={{ scrollbarWidth: 'none' }}>
             {recentExercises.map((name) => (
               <button
@@ -157,7 +186,7 @@ export default function ProgressStrength({
                   setSearch('')
                   setShowAllExercises(false)
                 }}
-                className={`shrink-0 px-3 py-2 rounded-lg border text-[12px] font-semibold transition-colors ${
+                className={`shrink-0 px-3 py-2 rounded-lg border ${TYPE_BODY_SM_SEMIBOLD} transition-colors ${
                   selected === name
                     ? 'border-accent bg-accent/10 text-accent'
                     : 'border-border-strong bg-card-alt text-text hover:border-accent/50'
@@ -174,14 +203,14 @@ export default function ProgressStrength({
         <button
           type="button"
           onClick={() => setShowAllExercises((v) => !v)}
-          className="flex-1 py-2.5 rounded-xl border border-dashed border-border-strong text-[12px] font-semibold text-muted-strong hover:border-accent/50 hover:text-accent transition-colors"
+          className={`flex-1 py-2.5 rounded-xl border border-dashed border-border-strong ${TYPE_BODY_SM_SEMIBOLD} text-muted-strong hover:border-accent/50 hover:text-accent transition-colors`}
         >
           {showAllExercises ? 'Hide all exercises' : `All exercises (${trained.length})`}
         </button>
       </div>
 
       {showAllExercises && (
-        <div className="bg-card border border-border rounded-[12px] mb-3 overflow-hidden max-h-[220px] overflow-y-auto">
+        <div className={`${CARD_SURFACE_SM} mb-3 overflow-hidden max-h-[220px] overflow-y-auto`}>
           {trained.map((name) => (
             <button
               key={name}
@@ -191,7 +220,7 @@ export default function ProgressStrength({
                 setSearch('')
                 setShowAllExercises(false)
               }}
-              className={`w-full px-4 py-3 text-left text-[13px] font-semibold border-b border-border last:border-0 transition-colors ${
+              className={`w-full px-4 py-3 text-left ${TYPE_BODY} font-semibold border-b border-border last:border-0 transition-colors ${
                 selected === name ? 'bg-accent/10 text-accent border-l-2 border-l-accent' : 'text-text hover:bg-card-alt'
               }`}
             >
@@ -202,7 +231,7 @@ export default function ProgressStrength({
       )}
 
       {search && filtered.length > 0 && (
-        <div className="bg-card border border-border rounded-[12px] mb-3 overflow-hidden">
+        <div className={`${CARD_SURFACE_SM} mb-3 overflow-hidden`}>
           {filtered.slice(0, 6).map((name) => (
             <button
               key={name}
@@ -211,7 +240,7 @@ export default function ProgressStrength({
                 setSelected(name)
                 setSearch('')
               }}
-              className="w-full px-4 py-3 text-left text-[13px] font-semibold text-text border-b border-border last:border-0 hover:bg-card-alt"
+              className={`w-full px-4 py-3 text-left ${TYPE_BODY} font-semibold text-text border-b border-border last:border-0 hover:bg-card-alt`}
             >
               {name}
             </button>
@@ -221,18 +250,18 @@ export default function ProgressStrength({
 
       {selected && (
         <>
-          <div className="bg-card border border-border rounded-[14px] p-4 mb-2">
+          <div className={`${CARD_SURFACE} p-4 mb-2`}>
             <div className="flex justify-between items-start gap-3 mb-3">
               <div className="min-w-0 flex-1">
-                <div className="text-[15px] font-extrabold text-text truncate">{selected}</div>
-                <div className="text-[11px] text-muted mt-0.5">Est. 1RM over time</div>
-                <div className="text-[9px] text-muted/80 mt-0.5">
+                <div className={`${TYPE_TITLE_BLOCK} truncate`}>{selected}</div>
+                <div className={`${TYPE_MICRO} mt-0.5`}>Est. 1RM over time</div>
+                <div className={`${TYPE_CAPTION} text-muted/80 mt-0.5`}>
                   Estimated one-rep max from each session (from your best set that day)
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {allTimePR && (
-                  <span className="text-[11px] font-bold text-success">
+                  <span className={`${TYPE_MICRO} font-bold text-success`}>
                     PR {allTimePR} {unitWeight}
                   </span>
                 )}
@@ -267,12 +296,12 @@ export default function ProgressStrength({
                   ))}
                 </div>
                 <div className="flex justify-between mt-1.5">
-                  <span className="text-[8px] text-muted font-semibold">
+                  <span className={`${TYPE_MICRO_TIGHT} font-semibold`}>
                     {formatDateForDisplay && e1rmHistory[0]?.dateStr
                       ? formatDateForDisplay(e1rmHistory[0].dateStr)
                       : e1rmHistory[0]?.date?.toLocaleDateString('en-GB', { month: 'short' })}
                   </span>
-                  <span className="text-[8px] text-muted font-semibold">
+                  <span className={`${TYPE_MICRO_TIGHT} font-semibold`}>
                     {formatDateForDisplay && e1rmHistory[e1rmHistory.length - 1]?.dateStr
                       ? formatDateForDisplay(e1rmHistory[e1rmHistory.length - 1].dateStr)
                       : e1rmHistory[e1rmHistory.length - 1]?.date?.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })}
@@ -280,7 +309,13 @@ export default function ProgressStrength({
                 </div>
               </>
             ) : (
-              <div className="text-sm text-muted italic">Not enough data for this period</div>
+              <div className="rounded-[10px] border border-dashed border-border-strong bg-card-alt/50 px-3 py-3">
+                <div className={TYPE_BODY_SM_SEMIBOLD}>No progression chart yet</div>
+                <p className={`${TYPE_META} mt-1`}>
+                  Log this exercise on at least two separate days with weight and reps in the selected period to see your
+                  estimated 1RM trend.
+                </p>
+              </div>
             )}
           </div>
 
@@ -289,7 +324,7 @@ export default function ProgressStrength({
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
-                className={`flex-1 py-[6px] rounded-[7px] text-[10px] font-bold text-center border transition-colors ${
+                className={`flex-1 py-[6px] rounded-[7px] ${TYPE_EMPHASIS_SM} text-center border transition-colors ${
                   period === p
                     ? 'border-accent bg-accent/10 text-accent'
                     : 'border-transparent text-muted'
@@ -301,50 +336,50 @@ export default function ProgressStrength({
           </div>
 
           <div className={`grid gap-2 mb-2 ${lastSetRir != null ? 'grid-cols-3' : 'grid-cols-2'}`}>
-            <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
-              <div className="text-[20px] font-extrabold text-text">
+            <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
+              <div className={TYPE_DISPLAY}>
                 {e1rmHistory.length > 0 ? fmt(e1rmHistory[e1rmHistory.length - 1].e1rm) : '—'}
-                <span className="text-[10px] text-muted ml-0.5">{unitWeight}</span>
+                <span className={`${TYPE_UNIT_SUFFIX} ml-0.5`}>{unitWeight}</span>
               </div>
-              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">
+              <div className={`${TYPE_LABEL_UPPER} mt-1`}>
                 Est. max now
               </div>
-              <div className="text-[8px] text-muted/80 mt-0.5">From your latest session</div>
+              <div className={`${TYPE_MICRO_TIGHT} text-muted/80 mt-0.5`}>From your latest session</div>
             </div>
-            <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
-              <div className="text-[20px] font-extrabold text-text">
+            <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
+              <div className={TYPE_DISPLAY}>
                 {allTimePR != null ? fmt(allTimePR) : '—'}
-                <span className="text-[10px] text-muted ml-0.5">{unitWeight}</span>
+                <span className={`${TYPE_UNIT_SUFFIX} ml-0.5`}>{unitWeight}</span>
               </div>
-              <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">
+              <div className={`${TYPE_LABEL_UPPER} mt-1`}>
                 All-time PR
               </div>
-              <div className="text-[8px] text-muted/80 mt-0.5">Best estimated 1RM ever</div>
+              <div className={`${TYPE_MICRO_TIGHT} text-muted/80 mt-0.5`}>Best estimated 1RM ever</div>
             </div>
             {lastSetRir != null && (
-              <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
-                <div className="text-[20px] font-extrabold text-text" style={{ color: '#2DD4BF' }}>
+              <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
+                <div className={TYPE_DISPLAY} style={{ color: '#2DD4BF' }}>
                   {lastSetRir === 3 ? '3+' : lastSetRir} RIR
                 </div>
-                <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">
+                <div className={`${TYPE_LABEL_UPPER} mt-1`}>
                   Last set RIR
                 </div>
-                <div className="text-[8px] text-muted/80 mt-0.5">Reps in reserve, latest session</div>
+                <div className={`${TYPE_MICRO_TIGHT} text-muted/80 mt-0.5`}>Reps in reserve, latest session</div>
               </div>
             )}
           </div>
 
           {lastSession && (
-            <div className="bg-card border border-border rounded-[14px] p-[13px_14px] mb-4">
+            <div className={`${CARD_SURFACE} ${CARD_ROW_PAD} mb-4`}>
               <div className="flex justify-between items-center">
                 <div>
-                  <div className="text-[13px] font-bold text-text">Last session</div>
-                  <div className="text-[10px] text-muted mt-0.5">
+                  <div className={`${TYPE_BODY} font-bold`}>Last session</div>
+                  <div className={`${TYPE_META} mt-0.5`}>
                     {(formatDateForDisplay ? formatDateForDisplay(lastSession.date) : lastSession.date)} · {lastSession.sets.length} sets
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[16px] font-extrabold text-text">
+                  <div className={TYPE_STAT_EMPHASIS}>
                     {fmt(lastSession.sets[0].kg)} {unitWeight} × {lastSession.sets[0].reps}
                   </div>
                 </div>

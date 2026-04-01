@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
 import { MUSCLE_GROUPS, EQUIPMENT_TYPES, TYPE_LABELS } from './exerciseLibrary'
+import BottomSheet from './BottomSheet'
+import ActionButton from './ActionButton'
 
 const MUSCLE_KEYS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'mobility']
 const TYPE_KEYS = ['weight_reps', 'bw_reps', 'reps_only', 'time_only', 'distance_time']
@@ -55,8 +57,7 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
   const chipOn = 'border-accent bg-accent/10 text-accent'
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-      <div className="w-full max-w-md bg-card rounded-t-3xl p-5 pb-10" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+    <BottomSheet variant="card" zClass="z-50" layout="scrollable" padding="none" showHandle closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="px-5 pb-10 max-h-[85vh]">
         <h2 className="text-lg font-bold text-center mb-1">{isEditing ? 'Edit Exercise' : 'Create Exercise'}</h2>
         <p className="text-sm text-muted-mid text-center mb-5">Define your custom exercise</p>
 
@@ -123,48 +124,44 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
         </div>
 
         {/* Save */}
-        <button onClick={handleSave}
-          className={`w-full py-4 rounded-2xl font-bold text-sm mb-3 transition-all ${canSave ? 'bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25' : 'bg-card-alt text-muted-strong'}`}
-          disabled={!canSave}>
+        <ActionButton className="mb-3" onClick={handleSave} disabled={!canSave} variant="primary">
           {isEditing ? 'Save changes' : 'Create exercise'}
-        </button>
+        </ActionButton>
 
         {/* Delete (edit mode) */}
         {isEditing && onDelete && (
           <>
             {!showDelete ? (
-              <button
+              <ActionButton
                 type="button"
+                variant="tertiary"
+                className="mb-1 !min-h-0 py-3 !font-semibold !text-red-400 hover:!text-red-300"
                 onClick={() => setShowDelete(true)}
-                className="w-full py-3 text-sm font-semibold text-red-400 mb-1 inline-flex items-center justify-center gap-2"
               >
                 <DeleteTrashGlyph className="w-4 h-4" />
                 Delete exercise
-              </button>
+              </ActionButton>
             ) : (
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-3">
                 <DeleteTrashBadge className="!mb-3" />
                 <p className="text-sm text-muted text-center mb-3">Delete "{editExercise.name}"? This cannot be undone.</p>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onDelete(editExercise)}
-                    className="flex-1 py-2.5 bg-red-500 rounded-xl text-sm font-bold text-white inline-flex items-center justify-center gap-2"
-                  >
-                    <DeleteTrashGlyph className="w-4 h-4 text-white" />
+                  <ActionButton type="button" variant="danger" fullWidth={false} className="flex-1 !rounded-xl !min-h-[44px] !py-2.5 !text-sm" onClick={() => onDelete(editExercise)}>
+                    <DeleteTrashGlyph className="w-4 h-4 shrink-0" />
                     Delete
-                  </button>
-                  <button type="button" onClick={() => setShowDelete(false)} className="flex-1 py-2.5 border border-border-strong rounded-xl text-sm font-semibold text-muted">
+                  </ActionButton>
+                  <ActionButton type="button" variant="secondary" fullWidth={false} className="flex-1 !rounded-xl !min-h-[44px] !py-2.5 !text-sm" onClick={() => setShowDelete(false)}>
                     Cancel
-                  </button>
+                  </ActionButton>
                 </div>
               </div>
             )}
           </>
         )}
 
-        <button onClick={onCancel} className="w-full py-3 text-sm font-semibold text-muted-mid">Cancel</button>
-      </div>
-    </div>
+        <ActionButton variant="tertiary" onClick={onCancel}>
+          Cancel
+        </ActionButton>
+    </BottomSheet>
   )
 }

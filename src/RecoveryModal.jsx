@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import BottomSheet from './BottomSheet'
 import {
   formatMuscleLabel,
   MUSCLE_COLOURS_HEX,
@@ -7,15 +8,20 @@ import {
   getRecoveryPct,
   formatHoursAgo,
 } from './utils'
+import {
+  TYPE_BODY,
+  TYPE_BODY_SEMIBOLD,
+  TYPE_DISPLAY_LG,
+  TYPE_EMPHASIS_SM,
+  TYPE_LABEL_UPPER,
+  TYPE_META,
+  TYPE_MICRO,
+  TYPE_SHEET_TITLE,
+} from './typographyTokens'
 
 export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onClose }) {
-  const overlayRef = useRef(null)
-  const primaryPct = getRecoveryPct(muscles, muscleLastWorked)
   const barRefs = useRef({})
-
-  function handleOverlayClick(e) {
-    if (e.target === overlayRef.current) onClose()
-  }
+  const primaryPct = getRecoveryPct(muscles, muscleLastWorked)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -39,9 +45,9 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: colour }} />
-            <span className="text-[13px] font-semibold text-white">{label}</span>
+            <span className={`${TYPE_BODY_SEMIBOLD} text-white`}>{label}</span>
             <span
-              className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+              className={`${TYPE_LABEL_UPPER} uppercase tracking-wide px-1.5 py-0.5 rounded ${
                 dim ? 'bg-white/5 text-white/30' : 'bg-[rgba(0,229,160,0.1)] text-[rgba(0,229,160,0.6)]'
               }`}
             >
@@ -49,14 +55,16 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
             </span>
           </div>
           <div className="flex items-center gap-2.5">
-            <span className="text-[11px] text-white/30">{ago}</span>
-            <span className="text-[11px] text-white/30">{windowH}h window</span>
-            <span className="text-[13px] font-bold text-white w-9 text-right">{pct}%</span>
+            <span className={`${TYPE_MICRO} text-white/30`}>{ago}</span>
+            <span className={`${TYPE_MICRO} text-white/30`}>{windowH}h window</span>
+            <span className={`${TYPE_BODY} font-bold text-white w-9 text-right`}>{pct}%</span>
           </div>
         </div>
         <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
           <div
-            ref={(el) => { barRefs.current[slug + type] = el }}
+            ref={(el) => {
+              barRefs.current[slug + type] = el
+            }}
             data-target={pct}
             className="h-full rounded-full transition-all duration-1000"
             style={{ width: '0%', background: colour }}
@@ -70,17 +78,23 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
   const secondary = muscles?.secondary ?? []
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 backdrop-blur-sm"
-      onClick={handleOverlayClick}
+    <BottomSheet
+      onClose={onClose}
+      zClass="z-50"
+      layout="scrollable"
+      padding="none"
+      showHandle={false}
+      closeOnBackdrop
+      backdropClassName="bg-black/65 backdrop-blur-sm"
+      maxWidthClass="max-w-[430px]"
+      surfaceClass="bg-[#111925]"
+      panelClassName="animate-slide-up max-h-[85vh] overflow-y-auto"
     >
-      <div className="w-full max-w-[430px] bg-[#111925] rounded-t-3xl pb-10 animate-slide-up overflow-y-auto max-h-[85vh]">
-        <div className="w-9 h-1 bg-white/10 rounded-full mx-auto mt-3 mb-1" />
+        <div className="w-9 h-1 bg-white/10 rounded-full mx-auto mt-3 mb-1 shrink-0" aria-hidden />
         <div className="flex items-start justify-between px-5 pt-4 pb-4">
           <div>
-            <h2 className="text-[17px] font-extrabold text-white">Recovery</h2>
-            <p className="text-[11px] text-white/35 mt-0.5">{dayName} · primary muscles only affect score</p>
+            <h2 className={`${TYPE_SHEET_TITLE} text-white`}>Recovery</h2>
+            <p className={`${TYPE_MICRO} text-white/35 mt-0.5`}>{dayName} · primary muscles only affect score</p>
           </div>
           <button
             type="button"
@@ -91,7 +105,7 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
           </button>
         </div>
         <div className="h-px bg-white/[0.06] mx-5 mb-4" />
-        <p className="px-5 text-[10px] font-bold uppercase tracking-[0.8px] text-white/25 mb-3">Primary</p>
+        <p className={`px-5 ${TYPE_EMPHASIS_SM} uppercase tracking-[0.8px] text-white/25 mb-3`}>Primary</p>
         <div className="px-5 flex flex-col gap-3.5">
           {primary.map((slug) => (
             <MuscleRow key={slug} slug={slug} type="primary" />
@@ -100,7 +114,7 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
         {secondary.length > 0 && (
           <>
             <div className="h-px bg-white/[0.06] mx-5 my-4" />
-            <p className="px-5 text-[10px] font-bold uppercase tracking-[0.8px] text-white/25 mb-3">Secondary</p>
+            <p className={`px-5 ${TYPE_EMPHASIS_SM} uppercase tracking-[0.8px] text-white/25 mb-3`}>Secondary</p>
             <div className="px-5 flex flex-col gap-3.5">
               {secondary.map((slug) => (
                 <MuscleRow key={slug} slug={slug} type="secondary" />
@@ -108,14 +122,13 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
             </div>
           </>
         )}
-        <div className="mx-5 mt-5 bg-[rgba(0,229,160,0.06)] border border-[rgba(0,229,160,0.18)] rounded-2xl p-4 flex items-center justify-between">
+        <div className="mx-5 mt-5 mb-6 bg-[rgba(0,229,160,0.06)] border border-[rgba(0,229,160,0.18)] rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-white/35">Overall score</p>
-            <p className="text-[10px] text-white/20 mt-0.5">Avg of primary muscles, per-muscle window</p>
+            <p className={`${TYPE_MICRO} font-bold uppercase tracking-wide text-white/35`}>Overall score</p>
+            <p className={`${TYPE_META} text-white/20 mt-0.5`}>Avg of primary muscles, per-muscle window</p>
           </div>
-          <span className="text-[26px] font-extrabold text-[#00e5a0]">{primaryPct}%</span>
+          <span className={`${TYPE_DISPLAY_LG} text-[#00e5a0]`}>{primaryPct}%</span>
         </div>
-      </div>
-    </div>
+    </BottomSheet>
   )
 }

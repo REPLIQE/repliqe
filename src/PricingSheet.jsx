@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { setUserPlanInFirestore, USER_PLAN_STORAGE_KEY } from './lib/userFirestore'
+import BottomSheet from './BottomSheet'
+import ActionButton from './ActionButton'
+import { CARD_SURFACE_LG } from './cardTokens'
+import { TYPE_EMPHASIS_SM, TYPE_OVERLINE_STRONG } from './typographyTokens'
 
 /**
  * Bottom sheet pricing UI (mock checkout). Matches app modal pattern: backdrop + rounded-t sheet.
@@ -130,24 +134,22 @@ export default function PricingSheet({ open, onClose, userId, userPlan, onPlanCh
     )
 
   return (
-    <div
-      className="fixed inset-0 z-[45] flex items-end justify-center bg-black/60 backdrop-blur-[4px]"
-      onClick={handleBackdropClose}
-      role="presentation"
+    <BottomSheet
+      onClose={handleBackdropClose}
+      zClass="z-50"
+      variant="page"
+      layout="flex"
+      padding="none"
+      showHandle
+      panelClassName="border-t border-border shadow-xl max-h-[92vh] relative"
+      role="dialog"
+      ariaModal={true}
+      ariaLabelledBy="pricing-sheet-title"
     >
-      <div
-        className="w-full max-w-md bg-page rounded-t-[20px] border-t border-border shadow-xl max-h-[92vh] flex flex-col relative"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="pricing-sheet-title"
-      >
-        <div className="w-9 h-1 bg-handle rounded mx-auto mt-2 shrink-0" aria-hidden />
-
         {/* Header — same rhythm as CreateProgrammeFlow SheetFrame */}
         <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-2 border-b border-border">
           <div className="w-10" aria-hidden />
-          <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider">Plans</p>
+          <p className={TYPE_OVERLINE_STRONG}>Plans</p>
           <button
             type="button"
             onClick={handleCloseClick}
@@ -212,7 +214,7 @@ export default function PricingSheet({ open, onClose, userId, userPlan, onPlanCh
 
           <div className="space-y-4">
             {/* Free */}
-            <div className="bg-card border border-border rounded-2xl p-4">
+            <div className={`${CARD_SURFACE_LG} p-4`}>
               <div className="flex items-baseline justify-between gap-2 mb-3">
                 <h2 className="text-lg font-bold text-text">Free</h2>
                 <span className="text-sm font-semibold text-muted-mid">0 kr</span>
@@ -236,8 +238,8 @@ export default function PricingSheet({ open, onClose, userId, userPlan, onPlanCh
             </div>
 
             {/* Pro — featured */}
-            <div className="bg-card border-2 border-accent rounded-2xl p-4 shadow-lg shadow-accent/10 relative">
-              <span className="absolute -top-2.5 left-4 text-[10px] font-bold uppercase tracking-wide bg-accent text-on-accent px-2 py-0.5 rounded-md">
+            <div className={`${CARD_SURFACE_LG} border-2 border-accent p-4 shadow-lg shadow-accent/10 relative`}>
+              <span className={`absolute -top-2.5 left-4 ${TYPE_EMPHASIS_SM} uppercase tracking-wide bg-accent text-on-accent px-2 py-0.5 rounded-md`}>
                 Popular
               </span>
               <div className="flex items-baseline justify-between gap-2 mb-1 mt-1">
@@ -264,7 +266,7 @@ export default function PricingSheet({ open, onClose, userId, userPlan, onPlanCh
             </div>
 
             {/* Elite */}
-            <div className="bg-card border border-border rounded-2xl p-4">
+            <div className={`${CARD_SURFACE_LG} p-4`}>
               <div className="flex items-baseline justify-between gap-2 mb-1">
                 <h2 className="text-lg font-bold text-text">Elite</h2>
                 <div className="text-right text-sm">{elitePrice}</div>
@@ -278,20 +280,20 @@ export default function PricingSheet({ open, onClose, userId, userPlan, onPlanCh
                   </li>
                 ))}
               </ul>
-              <button
+              <ActionButton
                 type="button"
                 disabled={userPlan === 'elite' || phase !== 'idle'}
                 onClick={() => handleMockPurchase('elite')}
-                className="w-full py-3.5 rounded-2xl text-sm font-bold bg-success text-on-success shadow-lg disabled:opacity-50 disabled:pointer-events-none"
+                variant="success"
+                className="shadow-lg"
               >
                 Get Elite
-              </button>
+              </ActionButton>
             </div>
           </div>
 
           <p className="text-center text-sm text-muted-mid mt-6 px-2">Cancel anytime · No hidden fees</p>
         </div>
-      </div>
-    </div>
+    </BottomSheet>
   )
 }

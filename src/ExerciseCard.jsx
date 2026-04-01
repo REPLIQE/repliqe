@@ -1,5 +1,9 @@
 import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import BottomSheet from './BottomSheet'
+import ActionButton from './ActionButton'
+import { CARD_SURFACE_LG } from './cardTokens'
+import { TYPE_EMPHASIS_SM, TYPE_LABEL_UPPER } from './typographyTokens'
 import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
 import { MUSCLE_GROUPS } from './exerciseLibrary'
 
@@ -244,7 +248,7 @@ function ExerciseCard({
   const displayName = exercise.name ?? exercise.exerciseId ?? ''
   const borderClass = isLinkSource ? 'border-accent/50 bg-card-alt' : isLinkTarget ? 'border-success/40 cursor-pointer' : 'border-border'
   const outerClass = [
-    'bg-card border rounded-2xl p-3.5 mb-2 transition-all duration-200 w-full min-w-0',
+    `${CARD_SURFACE_LG} p-3.5 mb-2 transition-all duration-200 w-full min-w-0`,
     borderClass,
     isLinkModeActive && !isLinkSource && !isLinkTarget ? 'opacity-40 pointer-events-none' : '',
     isLinkTarget ? 'animate-pulse-border' : ''
@@ -292,7 +296,7 @@ function ExerciseCard({
             </span>
           ) : null}
           {supersetIsNext ? (
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide bg-success/15 text-success border border-success/40 animate-up-next-pulse">Next</span>
+            <span className={`${TYPE_LABEL_UPPER} px-1.5 py-0.5 rounded-md tracking-wide bg-success/15 text-success border border-success/40 animate-up-next-pulse`}>Next</span>
           ) : null}
           <button
             type="button"
@@ -593,7 +597,7 @@ function ExerciseCard({
                       <span className="inline-flex h-2 w-2 rounded-full bg-accent" />
                     )}
                   </div>
-                  <span className="text-[10px] font-bold text-accent uppercase tracking-wider">
+                  <span className={`${TYPE_EMPHASIS_SM} text-accent uppercase tracking-wider`}>
                     Coach
                   </span>
                 </div>
@@ -633,44 +637,43 @@ function ExerciseCard({
     {showRemoveNoteConfirm &&
       typeof document !== 'undefined' &&
       createPortal(
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] px-6"
+        <BottomSheet
+          onClose={() => setShowRemoveNoteConfirm(false)}
+          align="center"
+          variant="card"
+          zClass="z-[100]"
+          showHandle={false}
+          maxWidthClass="max-w-sm"
           role="dialog"
-          aria-modal="true"
-          aria-labelledby="remove-note-title"
-          onClick={() => setShowRemoveNoteConfirm(false)}
+          ariaModal={true}
+          ariaLabelledBy="remove-note-title"
         >
-          <div
-            className="w-full max-w-sm bg-card rounded-[18px] p-7 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="text-center">
             <DeleteTrashBadge />
             <h2 id="remove-note-title" className="text-text text-lg font-bold mb-2">
               Remove note?
             </h2>
             <p className="text-muted text-sm mb-5">This exercise note will be permanently cleared.</p>
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowRemoveNoteConfirm(false)}
-                className="flex-1 py-3 border border-border-strong rounded-xl text-muted text-sm font-semibold"
-              >
+              <ActionButton type="button" variant="secondary" fullWidth={false} className="flex-1 !rounded-xl" onClick={() => setShowRemoveNoteConfirm(false)}>
                 Cancel
-              </button>
-              <button
+              </ActionButton>
+              <ActionButton
                 type="button"
+                variant="danger"
+                fullWidth={false}
+                className="flex-1 !rounded-xl"
                 onClick={() => {
                   setShowRemoveNoteConfirm(false)
                   onUpdateExerciseNote(exIndex, '')
                 }}
-                className="flex-1 py-3 bg-[#FF5555] rounded-xl text-text text-sm font-bold inline-flex items-center justify-center gap-2"
               >
                 <DeleteTrashGlyph className="w-4 h-4 shrink-0" />
                 Delete
-              </button>
+              </ActionButton>
             </div>
           </div>
-        </div>,
+        </BottomSheet>,
         document.body
       )}
     </>

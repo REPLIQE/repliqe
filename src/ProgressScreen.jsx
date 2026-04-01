@@ -4,6 +4,7 @@ import ProgressOverview from './ProgressOverview'
 import ProgressStrength from './ProgressStrength'
 import ProgressBody from './ProgressBody'
 import ProgressRecovery from './ProgressRecovery'
+import { TYPE_TAB } from './typographyTokens'
 
 const TABS = ['Overview', 'Body', 'Strength', 'Recovery']
 
@@ -44,7 +45,7 @@ export default function ProgressScreen(props) {
                   setStrengthScrollSection(null)
                   setBodyScrollSection(null)
                 }}
-                className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-colors border ${
+                className={`flex-1 py-2 text-center rounded-lg ${TYPE_TAB} transition-colors border ${
                   tab === t
                     ? 'border-accent bg-accent/10 text-accent'
                     : 'border-transparent text-muted-strong'

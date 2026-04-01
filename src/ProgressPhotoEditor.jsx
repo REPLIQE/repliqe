@@ -1,12 +1,16 @@
 import { useState, useRef, useCallback } from 'react'
+import BottomSheet from './BottomSheet'
+import ActionButton from './ActionButton'
+import { Z_OVERLAY_STACKED } from './zLayers'
 import { DEFAULT_CROP } from './ProgressPhoto'
 import { normalizeCrop } from './progressPhotoBake'
+import { TYPE_BODY_SEMIBOLD, TYPE_HEADING_PAGE, TYPE_TITLE_ROW } from './typographyTokens'
 
 const MIN_SCALE = 1
 const MAX_SCALE = 4
 const SCALE_STEP = 0.1
 
-export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose, stackClass = 'z-[100]' }) {
+export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose, stackClass = Z_OVERLAY_STACKED }) {
   const [current, setCurrent] = useState(() =>
     initialCrop ? normalizeCrop(initialCrop) : { ...DEFAULT_CROP }
   )
@@ -82,12 +86,12 @@ export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose,
       await Promise.race([
         Promise.resolve(onSave?.(payload)),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Save tog for lang tid — prøv igen')), SAVE_MAX_MS)
+          setTimeout(() => reject(new Error('Save took too long — try again')), SAVE_MAX_MS)
         ),
       ])
       onClose()
     } catch (e) {
-      /* Timeout fra race — forælderen når ikke altid at vise fejl */
+      /* Timeout from race — parent may not always surface error UI */
       if (typeof alert !== 'undefined' && String(e?.message || '').includes('for lang tid')) {
         alert(e.message)
       }
@@ -97,72 +101,83 @@ export default function ProgressPhotoEditor({ src, initialCrop, onSave, onClose,
   }
 
   return (
-    <div className={`fixed inset-0 ${stackClass} flex items-end justify-center sm:items-center sm:p-4`}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-[4px]" aria-hidden onClick={onClose} />
-      <div className="relative w-full max-w-md max-h-[92vh] flex flex-col bg-page rounded-t-[20px] sm:rounded-[20px] border border-border overflow-hidden">
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="text-[14px] font-bold text-muted hover:text-text transition-colors disabled:opacity-40"
-          >
-            Cancel
-          </button>
-          <h2 className="text-[18px] font-extrabold text-text">Adjust crop</h2>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="py-2 px-4 rounded-xl text-[13px] font-bold bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25 disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-        <div
-          className="flex-1 flex items-center justify-center overflow-hidden p-4 touch-none min-h-0"
-          onWheel={handleWheel}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+    <BottomSheet
+      onClose={saving ? undefined : onClose}
+      closeOnBackdrop={!saving}
+      zClass={stackClass}
+      layout="flex"
+      padding="none"
+      showHandle={false}
+      maxWidthClass="max-w-md"
+      outerClassName="sm:items-center sm:p-4"
+      panelClassName="max-h-[92vh] border border-border overflow-hidden min-h-0"
+    >
+      <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
+        <ActionButton
+          type="button"
+          variant="tertiary"
+          fullWidth={false}
+          className={`!min-h-0 px-0 py-1 ${TYPE_TITLE_ROW} !text-muted hover:!text-text disabled:opacity-40`}
+          onClick={onClose}
+          disabled={saving}
         >
-          <div
-            ref={containerRef}
-            className="relative w-full max-h-full overflow-hidden rounded-[12px] bg-card-deep border border-border"
-            style={{ aspectRatio: 'var(--progress-photo-ratio)' }}
-          >
-            {src && (
-              <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-card-deep">
-                <div
-                  className="flex h-full w-full items-center justify-center"
-                  style={{
-                    transform: `translate(${current.x}%, ${current.y}%) scale(${current.scale})`,
-                    transformOrigin: 'center center',
-                  }}
-                >
-                  <img
-                    src={src}
-                    alt=""
-                    className="max-h-full max-w-full object-contain select-none pointer-events-none"
-                    draggable={false}
-                  />
-                </div>
+          Cancel
+        </ActionButton>
+        <h2 className={TYPE_HEADING_PAGE}>Adjust crop</h2>
+        <ActionButton
+          type="button"
+          variant="primary"
+          fullWidth={false}
+          className={`!min-h-0 !rounded-xl !py-2 !px-4 ${TYPE_BODY_SEMIBOLD} shadow-lg shadow-accent/25`}
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </ActionButton>
+      </div>
+      <div
+        className="flex-1 flex items-center justify-center overflow-hidden p-4 touch-none min-h-0"
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <div
+          ref={containerRef}
+          className="relative w-full max-h-full overflow-hidden rounded-[12px] bg-card-deep border border-border"
+          style={{ aspectRatio: 'var(--progress-photo-ratio)' }}
+        >
+          {src && (
+            <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-card-deep">
+              <div
+                className="flex h-full w-full items-center justify-center"
+                style={{
+                  transform: `translate(${current.x}%, ${current.y}%) scale(${current.scale})`,
+                  transformOrigin: 'center center',
+                }}
+              >
+                <img
+                  src={src}
+                  alt=""
+                  className="max-h-full max-w-full object-contain select-none pointer-events-none"
+                  draggable={false}
+                />
               </div>
-            )}
-          </div>
-        </div>
-        <div className="shrink-0 px-5 pb-6 pt-2 flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={handleReset}
-            className="w-full py-3 rounded-xl text-[13px] font-bold border border-border-strong bg-card-alt text-text hover:border-accent/30 transition-colors"
-          >
-            Reset crop
-          </button>
+            </div>
+          )}
         </div>
       </div>
-    </div>
+      <div className="shrink-0 px-5 pb-6 pt-2 flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={handleReset}
+          className={`w-full py-3 rounded-xl ${TYPE_BODY_SEMIBOLD} border border-border-strong bg-card-alt text-text hover:border-accent/30 transition-colors`}
+        >
+          Reset crop
+        </button>
+      </div>
+    </BottomSheet>
   )
 }

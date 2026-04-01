@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { formatMuscleLabel, getRecoveryPct, MUSCLE_COLOURS_HEX } from './utils'
 import RecoveryModal from './RecoveryModal'
+import { TYPE_CAPTION, TYPE_MICRO } from './typographyTokens'
 
 const RING_R = 44
 const RING_CIRC = 2 * Math.PI * RING_R
@@ -59,7 +60,7 @@ export default function RecoverySection({ muscles, muscleLastWorked, dayName }) 
             return (
               <span
                 key={slug}
-                className="flex items-center justify-center rounded-full py-[7px] px-2.5 text-[11px] font-bold border truncate"
+                className={`flex items-center justify-center rounded-full py-[7px] px-2.5 ${TYPE_MICRO} font-bold border truncate`}
                 style={{ backgroundColor: bg, borderColor: border, color: colour }}
               >
                 {formatMuscleLabel(slug)}
@@ -101,7 +102,7 @@ export default function RecoverySection({ muscles, muscleLastWorked, dayName }) 
         </svg>
 
         <div style={{ gridColumn: '2 / 3' }} className="flex justify-center">
-          <span className="text-[9px] font-medium text-white/50 tracking-[0.3px]">
+          <span className={`${TYPE_CAPTION} font-medium text-white/50 tracking-[0.3px]`}>
             Tap for details
           </span>
         </div>

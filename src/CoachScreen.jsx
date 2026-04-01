@@ -10,6 +10,9 @@ import {
   deleteCoachConversation,
 } from './lib/coachConversationsFirestore'
 import { mergePlanUsage, incrementPlanUsage, PLAN_LIMITS } from './lib/planUsage'
+import ActionButton from './ActionButton'
+import { CARD_SURFACE_LG } from './cardTokens'
+import { TYPE_EMPHASIS_SM, TYPE_META, TYPE_OVERLINE_STRONG } from './typographyTokens'
 
 /** System instructions sent as part of the prompt (user message was truncated in spec). */
 const COACH_CHAT_SYSTEM = `You are Coach, an expert AI personal trainer inside the REPLIQE app. You help users improve their programme, review progress, break plateaus, and explain exercises.
@@ -341,7 +344,7 @@ Coach (reply as Coach; remember [SUGGESTION] rules only when appropriate):`
         aria-label={`Coach messages this month: ${used} of ${msgLimit} used`}
       >
         <div
-          className={`flex justify-between items-baseline gap-2 ${compact ? 'text-[10px]' : 'text-xs'} text-muted-strong`}
+          className={`flex justify-between items-baseline gap-2 ${compact ? TYPE_META : 'text-xs'} text-muted-strong`}
         >
           <span className="shrink-0">Coach messages · this month</span>
           <span className="font-bold text-text tabular-nums shrink-0">
@@ -406,18 +409,14 @@ Coach (reply as Coach; remember [SUGGESTION] rules only when appropriate):`
                 ? 'Coach chat is available on Pro and Elite plans.'
                 : 'You have used your Coach messages for this month.'}
             </p>
-            <button
-              type="button"
-              onClick={() => onShowPricing?.()}
-              className="w-full py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25"
-            >
+            <ActionButton type="button" className="!rounded-xl" onClick={() => onShowPricing?.()} variant="primary">
               View plans
-            </button>
+            </ActionButton>
           </div>
         )}
 
         <div>
-          <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider mb-2">Quick actions</p>
+          <p className={`${TYPE_OVERLINE_STRONG} mb-2`}>Quick actions</p>
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
             {quickActions.map((a) => (
               <button
@@ -443,7 +442,7 @@ Coach (reply as Coach; remember [SUGGESTION] rules only when appropriate):`
         </button>
 
         <div>
-          <p className="text-[10px] font-bold text-muted-strong uppercase tracking-wider mb-2">Recent conversations</p>
+          <p className={`${TYPE_OVERLINE_STRONG} mb-2`}>Recent conversations</p>
           {loadingConversations ? (
             <p className="text-sm text-muted">Loading…</p>
           ) : conversations.length === 0 ? (
@@ -458,7 +457,7 @@ Coach (reply as Coach; remember [SUGGESTION] rules only when appropriate):`
                     className="w-full text-left px-4 py-3 rounded-xl border border-border bg-card hover:border-accent/30 transition-colors"
                   >
                     <span className="text-sm font-semibold text-text line-clamp-2">{c.title}</span>
-                    <span className="text-[10px] text-muted block mt-0.5">
+                    <span className={`${TYPE_META} block mt-0.5`}>
                       {(c.messages?.length ?? 0)} messages
                     </span>
                   </button>
@@ -516,7 +515,7 @@ Coach (reply as Coach; remember [SUGGESTION] rules only when appropriate):`
             </div>
             {m.role === 'coach' && m.suggestion && (
               <div className="mt-2 w-full max-w-[90%] rounded-xl border border-accent/25 bg-card p-3">
-                <p className="text-[10px] font-bold text-accent uppercase tracking-wider mb-1">Suggested change</p>
+                <p className={`${TYPE_EMPHASIS_SM} text-accent uppercase tracking-wider mb-1`}>Suggested change</p>
                 <p className="text-xs text-muted-strong mb-3">{m.suggestion.description || 'Apply this update to your programme.'}</p>
                 <div className="flex gap-2">
                   <button
@@ -540,7 +539,7 @@ Coach (reply as Coach; remember [SUGGESTION] rules only when appropriate):`
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-card border border-border rounded-2xl px-4 py-3 flex gap-1 items-center">
+            <div className={`${CARD_SURFACE_LG} px-4 py-3 flex gap-1 items-center`}>
               <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" style={{ animationDelay: '0ms' }} />
               <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" style={{ animationDelay: '150ms' }} />
               <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" style={{ animationDelay: '300ms' }} />
@@ -561,14 +560,16 @@ Coach (reply as Coach; remember [SUGGESTION] rules only when appropriate):`
           disabled={loading || chatLocked}
           className="flex-1 min-w-0 bg-card-alt border border-border-strong rounded-xl px-3 py-2.5 text-sm text-text placeholder:text-muted outline-none focus:border-accent disabled:opacity-50"
         />
-        <button
+        <ActionButton
           type="button"
+          fullWidth={false}
+          className="!rounded-xl !min-h-0 !px-4 !py-2.5"
           onClick={() => sendMessage()}
           disabled={loading || chatLocked || !input.trim()}
-          className="px-4 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-accent to-accent-end text-on-accent shadow-lg shadow-accent/25 disabled:opacity-40 disabled:pointer-events-none"
+          variant="primary"
         >
           Send
-        </button>
+        </ActionButton>
       </div>
     </div>
   )

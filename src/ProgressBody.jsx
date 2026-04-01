@@ -3,6 +3,21 @@ import PhotosModal, { PhotosViewContent } from './PhotosModal'
 import { loadPhotoSrc } from './PhotosModal'
 import { useAuth } from './lib/AuthContext'
 import { defaultPlanUsage, photoAtLimit, countProgressPhotoSlots } from './lib/planUsage'
+import BottomSheet from './BottomSheet'
+import ActionButton from './ActionButton'
+import { CARD_SURFACE, CARD_ROW_PAD_TIGHT } from './cardTokens'
+import {
+  TYPE_LABEL_UPPER,
+  TYPE_META,
+  TYPE_MICRO,
+  TYPE_MICRO_TIGHT,
+  TYPE_BODY,
+  TYPE_BODY_SM_SEMIBOLD,
+  TYPE_DISPLAY,
+  TYPE_UNIT_SUFFIX,
+  TYPE_EMPHASIS_SM,
+  TYPE_LABEL_MICRO,
+} from './typographyTokens'
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 const MEASUREMENTS = [
@@ -185,15 +200,15 @@ export default function ProgressBody({
     <div className="-mt-4">
       <div ref={weightSectionRef} className="scroll-mt-28">
       <div className="sec">Weight</div>
-      <div className="bg-card border border-border rounded-[14px] p-4 mb-2">
+      <div className={`${CARD_SURFACE} p-4 mb-2`}>
         <div className="flex justify-between items-baseline mb-3">
-          <div className="text-[13px] font-bold text-text">
+          <div className={`${TYPE_BODY} font-bold`}>
             {latestWeight ? `${fmt(latestWeight.value)} ${unitWeight}` : '—'}
-            <span className="text-[10px] text-muted font-normal ml-1">today</span>
+            <span className={`${TYPE_META} font-normal ml-1`}>today</span>
           </div>
           {latestWeight && firstWeight && latestWeight !== firstWeight && (
             <div
-              className={`text-[11px] font-bold ${
+              className={`${TYPE_MICRO} font-bold ${
                 latestWeight.value < firstWeight.value ? 'text-success' : 'text-[#ff6b6b]'
               }`}
             >
@@ -224,8 +239,8 @@ export default function ProgressBody({
               })}
             </div>
             <div className="flex justify-between mt-1">
-              <span className="text-[8px] text-muted">{weightPoints[0]?.date}</span>
-              <span className="text-[8px] text-muted">{weightPoints[weightPoints.length - 1]?.date}</span>
+              <span className={TYPE_MICRO_TIGHT}>{weightPoints[0]?.date}</span>
+              <span className={TYPE_MICRO_TIGHT}>{weightPoints[weightPoints.length - 1]?.date}</span>
             </div>
           </>
         ) : (
@@ -234,7 +249,7 @@ export default function ProgressBody({
 
         <button
           onClick={() => setShowAddWeight(true)}
-          className="mt-3 w-full py-2 border border-dashed border-border-strong rounded-[10px] text-[12px] font-semibold text-accent"
+          className={`mt-3 w-full py-2 border border-dashed border-border-strong rounded-[10px] ${TYPE_BODY_SM_SEMIBOLD} text-accent`}
         >
           + Log today&apos;s weight
         </button>
@@ -246,7 +261,7 @@ export default function ProgressBody({
           <button
             key={p}
             onClick={() => setPeriod(p)}
-            className={`flex-1 py-[6px] rounded-[7px] text-[10px] font-bold ${
+            className={`flex-1 py-[6px] rounded-[7px] ${TYPE_EMPHASIS_SM} ${
               period === p ? 'bg-[rgba(123,123,255,0.15)] text-accent' : 'text-muted'
             }`}
           >
@@ -256,36 +271,36 @@ export default function ProgressBody({
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-4">
-        <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
-          <div className="text-[20px] font-extrabold text-text">
+        <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
+          <div className={TYPE_DISPLAY}>
             {latestBF ? fmt(latestBF.value) : '—'}
-            <span className="text-[10px] text-muted ml-0.5">%</span>
+            <span className={`${TYPE_UNIT_SUFFIX} ml-0.5`}>%</span>
           </div>
-          <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">Body fat</div>
-          <button onClick={() => setShowAddBF(true)} className="mt-2 text-[10px] text-accent font-semibold">
+          <div className={`${TYPE_LABEL_UPPER} mt-1`}>Body fat</div>
+          <button onClick={() => setShowAddBF(true)} className={`mt-2 ${TYPE_EMPHASIS_SM} text-accent font-semibold`}>
             + Log
           </button>
         </div>
-        <div className="bg-card border border-border rounded-[14px] p-[13px_12px]">
-          <div className="text-[20px] font-extrabold text-text">
+        <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
+          <div className={TYPE_DISPLAY}>
             {latestMuscleMass != null ? fmt(latestMuscleMass.value) : '—'}
-            <span className="text-[10px] text-muted ml-0.5">%</span>
+            <span className={`${TYPE_UNIT_SUFFIX} ml-0.5`}>%</span>
           </div>
-          <div className="text-[9px] font-bold text-muted uppercase tracking-[0.5px] mt-1">Muscle mass</div>
-          <button onClick={() => setShowAddMuscleMass(true)} className="mt-2 text-[10px] text-accent font-semibold">
+          <div className={`${TYPE_LABEL_UPPER} mt-1`}>Muscle mass</div>
+          <button onClick={() => setShowAddMuscleMass(true)} className={`mt-2 ${TYPE_EMPHASIS_SM} text-accent font-semibold`}>
             + Log
           </button>
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-[14px] p-4 mb-4 flex items-center justify-between">
+      <div className={`${CARD_SURFACE} p-4 mb-4 flex items-center justify-between`}>
         <div>
-          <div className="text-[13px] font-bold text-text">Apple Health</div>
-          <div className="text-[10px] text-muted mt-0.5">Sync weight automatically</div>
+          <div className={`${TYPE_BODY} font-bold`}>Apple Health</div>
+          <div className={`${TYPE_META} mt-0.5`}>Sync weight automatically</div>
         </div>
         <button
           disabled
-          className="bg-card-alt border border-border-strong rounded-[8px] px-3 py-1.5 text-[11px] font-bold text-muted cursor-not-allowed"
+          className={`bg-card-alt border border-border-strong rounded-[8px] px-3 py-1.5 ${TYPE_MICRO} font-bold text-muted cursor-not-allowed`}
         >
           Coming soon
         </button>
@@ -293,7 +308,7 @@ export default function ProgressBody({
 
       <div ref={measurementsSectionRef} className="scroll-mt-28">
       <div className="sec">Measurements</div>
-      <div className="bg-card border border-border rounded-[14px] overflow-hidden mb-2">
+      <div className={`${CARD_SURFACE} overflow-hidden mb-2`}>
         {MEASUREMENTS.map(({ key, label }, i) => {
           const latest = latestMeasurements?.[key] != null && latestMeasurements?.[key] !== '' ? Number(latestMeasurements[key]) : null
           const first = getFirstMeasurementForKey(key)
@@ -307,14 +322,14 @@ export default function ProgressBody({
                 i < MEASUREMENTS.length - 1 ? 'border-b border-border' : ''
               }`}
             >
-              <span className="text-[13px] font-semibold text-text">{label}</span>
+              <span className={`${TYPE_BODY} font-semibold`}>{label}</span>
               <div className="flex items-center gap-[10px]">
                 {delta != null && (
-                  <span className={`text-[10px] font-bold ${delta > 0 ? 'text-success' : 'text-[#ff6b6b]'}`}>
+                  <span className={`${TYPE_EMPHASIS_SM} ${delta > 0 ? 'text-success' : 'text-[#ff6b6b]'}`}>
                     {delta > 0 ? '↑' : '↓'} {display(Math.abs(delta))} {unitLabel}
                   </span>
                 )}
-                <span className="text-[13px] font-extrabold text-text">{latest ? `${display(latest)} ${unitLabel}` : '—'}</span>
+                <span className={`${TYPE_BODY} font-extrabold`}>{latest ? `${display(latest)} ${unitLabel}` : '—'}</span>
               </div>
             </div>
           )
@@ -322,7 +337,7 @@ export default function ProgressBody({
       </div>
       <button
         onClick={openMeasurementsModal}
-        className="w-full py-3 mb-6 border border-dashed border-border-strong rounded-[12px] text-[12px] font-semibold text-accent"
+        className={`w-full py-3 mb-6 border border-dashed border-border-strong rounded-[12px] ${TYPE_BODY_SM_SEMIBOLD} text-accent`}
       >
         + Log measurements
       </button>
@@ -437,8 +452,7 @@ export default function ProgressBody({
 
 function QuickInputModal({ title, placeholder, value, onChange, onConfirm, onCancel, keyboardType }) {
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-      <div className="w-full max-w-md bg-card rounded-t-3xl p-6 pb-10">
+    <BottomSheet variant="card" zClass="z-50" layout="scrollable" padding="none" showHandle closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="px-6 pb-10">
         <h2 className="text-base font-bold text-center mb-5">{title}</h2>
         <input
           type="text"
@@ -451,26 +465,20 @@ function QuickInputModal({ title, placeholder, value, onChange, onConfirm, onCan
           autoFocus
           className="w-full bg-card-alt border border-border-strong rounded-xl px-4 py-3 text-text placeholder-muted outline-none focus:border-accent text-center text-lg font-bold mb-4"
         />
-        <button
-          onClick={onConfirm}
-          disabled={!value}
-          className="w-full py-4 rounded-2xl font-bold text-sm mb-3 bg-gradient-to-r from-accent to-accent-end text-on-accent disabled:opacity-50"
-        >
+        <ActionButton className="mb-3" onClick={onConfirm} disabled={!value} variant="primary">
           Save
-        </button>
-        <button onClick={onCancel} className="w-full py-3 text-sm font-semibold text-muted">
+        </ActionButton>
+        <ActionButton variant="tertiary" onClick={onCancel} className="!text-muted">
           Cancel
-        </button>
-      </div>
-    </div>
+        </ActionButton>
+    </BottomSheet>
   )
 }
 
 function MeasurementsModal({ measurements, values, onChange, onConfirm, onCancel, unitLength = 'cm' }) {
   const unitLabel = unitLength === 'inch' ? 'inch' : 'cm'
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-      <div className="w-full max-w-md bg-card rounded-t-3xl p-6 pb-10 max-h-[90vh] overflow-y-auto">
+    <BottomSheet variant="card" zClass="z-50" layout="scrollable" padding="none" showHandle closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="px-6 pb-10 max-h-[90vh]">
         <h2 className="text-base font-bold text-center mb-5">Log measurements</h2>
         {measurements.map(({ key, label }) => (
           <div key={key} className="flex items-center justify-between mb-3">
@@ -489,17 +497,13 @@ function MeasurementsModal({ measurements, values, onChange, onConfirm, onCancel
             </div>
           </div>
         ))}
-        <button
-          onClick={onConfirm}
-          className="w-full py-4 rounded-2xl font-bold text-sm mt-4 mb-3 bg-gradient-to-r from-accent to-accent-end text-on-accent"
-        >
+        <ActionButton className="mt-4 mb-3" onClick={onConfirm} variant="primary">
           Save measurements
-        </button>
-        <button onClick={onCancel} className="w-full py-3 text-sm font-semibold text-muted">
+        </ActionButton>
+        <ActionButton variant="tertiary" onClick={onCancel} className="!text-muted">
           Cancel
-        </button>
-      </div>
-    </div>
+        </ActionButton>
+    </BottomSheet>
   )
 }
 
@@ -532,9 +536,9 @@ function PhotoSessionThumb({ filename, label, onClick }) {
       {src ? (
         <img key={filename} src={src} alt={label} className="max-h-full max-w-full object-contain" />
       ) : (
-        <span className="text-[9px] font-bold text-muted uppercase tracking-[0.5px]">{label}</span>
+        <span className={TYPE_LABEL_UPPER}>{label}</span>
       )}
-      <span className="absolute bottom-1.5 left-0 right-0 text-center text-[8px] font-bold text-white/25 uppercase tracking-[0.4px]">
+      <span className={`absolute bottom-1.5 left-0 right-0 text-center ${TYPE_LABEL_MICRO} text-white/25`}>
         {label}
       </span>
     </div>
