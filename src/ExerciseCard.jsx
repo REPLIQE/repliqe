@@ -422,9 +422,9 @@ function ExerciseCard({
         <div className="mt-3 mb-2 p-3 bg-card-alt rounded-xl border border-border-strong">
           <div className="text-sm text-muted-mid font-semibold uppercase tracking-wide mb-2">Rest timer for this exercise</div>
           <div className="flex gap-1.5 flex-wrap">
-            <button onClick={() => { onUpdateExerciseRest(exIndex, ''); setShowRestPicker(false) }} className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${exercise.restOverride === null || exercise.restOverride === undefined ? 'bg-accent text-on-accent' : 'bg-card border border-border-strong text-muted'}`}>Default</button>
+            <button onClick={() => { onUpdateExerciseRest(exIndex, ''); setShowRestPicker(false) }} className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${exercise.restOverride === null || exercise.restOverride === undefined ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card text-muted'}`}>Default</button>
             {REST_PRESETS.map(seconds => (
-              <button key={seconds} onClick={() => { onUpdateExerciseRest(exIndex, seconds); setShowRestPicker(false) }} className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${exercise.restOverride === seconds ? 'bg-success text-on-success' : 'bg-card border border-border-strong text-muted'}`}>{seconds === 0 ? 'None' : formatTime(seconds)}</button>
+              <button key={seconds} onClick={() => { onUpdateExerciseRest(exIndex, seconds); setShowRestPicker(false) }} className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${exercise.restOverride === seconds ? 'border-success bg-success/10 text-success' : 'border-border-strong bg-card text-muted'}`}>{seconds === 0 ? 'None' : formatTime(seconds)}</button>
             ))}
           </div>
         </div>

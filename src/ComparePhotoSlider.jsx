@@ -140,27 +140,34 @@ export default function ComparePhotoSlider({
           </ProgressPhoto>
         </div>
         <div
-          className="pointer-events-none absolute inset-0 z-[1]"
-          style={{ clipPath: `inset(0 ${100 - split}% 0 0)` }}
+          className="pointer-events-none absolute top-0 bottom-0 left-0 z-[1] overflow-hidden"
+          style={{ width: `${split}%` }}
         >
-          <ProgressPhoto src={beforeSrc} crop={beforeCrop} className="h-full w-full rounded-none">
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="w-6 h-6 border-2 border-muted border-t-transparent rounded-full animate-spin" />
-            </div>
-          </ProgressPhoto>
+          <div
+            className="absolute top-0 bottom-0 left-0 h-full"
+            style={{ width: split > 0 ? `${10000 / split}%` : '100%' }}
+          >
+            <ProgressPhoto src={beforeSrc} crop={beforeCrop} className="h-full w-full max-w-none rounded-none">
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-muted border-t-transparent rounded-full animate-spin" />
+              </div>
+            </ProgressPhoto>
+          </div>
         </div>
-        {/* Vertikal deler + greb */}
+        {/* Vertikal deler + lille greb (samme accent som Body-fanen), bunden som datoerne */}
         <div
           className="pointer-events-none absolute top-0 bottom-0 z-[2] w-[min(44px,8%)] -translate-x-1/2"
           style={{ left: `${split}%` }}
           data-divider-handle
           aria-hidden
         >
-          <div className="absolute top-0 bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-white shadow-[0_0_6px_rgba(0,0,0,0.5)]" />
-          <div className="absolute top-1/2 left-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-black/55 shadow-lg backdrop-blur-[2px]">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" className="opacity-95" aria-hidden>
-              <path d="M15 6 L9 12 L15 18" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M9 6 L15 12 L9 18" strokeLinecap="round" strokeLinejoin="round" />
+          <div className="absolute top-0 bottom-10 left-1/2 w-px -translate-x-1/2 bg-accent shadow-[0_0_6px_var(--accent-primary-glow)]" />
+          <div className="absolute bottom-2 left-1/2 z-[4] flex h-7 w-7 -translate-x-1/2 items-center justify-center gap-px rounded-full bg-accent text-on-accent shadow-md ring-1 ring-white/30">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M15 6 L9 12 L15 18" />
+            </svg>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M9 6 L15 12 L9 18" />
             </svg>
           </div>
         </div>

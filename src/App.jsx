@@ -422,6 +422,8 @@ function AppContent() {
   const [incompleteSetsWarning, setIncompleteSetsWarning] = useState(null)
   const [showCancelWorkoutConfirm, setShowCancelWorkoutConfirm] = useState(false)
   const [showStickyRestBar, setShowStickyRestBar] = useState(false)
+  /** Scroll-container i aktiv workout-sheet (til synlighed af primær resttimer vs. sticky top). */
+  const workoutScrollAreaRef = useRef(null)
   const [workoutTab, setWorkoutTab] = useState('start') // 'start' | 'plan'
   const [profileSection, setProfileSection] = useState(null) // null | 'account' | 'settings' | 'about'
   const { user } = useAuth()
@@ -450,6 +452,11 @@ function AppContent() {
   const [dragOverTarget, setDragOverTarget] = useState(null) // { type: 'index', progId, index } | { type: 'programme', progId } | null
   /** True når rutine-editoren åbnes ved tryk på rutine på Plan (ikke fra Edit programme-modal). */
   const routineEditorOpenedFromPlanRef = useRef(false)
+  /** Snapshot ved åbning af Edit programme (navn, routineIds, fuld routine-data) til revert ved Cancel. */
+  const editProgrammeSnapshotRef = useRef(null)
+  /** Baseline for create/edit routine — dirty check ved Cancel / backdrop. */
+  const routineEditorBaselineRef = useRef(null)
+  const routineEditorBaselineSessionRef = useRef(null)
   const [selectedStartRoutineId, setSelectedStartRoutineId] = useState(null) // which routine is selected on Start (null = Up Next)
   const [showStartRecoveryInfo, setShowStartRecoveryInfo] = useState(false)
   const [showActiveWorkoutSheet, setShowActiveWorkoutSheet] = useState(false)
@@ -932,20 +939,48 @@ function AppContent() {
     return () => clearInterval(interval)
   }, [workoutActive, workoutStartTime])
 
-  function handleWorkoutScroll(e) {
-    const el = e.currentTarget
-    if (!el) return
-    const restEl = el.querySelector('[data-rest-active="1"]')
+  /** Sticky top resttimer kun når primær timer ikke overlapper scroll-området (så den er synlig). */
+  function updateStickyRestVisibility(scrollEl) {
+    if (!scrollEl) return
+    const restEl = scrollEl.querySelector('[data-rest-active="1"]')
     if (!restEl) {
-      if (showStickyRestBar) setShowStickyRestBar(false)
+      setShowStickyRestBar(prev => (prev ? false : prev))
       return
     }
-    const parentRect = el.getBoundingClientRect()
+    const parentRect = scrollEl.getBoundingClientRect()
     const rect = restEl.getBoundingClientRect()
-    const fullyVisible = rect.top >= parentRect.top && rect.bottom <= parentRect.bottom
-    const shouldShow = !fullyVisible
-    if (shouldShow !== showStickyRestBar) setShowStickyRestBar(shouldShow)
+    const intersects = rect.bottom > parentRect.top && rect.top < parentRect.bottom
+    const shouldShow = !intersects
+    setShowStickyRestBar(prev => (prev === shouldShow ? prev : shouldShow))
   }
+
+  function handleWorkoutScroll(e) {
+    updateStickyRestVisibility(e.currentTarget)
+  }
+
+  useLayoutEffect(() => {
+    if (!workoutActive || !showActiveWorkoutSheet || showCompleteScreen) return
+    const el = workoutScrollAreaRef.current
+    if (!el) return
+    const run = () => updateStickyRestVisibility(el)
+    run()
+    let raf2
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(run)
+    })
+    return () => {
+      cancelAnimationFrame(raf1)
+      if (raf2 != null) cancelAnimationFrame(raf2)
+    }
+  }, [
+    activeRest,
+    restTime,
+    exercises,
+    workoutActive,
+    showActiveWorkoutSheet,
+    showCompleteScreen,
+    page,
+  ])
 
   function playRestSound() {
     try {
@@ -1160,6 +1195,39 @@ function AppContent() {
     return Array.from({ length: n }, () => ({ targetReps: ex.targetReps || '8-10', targetKg: '' }))
   }
 
+  function serializeRoutineExercisesForCompare(list) {
+    return JSON.stringify(
+      (list || []).map((ex) => ({
+        id: ex.id,
+        exerciseId: ex.exerciseId,
+        setConfigs: getSetConfigs(ex).map((s) => ({
+          targetReps: String(s.targetReps ?? ''),
+          targetKg: String(s.targetKg ?? ''),
+        })),
+        restOverride: ex.restOverride ?? null,
+        note: String(ex.note ?? '').trim(),
+        supersetGroupId: ex.supersetGroupId ?? null,
+        supersetRole: ex.supersetRole ?? null,
+      }))
+    )
+  }
+
+  useLayoutEffect(() => {
+    if (!showCreateRoutine && !editingRoutineId) {
+      routineEditorBaselineSessionRef.current = null
+      routineEditorBaselineRef.current = null
+      return
+    }
+    const key = editingRoutineId ? `e:${editingRoutineId}` : `c:${editingRoutineProgrammeId ?? 'none'}`
+    if (routineEditorBaselineSessionRef.current === key) return
+    routineEditorBaselineSessionRef.current = key
+    routineEditorBaselineRef.current = {
+      name: editRoutineName,
+      programmeName: editProgrammeName,
+      exercisesJson: serializeRoutineExercisesForCompare(editRoutineExercises),
+    }
+  }, [showCreateRoutine, editingRoutineId, editingRoutineProgrammeId])
+
   function routineToWorkoutExercises(routine) {
     if (!routine?.exercises?.length) return []
     return routine.exercises.map(ex => {
@@ -1306,13 +1374,85 @@ function AppContent() {
 
   function openEditProgramme(progId) {
     const prog = programmes.find(p => p.id === progId)
-    if (prog) setEditProgrammeName(prog.name)
+    if (prog) {
+      setEditProgrammeName(prog.name)
+      const ids = [...(prog.routineIds || [])]
+      const snapRoutines = ids
+        .map((id) => routines.find((r) => r.id === id))
+        .filter(Boolean)
+        .map((r) => JSON.parse(JSON.stringify(r)))
+      editProgrammeSnapshotRef.current = {
+        progId,
+        name: prog.name,
+        routineIds: ids,
+        routines: snapRoutines,
+      }
+    } else {
+      editProgrammeSnapshotRef.current = null
+    }
     setEditingProgrammeId(progId)
+  }
+
+  function isEditProgrammeDirty() {
+    const snap = editProgrammeSnapshotRef.current
+    if (!snap || !editingProgrammeId || snap.progId !== editingProgrammeId) return false
+    const prog = programmes.find((p) => p.id === editingProgrammeId)
+    if (!prog) return false
+    if ((editProgrammeName ?? '').trim() !== (snap.name ?? '').trim()) return true
+    if (JSON.stringify(prog.routineIds || []) !== JSON.stringify(snap.routineIds)) return true
+    return false
+  }
+
+  function revertEditProgrammeSnapshot() {
+    const snap = editProgrammeSnapshotRef.current
+    if (!snap) return
+    const { progId, name, routineIds, routines: snapRoutines } = snap
+    const snapIds = new Set(routineIds)
+    setProgrammes((prev) =>
+      prev.map((p) => (p.id === progId ? { ...p, name, routineIds: [...routineIds] } : p))
+    )
+    setRoutines((prev) => {
+      const next = prev.filter((r) => !(r.programmeId === progId && !snapIds.has(r.id)))
+      const byId = Object.fromEntries(next.map((r) => [r.id, r]))
+      for (const sr of snapRoutines) {
+        byId[sr.id] = JSON.parse(JSON.stringify(sr))
+      }
+      return Object.values(byId)
+    })
+    setEditProgrammeName(name)
+  }
+
+  function requestCloseEditProgramme() {
+    const finish = () => {
+      setEditingProgrammeId(null)
+      setDragRoutine(null)
+      setDragOverTarget(null)
+      setEditProgrammeRoutinePendingDelete(null)
+      editProgrammeSnapshotRef.current = null
+    }
+    if (!isEditProgrammeDirty()) {
+      finish()
+      return
+    }
+    if (typeof window !== 'undefined' && !window.confirm('Discard changes to this programme? Unsaved edits will be lost.')) return
+    revertEditProgrammeSnapshot()
+    finish()
+  }
+
+  function requestCloseCreateProgramme() {
+    const dirty = createProgrammeName.trim() !== '' || createProgrammeRoutines.length > 0
+    if (dirty && typeof window !== 'undefined' && !window.confirm('Discard this programme draft?')) return
+    setShowCreateProgramme(false)
+    setCreateProgrammeName('')
+    setCreateProgrammeRoutines([])
+    setCreateProgrammeTriedSave(false)
+    setCreateProgrammeConfirmEmptyRoutines(false)
   }
 
   function saveEditedProgramme(progId, name, type, routineIdsOrder) {
     setProgrammes(prev => prev.map(p => p.id === progId ? { ...p, name, type, routineIds: routineIdsOrder } : p))
     setEditingProgrammeId(null)
+    editProgrammeSnapshotRef.current = null
   }
 
   async function confirmDeleteProgrammeAction(progId) {
@@ -2645,8 +2785,8 @@ ${JSON.stringify(ctx)}`
 
               {/* Tab bar: Start | Plan */}
               <div className="flex rounded-[10px] p-[3px] mt-3 mb-5 border border-border-subtle bg-card-deep">
-                <button onClick={() => setWorkoutTab('start')} className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${workoutTab === 'start' ? 'bg-accent text-on-accent shadow-accent/25' : 'text-muted-strong'}`}>Start</button>
-                <button onClick={() => setWorkoutTab('plan')} className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${workoutTab === 'plan' ? 'bg-accent text-on-accent shadow-accent/25' : 'text-muted-strong'}`}>Plan</button>
+                <button onClick={() => setWorkoutTab('start')} className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-colors border ${workoutTab === 'start' ? 'border-accent bg-accent/10 text-accent' : 'border-transparent text-muted-strong'}`}>Start</button>
+                <button onClick={() => setWorkoutTab('plan')} className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-colors border ${workoutTab === 'plan' ? 'border-accent bg-accent/10 text-accent' : 'border-transparent text-muted-strong'}`}>Plan</button>
               </div>
 
               {workoutTab === 'start' && (
@@ -3131,7 +3271,7 @@ ${JSON.stringify(ctx)}`
 
           {/* ACTIVE WORKOUT - full bottom sheet */}
           {page === 'workout' && workoutActive && showActiveWorkoutSheet && !showCompleteScreen && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => setShowActiveWorkoutSheet(false)}>
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-40 flex items-end justify-center" onClick={() => setShowActiveWorkoutSheet(false)}>
               <div className="w-full max-w-md bg-page rounded-t-[20px] max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="sticky top-0 z-10 pt-2 pb-2 px-4 bg-page">
                   <div className="w-9 h-1 bg-handle rounded mx-auto mb-3 shrink-0" />
@@ -3216,7 +3356,7 @@ ${JSON.stringify(ctx)}`
                   </div>
                 )}
 
-                <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0 -mx-4 px-4 pt-1 min-w-0" onScroll={handleWorkoutScroll}>
+                <div ref={workoutScrollAreaRef} className="overflow-y-auto overflow-x-hidden flex-1 min-h-0 -mx-4 px-4 pt-1 min-w-0" onScroll={handleWorkoutScroll}>
                   {linkMode.active && (
                     <div className="sticky top-0 z-10 -mx-4 px-4 pt-1 pb-2 bg-page">
                       <LinkModeBanner
@@ -3410,7 +3550,7 @@ ${JSON.stringify(ctx)}`
                           key={key}
                           type="button"
                           onClick={() => setProfileSection(key)}
-                          className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${active ? 'bg-accent text-on-accent shadow-lg shadow-accent/25' : 'text-muted-strong'}`}
+                          className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-colors border ${active ? 'border-accent bg-accent/10 text-accent' : 'border-transparent text-muted-strong'}`}
                         >
                           {t}
                         </button>
@@ -3464,19 +3604,19 @@ ${JSON.stringify(ctx)}`
                     <div className="mb-4">
                       <div className="text-sm font-semibold mb-1">Weight</div>
                       <div className="flex gap-2">
-                        {['kg', 'lbs'].map(u => <button key={u} onClick={() => setUnitWeight(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitWeight === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
+                        {['kg', 'lbs'].map(u => <button key={u} onClick={() => setUnitWeight(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-colors border ${unitWeight === u ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-muted hover:border-accent'}`}>{u}</button>)}
                       </div>
                     </div>
                     <div className="mb-4">
                       <div className="text-sm font-semibold mb-1">Distance</div>
                       <div className="flex gap-2">
-                        {['km', 'miles'].map(u => <button key={u} onClick={() => setUnitDistance(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitDistance === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
+                        {['km', 'miles'].map(u => <button key={u} onClick={() => setUnitDistance(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-colors border ${unitDistance === u ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-muted hover:border-accent'}`}>{u}</button>)}
                       </div>
                     </div>
                     <div>
                       <div className="text-sm font-semibold mb-1">Length</div>
                       <div className="flex gap-2">
-                        {['cm', 'inch'].map(u => <button key={u} onClick={() => setUnitLength(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${unitLength === u ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{u}</button>)}
+                        {['cm', 'inch'].map(u => <button key={u} onClick={() => setUnitLength(u)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-colors border ${unitLength === u ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-muted hover:border-accent'}`}>{u}</button>)}
                       </div>
                     </div>
                   </div>
@@ -3487,7 +3627,7 @@ ${JSON.stringify(ctx)}`
                       <div className="text-sm font-semibold mb-1">Decimal separator</div>
                       <div className="flex gap-2">
                         {[{ id: 'comma', label: '1,5 (comma)' }, { id: 'period', label: '1.5 (period)' }].map(({ id, label }) => (
-                          <button key={id} onClick={() => setDecimalSeparator(id)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${decimalSeparator === id ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{label}</button>
+                          <button key={id} onClick={() => setDecimalSeparator(id)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-colors border ${decimalSeparator === id ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-muted hover:border-accent'}`}>{label}</button>
                         ))}
                       </div>
                     </div>
@@ -3495,7 +3635,7 @@ ${JSON.stringify(ctx)}`
                       <div className="text-sm font-semibold mb-1">Date format</div>
                       <div className="flex gap-2 flex-wrap">
                         {[{ id: DATE_FORMAT_DDMY, label: 'Day/Month/Year' }, { id: DATE_FORMAT_MMDY, label: 'Month/Day/Year' }].map(({ id, label }) => (
-                          <button key={id} onClick={() => setDateFormat(id)} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${dateFormat === id ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{label}</button>
+                          <button key={id} onClick={() => setDateFormat(id)} className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors border ${dateFormat === id ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-muted hover:border-accent'}`}>{label}</button>
                         ))}
                       </div>
                     </div>
@@ -3515,14 +3655,14 @@ ${JSON.stringify(ctx)}`
                       <div className="text-sm font-semibold mb-1">Rest timer</div>
                       <div className="text-xs text-muted-mid mb-2">Default rest between sets</div>
                       <div className="flex gap-2 flex-wrap">
-                        {REST_PRESETS.map(s => <button key={s} onClick={() => setDefaultRest(s)} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${defaultRest === s ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
+                        {REST_PRESETS.map(s => <button key={s} onClick={() => setDefaultRest(s)} className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors border ${defaultRest === s ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-muted hover:border-accent'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
                       </div>
                       <div className="text-xs text-muted-deep mt-2">Current: {defaultRest === 0 ? 'None' : formatTime(defaultRest)}</div>
                     </div>
                     <div className="mb-4">
                       <div className="text-sm font-semibold mb-1">Week starts on</div>
                       <div className="flex gap-2 flex-wrap">
-                        {WEEK_DAYS.map((d, i) => <button key={i} onClick={() => setWeekStart(i)} className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${weekStart === i ? 'bg-accent text-on-accent' : 'bg-card-alt border border-border-strong text-muted hover:border-accent'}`}>{d.slice(0, 3)}</button>)}
+                        {WEEK_DAYS.map((d, i) => <button key={i} onClick={() => setWeekStart(i)} className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors border ${weekStart === i ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-muted hover:border-accent'}`}>{d.slice(0, 3)}</button>)}
                       </div>
                     </div>
                     <div className="flex items-center justify-between px-4 py-3 bg-card-alt rounded-xl border border-border">
@@ -3548,7 +3688,7 @@ ${JSON.stringify(ctx)}`
         {/* MODALS */}
         {/* Delete Programme confirmation (centered) */}
         {showDeleteProgrammeConfirm && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center px-6">
             <div className="w-full max-w-sm bg-card rounded-[18px] p-7 text-center">
               <DeleteTrashBadge />
               <h2 className="text-text text-lg font-bold mb-2">Delete Programme?</h2>
@@ -3602,7 +3742,7 @@ ${JSON.stringify(ctx)}`
           const prog = programmes.find(p => p.id === showSetActiveAfterCreate)
           if (!prog) return null
           return (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center px-6">
               <div className="w-full max-w-sm bg-card rounded-[18px] p-7 text-center">
                 <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
                   <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-success"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
@@ -3623,7 +3763,7 @@ ${JSON.stringify(ctx)}`
           const prog = programmes.find(p => p.id === showSetActiveAfterEditProgramme)
           if (!prog) return null
           return (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center px-6">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center px-6">
               <div className="w-full max-w-sm bg-card rounded-[18px] p-7 text-center">
                 <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
                   <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-success"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
@@ -3643,7 +3783,7 @@ ${JSON.stringify(ctx)}`
         {createProgrammeFlowStep && user?.uid && (
           <Suspense
             fallback={
-              <div className="fixed inset-0 z-30 flex items-center justify-center bg-page/90 text-sm text-muted-strong">
+              <div className="fixed inset-0 z-40 flex items-center justify-center bg-page/90 text-sm text-muted-strong">
                 Loading…
               </div>
             }
@@ -3674,7 +3814,7 @@ ${JSON.stringify(ctx)}`
 
         {/* Create Programme modal (manual flow) */}
         {showCreateProgramme && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={() => { setShowCreateProgramme(false); setCreateProgrammeTriedSave(false); setCreateProgrammeConfirmEmptyRoutines(false) }}>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-40 flex items-end justify-center" onClick={requestCloseCreateProgramme}>
             <div className="w-full max-w-md bg-card rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="w-9 h-1 bg-handle rounded mx-auto mb-4" />
               <h2 className="text-text text-base font-bold mb-3">Create programme</h2>
@@ -3720,7 +3860,7 @@ ${JSON.stringify(ctx)}`
               >
                 Save Programme
               </button>
-              <button type="button" onClick={() => { setShowCreateProgramme(false); setCreateProgrammeRoutines([]); setCreateProgrammeTriedSave(false); setCreateProgrammeConfirmEmptyRoutines(false) }} className="w-full py-3 mt-2 text-muted-strong text-xs font-semibold">Cancel</button>
+              <button type="button" onClick={requestCloseCreateProgramme} className="w-full py-3 mt-2 text-muted-strong text-xs font-semibold">Cancel</button>
             </div>
           </div>
         )}
@@ -3729,14 +3869,8 @@ ${JSON.stringify(ctx)}`
         {editingProgrammeId && (() => {
           const prog = programmes.find(p => p.id === editingProgrammeId)
           const progRoutines = (prog?.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
-          const closeEditProgramme = () => {
-            setEditingProgrammeId(null)
-            setDragRoutine(null)
-            setDragOverTarget(null)
-            setEditProgrammeRoutinePendingDelete(null)
-          }
           return (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={closeEditProgramme}>
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-40 flex items-end justify-center" onClick={requestCloseEditProgramme}>
               <div className="w-full max-w-md bg-card rounded-t-[20px] pt-2 pb-9 px-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 <div className="w-9 h-1 bg-handle rounded mx-auto mb-4" />
                 <h2 className="text-text text-base font-bold mb-3">Edit Programme</h2>
@@ -3856,7 +3990,7 @@ ${JSON.stringify(ctx)}`
                   setEditingProgrammeId(null); setDragRoutine(null); setDragOverTarget(null)
                   if (programme && !programme.isActive) setShowSetActiveAfterEditProgramme(progId)
                 }} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold">Save Changes</button>
-                <button type="button" onClick={closeEditProgramme} className="w-full py-3 mt-2 text-muted-strong text-xs font-semibold">Cancel</button>
+                <button type="button" onClick={requestCloseEditProgramme} className="w-full py-3 mt-2 text-muted-strong text-xs font-semibold">Cancel</button>
               </div>
             </div>
           )
@@ -3909,6 +4043,8 @@ ${JSON.stringify(ctx)}`
             const progId = editingRoutineProgrammeId
             const returnToPlanOnly = routineEditorOpenedFromPlanRef.current
             routineEditorOpenedFromPlanRef.current = false
+            routineEditorBaselineRef.current = null
+            routineEditorBaselineSessionRef.current = null
             setShowCreateRoutine(false)
             setEditingRoutineId(null)
             setEditingRoutineProgrammeId(null)
@@ -3927,9 +4063,23 @@ ${JSON.stringify(ctx)}`
               setWorkoutTab('plan')
             }
           }
+          const requestCloseRoutineEditor = () => {
+            if (routineLinkMode.active) {
+              routineCancelLinkMode()
+              return
+            }
+            const b = routineEditorBaselineRef.current
+            const curJson = serializeRoutineExercisesForCompare(editRoutineExercises)
+            const nameMismatch = (editRoutineName ?? '').trim() !== (b?.name ?? '').trim()
+            const progNameMismatch = Boolean(programmeId) && (editProgrammeName ?? '').trim() !== (b?.programmeName ?? '').trim()
+            const exMismatch = Boolean(b && curJson !== b.exercisesJson)
+            const dirty = Boolean(b && (nameMismatch || progNameMismatch || exMismatch))
+            if (dirty && typeof window !== 'undefined' && !window.confirm('Discard changes to this routine?')) return
+            closeRoutineEditor()
+          }
           return (
             <>
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-20 flex items-end justify-center" onClick={closeRoutineEditor}>
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-[4px] z-40 flex items-end justify-center" onClick={requestCloseRoutineEditor}>
               <div className="w-full max-w-md bg-page rounded-t-[20px] pt-2 pb-10 px-4 max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="w-9 h-1 bg-handle rounded mx-auto mb-3 shrink-0" />
                 <h2 className="text-text text-base font-bold mb-3 shrink-0">{isEdit ? 'Edit Routine' : 'Create Routine'}</h2>
@@ -4076,7 +4226,7 @@ ${JSON.stringify(ctx)}`
                           <div className="mt-2 mb-2 p-3 bg-card-alt rounded-xl border border-border-strong">
                             <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Rest timer for this exercise</div>
                             <div className="flex gap-1.5 flex-wrap">
-                              <button type="button" onClick={() => setRest(null)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === null ? 'bg-accent text-on-accent' : 'bg-card border border-border-strong text-muted'}`}>Default</button>
+                              <button type="button" onClick={() => setRest(null)} className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${restOverride === null ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card text-muted'}`}>Default</button>
                               {REST_PRESETS.map(s => <button key={s} type="button" onClick={() => setRest(s)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === s ? 'bg-success text-[#0D0D1A]' : 'bg-card border border-border-strong text-muted'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
                             </div>
                           </div>
@@ -4183,7 +4333,7 @@ ${JSON.stringify(ctx)}`
                     setRoutineEditorTriedSave(false)
                     setRoutineEditorConfirmEmptyExercises(false)
                   }} className="w-full py-3.5 border-2 border-success rounded-xl bg-success/5 text-success text-sm font-bold">Save</button>
-                  <button type="button" onClick={closeRoutineEditor} className="w-full py-3 text-muted-strong text-xs font-semibold">Cancel</button>
+                  <button type="button" onClick={requestCloseRoutineEditor} className="w-full py-3 text-muted-strong text-xs font-semibold">Cancel</button>
                 </div>
               </div>
             </div>
@@ -4231,7 +4381,7 @@ ${JSON.stringify(ctx)}`
 
         {/* Exercise Picker for Routine - reuse ExerciseLibrary in modal, onAdd adds to editing routine or create draft */}
         {showExercisePickerForRoutine && (
-          <div className="fixed inset-0 z-30">
+          <div className="fixed inset-0 z-40">
             <ExerciseLibrary
               allExercises={allLibraryExercises}
               mode="modal"
@@ -4437,7 +4587,7 @@ ${JSON.stringify(ctx)}`
         )}
 
         {/* BOTTOM NAV */}
-        <div className="fixed bottom-0 left-0 right-0 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-2.5 pb-4 flex justify-around max-w-md mx-auto">
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-2.5 pb-4 flex justify-around max-w-md mx-auto">
           <button onClick={() => setPage('progress')} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-accent' : 'stroke-text'}`}><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-xs font-semibold ${page === 'progress' ? 'text-accent' : 'text-text'}`}>Progress</span></button>
           <button onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-accent' : 'stroke-text'}`}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-xs font-semibold ${page === 'workout' ? 'text-accent' : 'text-text'}`}>Workout</span></button>
           <button type="button" onClick={() => setPage('coach')} className={`flex flex-col items-center gap-1 ${page === 'coach' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'coach' ? 'text-accent' : 'text-text'}`}><path d="M12 3a6 6 0 0 0 4.5 9.97A5 5 0 0 1 12 21a5 5 0 0 1-4.5-8.03A6 6 0 0 0 12 3z" /></svg><span className={`text-xs font-semibold ${page === 'coach' ? 'text-accent' : 'text-text'}`}>Coach</span></button>
@@ -4679,7 +4829,7 @@ function WorkoutCompleteScreen({
               key={n}
               type="button"
               onClick={() => onRatingChange?.(n)}
-              className={`flex-1 flex flex-col items-center py-2.5 rounded-xl text-center transition-all ${rating === n ? 'bg-accent/20 border-2 border-accent' : 'bg-card border border-border'}`}
+              className={`flex-1 flex flex-col items-center py-2.5 rounded-xl text-center transition-colors border ${rating === n ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card text-text'}`}
             >
               <span className={`text-base font-extrabold ${rating === n ? 'text-accent' : 'text-text'}`}>{n}</span>
               <span className={`text-[10px] font-semibold mt-0.5 ${rating === n ? 'text-accent' : 'text-muted-mid'}`}>{labels[n - 1]}</span>
@@ -4712,7 +4862,7 @@ function SaveTemplateModal({ folders, onSave, onCancel }) {
           <div className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Save to folder</div>
           <div className="flex flex-col gap-1.5">
             {folders.map((f, i) => (
-              <button key={i} onClick={() => setSelectedFolder(i)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-all ${selectedFolder === i ? 'bg-accent/15 border border-accent/40 text-text' : 'bg-card-alt border border-border-strong text-muted'}`}>
+              <button key={i} onClick={() => setSelectedFolder(i)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-colors border ${selectedFolder === i ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-muted'}`}>
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 shrink-0 ${selectedFolder === i ? 'stroke-accent fill-accent/10' : 'stroke-muted-strong'}`}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                 {f.name}<span className="text-sm text-muted-mid ml-auto">{f.templates.length}</span>
               </button>
@@ -4764,7 +4914,7 @@ function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutin
           {programmes.length > 0 && (
             <div className="flex flex-col gap-1.5 mb-3">
               {programmes.map((p) => (
-                <button key={p.id} type="button" onClick={() => { setMode('existing'); setSelectedProgId(p.id) }} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-all ${mode === 'existing' && selectedProgId === p.id ? 'bg-accent/15 border border-accent/40 text-text' : 'bg-card-alt border border-border-strong text-muted'}`}>
+                <button key={p.id} type="button" onClick={() => { setMode('existing'); setSelectedProgId(p.id) }} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-colors border ${mode === 'existing' && selectedProgId === p.id ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-muted'}`}>
                   <span className="truncate">{p.name}</span>
                   <span className="text-sm text-muted-mid ml-auto">{(p.routineIds || []).length}</span>
                 </button>

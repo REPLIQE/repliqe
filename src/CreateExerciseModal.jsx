@@ -52,7 +52,7 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
   }
 
   const chipOff = 'bg-card-alt text-muted border-border-strong'
-  const chipOn = 'bg-accent text-on-accent border-transparent'
+  const chipOn = 'border-accent bg-accent/10 text-accent'
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
@@ -115,7 +115,7 @@ export default function CreateExerciseModal({ onSave, onCancel, onDelete, editEx
           <div className="flex flex-col gap-1.5">
             {TYPE_KEYS.map(t => (
               <button key={t} onClick={() => setType(t)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-left border-[1.5px] transition-all ${type === t ? 'border-accent bg-accent/10 text-text' : 'border-border-strong bg-card-alt text-muted'}`}>
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-left border-[1.5px] transition-all ${type === t ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card-alt text-muted'}`}>
                 <span className="text-sm font-semibold">{TYPE_LABELS[t]}</span>
               </button>
             ))}

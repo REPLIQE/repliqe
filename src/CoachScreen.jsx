@@ -522,7 +522,7 @@ Coach (reply as Coach; remember [SUGGESTION] rules only when appropriate):`
                   <button
                     type="button"
                     onClick={() => applySuggestion(m)}
-                    className="flex-1 py-2 rounded-lg text-xs font-bold bg-accent/15 text-accent border border-accent/30"
+                    className="flex-1 py-2 rounded-lg text-xs font-bold border border-accent bg-accent/10 text-accent"
                   >
                     Apply to programme
                   </button>

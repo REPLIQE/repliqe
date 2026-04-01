@@ -31,8 +31,8 @@ export default function ProgressBody({
   formatDecimal,
   parseDecimal,
   formatDateForDisplay,
-  scrollToPhotosSection = false,
-  onScrolledToPhotos,
+  bodyScrollSection = null,
+  onConsumedBodyScroll,
   openAddPhoto = false,
   onConsumedOpenAddPhoto,
   returnToWorkoutAfterPhotoClose = false,
@@ -55,13 +55,23 @@ export default function ProgressBody({
   const [showAddMeasurements, setShowAddMeasurements] = useState(false)
   const [showPhotos, setShowPhotos] = useState(false)
   const [openPhotosToAdd, setOpenPhotosToAdd] = useState(false)
+  const weightSectionRef = useRef(null)
+  const measurementsSectionRef = useRef(null)
   const photosSectionRef = useRef(null)
 
   useLayoutEffect(() => {
-    if (!scrollToPhotosSection || !photosSectionRef.current) return
-    photosSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    onScrolledToPhotos?.()
-  }, [scrollToPhotosSection, onScrolledToPhotos])
+    if (!bodyScrollSection) return
+    const map = {
+      weight: weightSectionRef,
+      measurements: measurementsSectionRef,
+      photos: photosSectionRef,
+    }
+    const ref = map[bodyScrollSection]
+    if (ref?.current) {
+      ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    onConsumedBodyScroll?.()
+  }, [bodyScrollSection, onConsumedBodyScroll])
 
   useLayoutEffect(() => {
     if (!openAddPhoto) return
@@ -173,6 +183,7 @@ export default function ProgressBody({
 
   return (
     <div className="-mt-4">
+      <div ref={weightSectionRef} className="scroll-mt-28">
       <div className="sec">Weight</div>
       <div className="bg-card border border-border rounded-[14px] p-4 mb-2">
         <div className="flex justify-between items-baseline mb-3">
@@ -228,6 +239,7 @@ export default function ProgressBody({
           + Log today&apos;s weight
         </button>
       </div>
+      </div>
 
       <div className="flex gap-[3px] bg-[rgba(255,255,255,0.03)] border border-border rounded-[10px] p-[3px] mb-4">
         {PERIODS.map((p) => (
@@ -279,6 +291,7 @@ export default function ProgressBody({
         </button>
       </div>
 
+      <div ref={measurementsSectionRef} className="scroll-mt-28">
       <div className="sec">Measurements</div>
       <div className="bg-card border border-border rounded-[14px] overflow-hidden mb-2">
         {MEASUREMENTS.map(({ key, label }, i) => {
@@ -313,6 +326,7 @@ export default function ProgressBody({
       >
         + Log measurements
       </button>
+      </div>
 
       <div ref={photosSectionRef} className="scroll-mt-28">
         <div className="sec">Photos</div>

@@ -236,14 +236,14 @@ export default function ProgressOverview({
       <div className="overview-section">
         <button
           type="button"
-          onClick={() => onGoToTab?.('Strength')}
+          onClick={() => onGoToTab?.('Strength', { strengthSection: 'volume' })}
           className="progress-section-label text-left w-full cursor-pointer hover:opacity-80 transition-opacity"
         >
           Last 30 Days
         </button>
         <button
           type="button"
-          onClick={() => onGoToTab?.('Strength')}
+          onClick={() => onGoToTab?.('Strength', { strengthSection: 'volume' })}
           className="activity-card w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 rounded-[14px]"
         >
         <div className="activity-body">
@@ -344,14 +344,14 @@ export default function ProgressOverview({
         <div className="overview-section">
           <button
             type="button"
-            onClick={() => onGoToTab?.('Body')}
+            onClick={() => onGoToTab?.('Body', { bodySection: 'weight' })}
             className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
           >
             Body
           </button>
           <button
             type="button"
-            onClick={() => onGoToTab?.('Body')}
+            onClick={() => onGoToTab?.('Body', { bodySection: 'weight' })}
             className="grid grid-cols-2 gap-2 w-full text-left cursor-pointer hover:opacity-95 transition-opacity border-0 p-0 bg-transparent"
           >
             {latestWeight && (
@@ -380,14 +380,14 @@ export default function ProgressOverview({
       )}
 
       <div className="overview-section">
-        <StrengthVolumeSection history={safeHistory} allLibraryExercises={allLibraryExercises} unitWeight={unitWeight} onGoToStrength={() => onGoToTab?.('Strength')} />
+        <StrengthVolumeSection history={safeHistory} allLibraryExercises={allLibraryExercises} unitWeight={unitWeight} onGoToStrength={() => onGoToTab?.('Strength', { strengthSection: 'volume' })} />
       </div>
 
       {movers.length > 0 && (
         <div className="overview-section">
           <button
             type="button"
-            onClick={() => onGoToTab?.('Strength')}
+            onClick={() => onGoToTab?.('Strength', { strengthSection: 'topMovers' })}
             className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
           >
             Strength · top movers
@@ -396,7 +396,7 @@ export default function ProgressOverview({
             <button
               key={m.name}
               type="button"
-              onClick={() => onGoToTab?.('Strength')}
+              onClick={() => onGoToTab?.('Strength', { strengthSection: 'topMovers' })}
               className="w-full bg-card border border-border rounded-[14px] p-[13px_14px] mb-[6px] flex items-center justify-between text-left cursor-pointer hover:border-accent/30 transition-colors last:mb-0"
             >
               <div>
@@ -469,7 +469,7 @@ export default function ProgressOverview({
       <div className="overview-section">
         <button
           type="button"
-          onClick={() => onGoToTab?.('Strength')}
+          onClick={() => onGoToTab?.('Strength', { strengthSection: 'volume' })}
           className="sec text-left w-full cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
         >
           Workout history

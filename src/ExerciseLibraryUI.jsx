@@ -42,7 +42,7 @@ export default function ExerciseLibrary({
   const customCount = allExercises.filter(e => e.isCustom).length
 
   const chipOff = 'bg-card-alt text-muted border-border-strong'
-  const chipOn = 'bg-accent text-on-accent border-transparent'
+  const chipOn = 'border-accent bg-accent/10 text-accent'
 
   function muscleChipStyle(m, isActive) {
     const mg = MUSCLE_GROUPS[m]
@@ -60,8 +60,8 @@ export default function ExerciseLibrary({
 
       {/* My exercises toggle */}
       <div className="flex bg-card-alt border-[1.5px] border-border-strong rounded-xl overflow-hidden mb-3">
-        <button onClick={() => setMyOnly(false)} className={`flex-1 py-2.5 text-sm font-bold transition-all ${!myOnly ? 'bg-accent text-on-accent' : 'text-muted'}`}>All exercises</button>
-        <button onClick={() => setMyOnly(true)} className={`flex-1 py-2.5 text-sm font-bold transition-all ${myOnly ? 'bg-success/15 text-success' : 'text-muted'}`}>My exercises{customCount > 0 ? ` (${customCount})` : ''}</button>
+        <button onClick={() => setMyOnly(false)} className={`flex-1 py-2.5 text-sm font-bold transition-colors border border-transparent ${!myOnly ? 'border-accent bg-accent/10 text-accent' : 'text-muted'}`}>All exercises</button>
+        <button onClick={() => setMyOnly(true)} className={`flex-1 py-2.5 text-sm font-bold transition-colors border border-transparent ${myOnly ? 'border-success bg-success/10 text-success' : 'text-muted'}`}>My exercises{customCount > 0 ? ` (${customCount})` : ''}</button>
       </div>
 
       {/* Create custom */}

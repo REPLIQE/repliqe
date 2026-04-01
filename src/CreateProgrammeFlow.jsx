@@ -782,7 +782,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
                 key={g.id}
                 type="button"
                 onClick={() => setGoal(g.id)}
-                className={`w-full rounded-[10px] p-3.5 text-left border-2 transition-colors ${goal === g.id ? 'border-accent/60 bg-accent/10' : 'border-border bg-card hover:border-border-strong'}`}
+                className={`w-full rounded-[10px] p-3.5 text-left border-2 transition-colors ${goal === g.id ? 'border-accent bg-accent/10' : 'border-border bg-card hover:border-border-strong'}`}
               >
                 <div className="font-semibold text-text">{g.label}</div>
                 <div className="text-xs text-muted-strong mt-0.5">{g.sub}</div>
@@ -797,7 +797,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
                 key={d}
                 type="button"
                 onClick={() => setDaysPerWeek(d)}
-                className={`w-14 h-14 rounded-[10px] font-bold text-lg border-2 transition-colors ${daysPerWeek === d ? 'border-accent bg-accent text-on-accent shadow-lg shadow-accent/20' : 'border-border bg-card text-muted-strong hover:border-border-strong'}`}
+                className={`w-14 h-14 rounded-[10px] font-bold text-lg border-2 transition-colors ${daysPerWeek === d ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card text-muted-strong hover:border-border-strong'}`}
               >
                 {d}
               </button>
@@ -811,7 +811,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
                 key={opt.id}
                 type="button"
                 onClick={() => setSessionLength(opt.id)}
-                className={`w-full rounded-[10px] p-3.5 text-left border-2 transition-colors ${sessionLength === opt.id ? 'border-accent/60 bg-accent/10' : 'border-border bg-card hover:border-border-strong'}`}
+                className={`w-full rounded-[10px] p-3.5 text-left border-2 transition-colors ${sessionLength === opt.id ? 'border-accent bg-accent/10' : 'border-border bg-card hover:border-border-strong'}`}
               >
                 <div className="font-semibold text-text">{opt.label}</div>
                 <div className="text-xs text-muted-strong mt-0.5">{opt.sub}</div>
@@ -826,7 +826,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
                 key={e.id}
                 type="button"
                 onClick={() => setEquipment(e.id)}
-                className={`w-full rounded-[10px] p-3.5 text-left border-2 transition-colors ${equipment === e.id ? 'border-accent/60 bg-accent/10' : 'border-border bg-card hover:border-border-strong'}`}
+                className={`w-full rounded-[10px] p-3.5 text-left border-2 transition-colors ${equipment === e.id ? 'border-accent bg-accent/10' : 'border-border bg-card hover:border-border-strong'}`}
               >
                 <div className="font-semibold text-text">{e.label}</div>
                 <div className="text-xs text-muted-strong mt-0.5">{e.sub}</div>
@@ -841,7 +841,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
                 key={l.id}
                 type="button"
                 onClick={() => setLevel(l.id)}
-                className={`w-full rounded-[10px] p-3.5 text-left border-2 transition-colors ${level === l.id ? 'border-accent/60 bg-accent/10' : 'border-border bg-card hover:border-border-strong'}`}
+                className={`w-full rounded-[10px] p-3.5 text-left border-2 transition-colors ${level === l.id ? 'border-accent bg-accent/10' : 'border-border bg-card hover:border-border-strong'}`}
               >
                 <div className="font-semibold text-text">{l.label}</div>
                 <div className="text-xs text-muted-strong mt-0.5">{l.sub}</div>
@@ -862,7 +862,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
                       type="button"
                       onClick={() => toggleTag(tag)}
                       className={`rounded-full px-3.5 py-1.5 text-sm font-semibold border-2 transition-colors ${
-                        on ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border bg-card text-muted hover:border-border-strong'
+                        on ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card text-muted hover:border-border-strong'
                       }`}
                     >
                       {tag}
@@ -904,7 +904,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
                       type="button"
                       onClick={() => toggleTag(tag)}
                       className={`rounded-full px-3.5 py-1.5 text-sm font-semibold border-2 transition-colors ${
-                        on ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border bg-card text-muted hover:border-border-strong'
+                        on ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card text-muted hover:border-border-strong'
                       }`}
                     >
                       {tag}

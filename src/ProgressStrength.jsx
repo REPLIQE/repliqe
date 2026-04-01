@@ -1,11 +1,37 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react'
 import { getTopMovers, getTrainedExercises, getRecentlyTrainedExercises, getE1RMHistory, getBestE1RM } from './progressUtils'
 import StrengthVolumeSection from './StrengthVolumeSection'
 
 const PERIODS = ['4W', '3M', '6M', '1Y', 'All']
 
-export default function ProgressStrength({ history, unitWeight, formatDecimal, formatDateForDisplay, allLibraryExercises = [] }) {
+export default function ProgressStrength({
+  history,
+  unitWeight,
+  formatDecimal,
+  formatDateForDisplay,
+  allLibraryExercises = [],
+  scrollToSection = null,
+  onConsumedScrollSection,
+}) {
   const fmt = formatDecimal ?? ((n) => (n != null && n !== '' ? String(n) : '—'))
+  const volumeSectionRef = useRef(null)
+  const topMoversSectionRef = useRef(null)
+  const deepDiveSectionRef = useRef(null)
+
+  useLayoutEffect(() => {
+    if (!scrollToSection) return
+    const map = {
+      volume: volumeSectionRef,
+      topMovers: topMoversSectionRef,
+      deepDive: deepDiveSectionRef,
+    }
+    const ref = map[scrollToSection]
+    if (ref?.current) {
+      ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    onConsumedScrollSection?.()
+  }, [scrollToSection, onConsumedScrollSection])
+
   const [period, setPeriod] = useState('6M')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
@@ -53,7 +79,10 @@ export default function ProgressStrength({ history, unitWeight, formatDecimal, f
 
   return (
     <div className="-mt-4">
-      <StrengthVolumeSection history={safeHistory} allLibraryExercises={allLibraryExercises} unitWeight={unitWeight} />
+      <div ref={volumeSectionRef} className="scroll-mt-28">
+        <StrengthVolumeSection history={safeHistory} allLibraryExercises={allLibraryExercises} unitWeight={unitWeight} />
+      </div>
+      <div ref={topMoversSectionRef} className="scroll-mt-28">
       <div className="sec">Top movers</div>
       {movers.length === 0 && (
         <div className="text-sm text-muted italic mb-4">Train each exercise at least 2 times to see top movers</div>
@@ -80,7 +109,9 @@ export default function ProgressStrength({ history, unitWeight, formatDecimal, f
           </div>
         </button>
       ))}
+      </div>
 
+      <div ref={deepDiveSectionRef} className="scroll-mt-28">
       <div className="sec">Exercise deep-dive</div>
       <div className="bg-card border border-border rounded-[12px] p-[11px_14px] flex items-center gap-[9px] mb-3">
         <svg
@@ -126,10 +157,10 @@ export default function ProgressStrength({ history, unitWeight, formatDecimal, f
                   setSearch('')
                   setShowAllExercises(false)
                 }}
-                className={`shrink-0 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all ${
+                className={`shrink-0 px-3 py-2 rounded-lg border text-[12px] font-semibold transition-colors ${
                   selected === name
-                    ? 'bg-accent text-on-accent shadow-lg shadow-accent/20'
-                    : 'bg-card border border-border text-text hover:border-accent/50'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-border-strong bg-card-alt text-text hover:border-accent/50'
                 }`}
               >
                 {name}
@@ -161,7 +192,7 @@ export default function ProgressStrength({ history, unitWeight, formatDecimal, f
                 setShowAllExercises(false)
               }}
               className={`w-full px-4 py-3 text-left text-[13px] font-semibold border-b border-border last:border-0 transition-colors ${
-                selected === name ? 'bg-accent/10 text-accent border-accent/20' : 'text-text hover:bg-card-alt'
+                selected === name ? 'bg-accent/10 text-accent border-l-2 border-l-accent' : 'text-text hover:bg-card-alt'
               }`}
             >
               {name}
@@ -258,8 +289,10 @@ export default function ProgressStrength({ history, unitWeight, formatDecimal, f
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
-                className={`flex-1 py-[6px] rounded-[7px] text-[10px] font-bold text-center ${
-                  period === p ? 'bg-[rgba(123,123,255,0.15)] text-accent' : 'text-muted'
+                className={`flex-1 py-[6px] rounded-[7px] text-[10px] font-bold text-center border transition-colors ${
+                  period === p
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-transparent text-muted'
                 }`}
               >
                 {p}
@@ -320,6 +353,7 @@ export default function ProgressStrength({ history, unitWeight, formatDecimal, f
           )}
         </>
       )}
+      </div>
     </div>
   )
 }

@@ -484,7 +484,7 @@ export default function AccountTab({
                 userPlan === 'free'
                   ? 'border-border-strong text-muted-strong bg-card-alt'
                   : userPlan === 'pro'
-                    ? 'border-accent/50 text-accent bg-accent/10'
+                    ? 'border-accent text-accent bg-accent/10'
                     : 'border-success/50 text-success bg-success/10'
               }`}
             >

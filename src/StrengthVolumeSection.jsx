@@ -201,15 +201,16 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
           <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 scrollbar-none">
             {muscleKeys.map((g) => {
               const isActive = muscleGroup === g
-              const style = g === 'All'
-                ? { bg: 'bg-card-alt', text: 'text-muted-strong', activeBg: 'bg-accent', activeText: 'text-on-accent' }
-                : { bg: 'bg-card-alt', text: 'text-muted-strong', activeBg: 'bg-accent', activeText: 'text-on-accent' }
               return (
                 <button
                   key={g}
                   type="button"
                   onClick={() => setMuscleGroup(g)}
-                  className={`shrink-0 min-h-[36px] px-3 py-2 rounded-lg text-[11px] font-bold flex items-center justify-center ${isActive ? style.activeBg + ' ' + style.activeText : style.bg + ' ' + style.text}`}
+                  className={`shrink-0 min-h-[36px] px-3 py-2 rounded-lg border text-[11px] font-bold flex items-center justify-center transition-colors ${
+                    isActive
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-border-strong bg-card-alt text-muted-strong hover:border-accent/50'
+                  }`}
                 >
                   {g === 'All' ? 'All' : MUSCLE_GROUPS[g]?.label ?? g}
                 </button>
@@ -224,7 +225,12 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
                 key={p}
                 type="button"
                 onClick={() => setPeriod(p)}
-                className={'flex-1 min-h-[36px] py-2 px-3 rounded-lg text-[11px] font-bold flex items-center justify-center ' + (period === p ? 'bg-accent text-on-accent' : 'bg-card-alt text-muted-strong border border-border')}
+                className={
+                  'flex-1 min-h-[36px] py-2 px-3 rounded-lg border text-[11px] font-bold flex items-center justify-center transition-colors ' +
+                  (period === p
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-border-strong bg-card-alt text-muted-strong hover:border-accent/50')
+                }
               >
                 {p}
               </button>

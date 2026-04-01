@@ -1344,8 +1344,10 @@ export function PhotosViewContent({
               }
               setView(v)
             }}
-            className={`flex-1 py-2 rounded-[8px] text-[11px] font-bold capitalize ${
-              view === v ? 'bg-card-alt border border-border-strong text-text' : 'text-muted'
+            className={`flex-1 py-2 rounded-lg border text-[11px] font-bold capitalize transition-colors ${
+              view === v
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-border-strong bg-card-alt text-text'
             }`}
           >
             {v}
@@ -1547,7 +1549,7 @@ export function PhotosViewContent({
                                         setComparePickerOpen(null)
                                       }}
                                       className={`w-full px-3 py-2.5 text-left text-[12px] font-medium border-b border-border last:border-0 transition-colors ${
-                                        currentId === s.id ? 'bg-accent/15 text-accent' : 'text-text hover:bg-card-alt'
+                                        currentId === s.id ? 'bg-accent/10 text-accent border-l-2 border-l-accent' : 'text-text hover:bg-card-alt'
                                       }`}
                                     >
                                       {fmtDate(s.date)}
@@ -1572,8 +1574,10 @@ export function PhotosViewContent({
                           key={key}
                           type="button"
                           onClick={() => setCompareAngle(key)}
-                          className={`flex-1 py-2 rounded-[8px] text-[11px] font-bold ${
-                            compareAngle === key ? 'bg-card-alt border border-border-strong text-text' : 'text-muted'
+                          className={`flex-1 py-2 rounded-lg border text-[11px] font-bold transition-colors ${
+                            compareAngle === key
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-border-strong bg-card-alt text-text'
                           }`}
                         >
                           {label}

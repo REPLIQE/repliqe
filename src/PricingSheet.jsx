@@ -193,8 +193,8 @@ export default function PricingSheet({ open, onClose, userId, userPlan, onPlanCh
             <button
               type="button"
               onClick={() => setBilling('monthly')}
-              className={`flex-1 py-2 text-center rounded-lg text-xs font-bold transition-all ${
-                billing === 'monthly' ? 'bg-accent text-on-accent shadow-lg shadow-accent/25' : 'text-muted-mid'
+              className={`flex-1 py-2 text-center rounded-lg text-xs font-bold transition-colors border ${
+                billing === 'monthly' ? 'border-accent bg-accent/10 text-accent' : 'border-transparent text-muted-mid'
               }`}
             >
               Monthly
@@ -202,8 +202,8 @@ export default function PricingSheet({ open, onClose, userId, userPlan, onPlanCh
             <button
               type="button"
               onClick={() => setBilling('yearly')}
-              className={`flex-1 py-2 text-center rounded-lg text-xs font-bold transition-all ${
-                billing === 'yearly' ? 'bg-accent text-on-accent shadow-lg shadow-accent/25' : 'text-muted-mid'
+              className={`flex-1 py-2 text-center rounded-lg text-xs font-bold transition-colors border ${
+                billing === 'yearly' ? 'border-accent bg-accent/10 text-accent' : 'border-transparent text-muted-mid'
               }`}
             >
               Yearly

@@ -17,23 +17,8 @@ export default function ProgressScreen(props) {
   } = props
   /** Start on Body when opening from workout complete → add photo (avoids one frame of Overview). */
   const [tab, setTab] = useState(() => (postCompleteOpenPhoto ? 'Body' : 'Overview'))
-  const [scrollToPhotosSection, setScrollToPhotosSection] = useState(false)
-  const [scrollRecoveryToTop, setScrollRecoveryToTop] = useState(false)
-  const [scrollStrengthToTop, setScrollStrengthToTop] = useState(false)
-
-  useEffect(() => {
-    if (tab === 'Recovery' && scrollRecoveryToTop) {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      setScrollRecoveryToTop(false)
-    }
-  }, [tab, scrollRecoveryToTop])
-
-  useEffect(() => {
-    if (tab === 'Strength' && scrollStrengthToTop) {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      setScrollStrengthToTop(false)
-    }
-  }, [tab, scrollStrengthToTop])
+  const [strengthScrollSection, setStrengthScrollSection] = useState(null)
+  const [bodyScrollSection, setBodyScrollSection] = useState(null)
 
   useEffect(() => {
     if (postCompleteOpenPhoto) setTab('Body')
@@ -53,11 +38,16 @@ export default function ProgressScreen(props) {
             {TABS.map((t) => (
               <button
                 key={t}
-                onClick={() => setTab(t)}
-                className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-all ${
+                onClick={() => {
+                  setTab(t)
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                  setStrengthScrollSection(null)
+                  setBodyScrollSection(null)
+                }}
+                className={`flex-1 py-2 text-center rounded-lg text-[11px] font-bold transition-colors border ${
                   tab === t
-                    ? 'bg-accent text-on-accent shadow-lg shadow-accent/25'
-                    : 'text-muted-strong'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-transparent text-muted-strong'
                 }`}
               >
                 {t}
@@ -74,23 +64,36 @@ export default function ProgressScreen(props) {
       {tab === 'Overview' && (
         <ProgressOverview
           {...props}
-          onGoToTab={(t) => {
+          onGoToTab={(t, opts) => {
             setTab(t)
-            if (t === 'Recovery') setScrollRecoveryToTop(true)
-            if (t === 'Strength') setScrollStrengthToTop(true)
+            if (t === 'Recovery') {
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }
+            if (t === 'Strength') {
+              setStrengthScrollSection(opts?.strengthSection ?? 'volume')
+            }
+            if (t === 'Body') {
+              setBodyScrollSection(opts?.bodySection ?? 'weight')
+            }
           }}
           onGoToBody={() => {
             setTab('Body')
-            setScrollToPhotosSection(true)
+            setBodyScrollSection('photos')
           }}
         />
       )}
-      {tab === 'Strength' && <ProgressStrength {...props} />}
+      {tab === 'Strength' && (
+        <ProgressStrength
+          {...props}
+          scrollToSection={strengthScrollSection}
+          onConsumedScrollSection={() => setStrengthScrollSection(null)}
+        />
+      )}
       {tab === 'Body' && (
         <ProgressBody
           {...restProps}
-          scrollToPhotosSection={scrollToPhotosSection}
-          onScrolledToPhotos={() => setScrollToPhotosSection(false)}
+          bodyScrollSection={bodyScrollSection}
+          onConsumedBodyScroll={() => setBodyScrollSection(null)}
           openAddPhoto={postCompleteOpenPhoto}
           onConsumedOpenAddPhoto={onConsumedOpenAddPhoto}
           returnToWorkoutAfterPhotoClose={returnToWorkoutAfterPhotoClose}
