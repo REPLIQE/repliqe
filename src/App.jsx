@@ -2917,7 +2917,12 @@ ${JSON.stringify(ctx)}`
 
                 const nextRtnId = getNextRoutine(activeProgramme, history)
                 const routineIds = activeProgramme.routineIds || []
+                const routineChipGridStyle =
+                  routineIds.length > 0
+                    ? { gridTemplateColumns: `repeat(${routineIds.length}, minmax(0, 1fr))` }
+                    : undefined
                 const displayRtnId = (selectedStartRoutineId && routineIds.includes(selectedStartRoutineId)) ? selectedStartRoutineId : nextRtnId
+                const displayRtnIdx = displayRtnId ? routineIds.indexOf(displayRtnId) : -1
                 const displayRtn = displayRtnId ? routines.find(r => r.id === displayRtnId) : null
                 const exCount = displayRtn?.exercises?.length ?? 0
                 const setCountR = displayRtn?.exercises?.reduce((s, e) => s + getSetConfigs(e).length, 0) ?? 0
@@ -2926,6 +2931,8 @@ ${JSON.stringify(ctx)}`
                 const dayMuscles = displayRtn ? getDayMusclesSlugs(displayRtn.exercises || [], allLibraryExercises) : { primary: [], secondary: [] }
                 const emptyInProgress = workoutActive && startedFromEmptyRef.current
                 const startReadinessHint = null
+                const startCardZoneTabCls =
+                  'inline-flex shrink-0 items-center rounded-md px-2 py-[3px] border border-[var(--plan-border-35)]/45 bg-[var(--plan-surface-07)] text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--plan-text-muted)]'
 
                 return (
                   <>
@@ -2934,8 +2941,9 @@ ${JSON.stringify(ctx)}`
 
                       {/* TOP ZONE: programme name + day selector */}
                       <div className="px-4 pt-4 pb-3 bg-white/[0.02]">
-                        <div className="text-sm font-bold text-white mb-3">
-                          {activeProgramme.name}
+                        <div className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
+                          <span className={startCardZoneTabCls}>Programme</span>
+                          <div className="text-sm font-semibold text-white min-w-0 [overflow-wrap:anywhere]">{activeProgramme.name}</div>
                         </div>
                         {startReadinessHint ? (
                           <p className={`${TYPE_MICRO} text-amber-400/90 leading-snug mb-3`}>{startReadinessHint}</p>
@@ -2948,22 +2956,12 @@ ${JSON.stringify(ctx)}`
                             </button>
                           </div>
                         ) : (
-                          <div className="flex gap-1.5 items-end">
+                          <div className="grid gap-x-1.5 items-end" style={routineChipGridStyle}>
                             {routineIds.map((rtnId) => {
                               const rtn = routines.find(r => r.id === rtnId)
                               const isSelected = rtnId === displayRtnId
-                              const showUpNext = !workoutActive && rtnId === nextRtnId
                               return (
-                                <div key={rtnId} className="flex-1 min-w-0 flex flex-col items-stretch">
-                                  {showUpNext ? (
-                                    <div
-                                      className={`flex justify-center relative z-10 pointer-events-none -mb-[18px] transition-transform duration-500 ease-out delay-200 ${isSelected ? '-translate-y-[3px]' : '-translate-y-[13px]'}`}
-                                    >
-                                      <span className={`${TYPE_CAPTION} font-extrabold tracking-[0.65px] text-plan-text uppercase animate-pulse-up-next inline-block leading-none`}>
-                                        Up next
-                                      </span>
-                                    </div>
-                                  ) : null}
+                                <div key={rtnId} className="min-w-0 flex flex-col items-stretch">
                                   <button
                                     type="button"
                                     onClick={() => rtn && setSelectedStartRoutineId(rtnId)}
@@ -2974,7 +2972,13 @@ ${JSON.stringify(ctx)}`
                                     }`}
                                   >
                                     <div className={`${TYPE_MICRO} font-semibold truncate ${isSelected ? 'text-plan-text' : 'text-[var(--plan-text-muted)]'}`}>
-                                      {rtn?.name || '—'}
+                                      {isSelected ? (
+                                        <span className="inline-flex justify-center min-h-[1em] animate-up-next-fade-in-after-title">
+                                          <span className="inline-block text-[10px] tracking-[0.14em] uppercase animate-up-next-pulse-soft">Up next</span>
+                                        </span>
+                                      ) : (
+                                        rtn?.name || '—'
+                                      )}
                                     </div>
                                   </button>
                                 </div>
@@ -2984,29 +2988,67 @@ ${JSON.stringify(ctx)}`
                         )}
                       </div>
 
-                      {/* BOTTOM ZONE: selected day details — animates in from above on load & when switching day (not the day chips) */}
+                      {/* BOTTOM ZONE: samme kolonne-grid som chips — titel spænder fra valgt boks til højre kant */}
                       {displayRtn && (
-                        <div key={displayRtnId} className="border-t border-white/[0.05] animate-start-routine-drop-in">
+                        <div className="border-t border-white/[0.05]">
                           <div className="px-4 pt-3 pb-4">
-                          {/* Badges inline with day title + last trained */}
-                          <div className="mb-3">
-                            <div className="flex flex-wrap items-center gap-2 min-w-0">
-                              <div className={`${TYPE_BODY} font-bold text-white min-w-0 truncate`}>{displayRtn.name}</div>
-                              {workoutActive && !emptyInProgress ? (
-                                <div className="inline-flex items-center rounded-full px-3 py-1 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-pulse-badge shrink-0">
-                                  <span className={`${TYPE_MICRO} font-extrabold tracking-[0.8px] text-in-progress`}>IN PROGRESS</span>
-                                </div>
-                              ) : null}
-                            </div>
-                            <div className={`${TYPE_META} text-white/30 mt-[2px]`}>
-                              {(() => {
+                          <div className="grid gap-x-1.5 items-start mb-3" style={routineChipGridStyle}>
+                            {(() => {
+                              const narrowEndChip = displayRtnIdx >= 3
+                              const oneLineNarrow = displayRtnIdx >= 1
+                              const gridCol = oneLineNarrow
+                                ? `${displayRtnIdx + 1} / ${displayRtnIdx + 2}`
+                                : `${displayRtnIdx + 1} / -1`
+                              const titleRow =
+                                displayRtnIdx === 0
+                                  ? 'flex flex-wrap gap-x-2 gap-y-1 justify-start items-center'
+                                  : 'flex flex-nowrap gap-x-2 justify-start items-center'
+                              const badgeSelf = 'self-center'
+                              const h3Cls = oneLineNarrow
+                                ? 'text-sm font-semibold text-white whitespace-nowrap shrink-0 leading-snug animate-start-routine-title-move'
+                                : 'text-sm font-semibold text-white min-w-0 max-w-full leading-snug animate-start-routine-title-move [overflow-wrap:anywhere]'
+                              const titleAbbrevInnerCls = oneLineNarrow
+                                ? 'routine-title-abbrev-inner routine-title-abbrev-inner--oneline'
+                                : 'routine-title-abbrev-inner routine-title-abbrev-inner--wrap'
+                              const metaCls = oneLineNarrow
+                                ? `${TYPE_META} text-white/30 mt-[2px] whitespace-nowrap text-left`
+                                : `${TYPE_META} text-white/30 mt-[2px] min-w-0 text-left leading-snug [overflow-wrap:anywhere]`
+                              const trained = (() => {
                                 const days = getDaysSinceRoutine(displayRtnId)
                                 if (days === null) return 'Never trained'
                                 if (days === 0) return 'Trained today'
                                 if (days === 1) return 'Last trained yesterday'
                                 return `Last trained ${days} days ago`
-                              })()}
-                            </div>
+                              })()
+                              const gridItemStyle = oneLineNarrow
+                                ? {
+                                    gridColumn: gridCol,
+                                    justifySelf: narrowEndChip ? 'end' : 'center',
+                                    width: 'max-content',
+                                  }
+                                : { gridColumn: gridCol }
+                              return (
+                                <div
+                                  key={displayRtnId}
+                                  className={oneLineNarrow ? 'min-w-0 z-[1]' : 'min-w-0'}
+                                  style={gridItemStyle}
+                                >
+                                  <div className="flex flex-col items-start text-left">
+                                    <div className={titleRow}>
+                                      <h3 className={h3Cls}>
+                                        <span className={titleAbbrevInnerCls}>{displayRtn.name}</span>
+                                      </h3>
+                                      {workoutActive && !emptyInProgress ? (
+                                        <div className={`inline-flex items-center rounded-full px-3 py-1 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-pulse-badge shrink-0 ${badgeSelf}`}>
+                                          <span className={`${TYPE_MICRO} font-extrabold tracking-[0.8px] text-in-progress`}>IN PROGRESS</span>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                    <div className={metaCls}>{trained}</div>
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </div>
 
                           <div className="flex gap-2 mb-3">
@@ -3105,7 +3147,7 @@ ${JSON.stringify(ctx)}`
                             <button
                               type="button"
                               onClick={() => tryStart('routine', displayRtn)}
-                              className={`w-full py-4 rounded-2xl ${TYPE_TITLE_BLOCK} text-white flex items-center justify-center gap-2.5 active:opacity-95`}
+                              className={`w-full py-4 rounded-2xl ${TYPE_TITLE_BLOCK} !font-semibold text-white flex items-center justify-center gap-2.5 active:opacity-95`}
                               style={{ background: 'var(--plan-gradient)', boxShadow: 'var(--plan-shadow-card)' }}
                               aria-label={`Start ${displayRtn?.name || 'workout'}`}
                             >
@@ -3186,7 +3228,7 @@ ${JSON.stringify(ctx)}`
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <div className="flex-1 min-w-0 pr-1">
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-sm font-bold tracking-tight text-white flex-1 min-w-0 truncate">{prog.name}</span>
+                                <span className="text-sm font-semibold tracking-tight text-white flex-1 min-w-0 truncate">{prog.name}</span>
                                 <div className="flex items-center shrink-0">
                                   <button
                                     type="button"

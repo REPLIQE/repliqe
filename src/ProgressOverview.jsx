@@ -641,7 +641,7 @@ function WorkoutHistoryRow({ workout, unitWeight, formatDecimal, toNum, formatDa
         <span className={`${TYPE_MICRO} shrink-0 w-[72px] tabular-nums`} style={{ fontVariantNumeric: 'tabular-nums' }}>
           {displayDate}
         </span>
-        <span className={`${TYPE_TITLE_ROW} truncate min-w-0 flex-1`}>
+        <span className={`${TYPE_TITLE_ROW} !font-semibold truncate min-w-0 flex-1`}>
           {workout.name || displayDate}
         </span>
       </div>
@@ -769,7 +769,7 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
     <BottomSheet onClose={onClose} zClass="z-50" variant="page" layout="flex" padding="none" closeOnBackdrop={false} showHandle={false} panelClassName="max-h-[90vh]">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
           <div>
-            <h2 className={TYPE_SHEET_TITLE}>
+            <h2 className={`${TYPE_SHEET_TITLE} !font-semibold`}>
               {workout.name || displayDate}
             </h2>
             <p className={`${TYPE_MICRO} mt-0.5`}>{displayDate}</p>
@@ -904,7 +904,7 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
             if (!done.length) return null
             return (
               <div key={i} className="mb-4">
-                <div className={`${TYPE_BODY} font-bold mb-1.5`}>{ex.name}</div>
+                <div className={`${TYPE_BODY} font-semibold mb-1.5`}>{ex.name}</div>
                 {done.map((s, j) => {
                   const restSec = Number(s.restTime ?? s.rest_time ?? 0) || 0
                   const restTimeStr = restSec > 0
@@ -981,7 +981,7 @@ function AllHistorySheet({ history = [], unitWeight, formatDecimal, toNum, forma
   return (
     <BottomSheet onClose={onClose} zClass="z-50" variant="page" layout="flex" padding="none" closeOnBackdrop={false} showHandle={false} panelClassName="max-h-[92vh]">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
-          <h2 className={TYPE_SHEET_TITLE}>Workout history</h2>
+          <h2 className={`${TYPE_SHEET_TITLE} !font-semibold`}>Workout history</h2>
           <button
             type="button"
             onClick={onClose}

@@ -93,7 +93,7 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
         <div className="w-9 h-1 bg-white/10 rounded-full mx-auto mt-3 mb-1 shrink-0" aria-hidden />
         <div className="flex items-start justify-between px-5 pt-4 pb-4">
           <div>
-            <h2 className={`${TYPE_SHEET_TITLE} text-white`}>Recovery</h2>
+            <h2 className={`${TYPE_SHEET_TITLE} !font-semibold text-white`}>Recovery</h2>
             <p className={`${TYPE_MICRO} text-white/35 mt-0.5`}>{dayName} · primary muscles only affect score</p>
           </div>
           <button
@@ -105,7 +105,7 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
           </button>
         </div>
         <div className="h-px bg-white/[0.06] mx-5 mb-4" />
-        <p className={`px-5 ${TYPE_EMPHASIS_SM} uppercase tracking-[0.8px] text-white/25 mb-3`}>Primary</p>
+        <p className={`px-5 ${TYPE_EMPHASIS_SM} !font-semibold uppercase tracking-[0.8px] text-white/25 mb-3`}>Primary</p>
         <div className="px-5 flex flex-col gap-3.5">
           {primary.map((slug) => (
             <MuscleRow key={slug} slug={slug} type="primary" />
@@ -124,7 +124,7 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
         )}
         <div className="mx-5 mt-5 mb-6 bg-[rgba(0,229,160,0.06)] border border-[rgba(0,229,160,0.18)] rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <p className={`${TYPE_MICRO} font-bold uppercase tracking-wide text-white/35`}>Overall score</p>
+            <p className={`${TYPE_MICRO} font-semibold uppercase tracking-wide text-white/35`}>Overall score</p>
             <p className={`${TYPE_META} text-white/20 mt-0.5`}>Avg of primary muscles, per-muscle window</p>
           </div>
           <span className={`${TYPE_DISPLAY_LG} text-[#00e5a0]`}>{primaryPct}%</span>

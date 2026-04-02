@@ -74,7 +74,7 @@ export function PhotoThumb({ session, label, angle = 'front', weightLog, muscleM
       </ProgressPhoto>
       <div className="absolute bottom-0 left-0 right-0 bg-black/50 pt-2 pb-2 px-2 text-center pointer-events-none min-h-[44px] flex flex-col justify-end">
         {label && (
-          <span className={`block ${TYPE_LABEL_MICRO} text-white`}>
+          <span className={`block ${TYPE_LABEL_MICRO} !font-semibold text-white`}>
             {label}
           </span>
         )}

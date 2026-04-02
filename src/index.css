@@ -437,6 +437,146 @@ select:focus-visible {
   animation: up-next-pulse 2.5s ease-in-out infinite;
 }
 
+/* Start card: selected day chip — weaker opacity pulse */
+@keyframes up-next-pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.78;
+  }
+}
+.animate-up-next-pulse-soft {
+  animation: up-next-pulse-soft 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-up-next-pulse-soft {
+    animation: none;
+  }
+}
+
+/* «Up next» fadér ind først når rutineoverskriften er begyndt at rulle ned */
+@keyframes up-next-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-up-next-fade-in-after-title {
+  animation: up-next-fade-in 0.74s ease-out both;
+  /* starter kort efter titel-animationen er i gang */
+  animation-delay: 0.26s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-up-next-fade-in-after-title {
+    animation: none;
+    animation-delay: 0;
+    opacity: 1;
+  }
+}
+
+/* Start card: titel skubbes ned (h3); indre span afkortes via clip-path (glattere end max-width-layout) */
+@keyframes start-routine-title-pushed-move {
+  0% {
+    opacity: 0.82;
+    transform: translate3d(0, -46px, 0);
+  }
+  52% {
+    opacity: 1;
+    transform: translate3d(0, 5px, 0);
+  }
+  60% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Afkort indtil h3 har landet (~48% af 1.84s ≈ 60% af 1.48s); ud-rulning er langsommere end skubbet */
+@keyframes routine-title-abbrev-rollout-oneline {
+  0%,
+  48% {
+    -webkit-clip-path: inset(0 56% 0 0);
+    clip-path: inset(0 56% 0 0);
+  }
+  100% {
+    -webkit-clip-path: inset(0 0 0 0);
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes routine-title-abbrev-rollout-wrap {
+  0%,
+  48% {
+    -webkit-clip-path: inset(0 56% 0 0);
+    clip-path: inset(0 56% 0 0);
+    white-space: nowrap;
+  }
+  95% {
+    -webkit-clip-path: inset(0 0 0 0);
+    clip-path: inset(0 0 0 0);
+    white-space: nowrap;
+  }
+  100% {
+    -webkit-clip-path: inset(0 0 0 0);
+    clip-path: inset(0 0 0 0);
+    white-space: normal;
+  }
+}
+
+.animate-start-routine-title-move {
+  animation: start-routine-title-pushed-move 1.48s both;
+  animation-timing-function: cubic-bezier(0.22, 0.92, 0.18, 1);
+  backface-visibility: hidden;
+}
+
+.routine-title-abbrev-inner {
+  display: inline-block;
+  overflow: visible;
+  vertical-align: bottom;
+  min-width: 0;
+  will-change: clip-path;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.routine-title-abbrev-inner--oneline {
+  animation: routine-title-abbrev-rollout-oneline 1.84s both;
+  animation-timing-function: cubic-bezier(0.18, 0.88, 0.12, 1);
+}
+
+.routine-title-abbrev-inner--wrap {
+  animation: routine-title-abbrev-rollout-wrap 1.84s both;
+  animation-timing-function: cubic-bezier(0.18, 0.88, 0.12, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-start-routine-title-move {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .routine-title-abbrev-inner {
+    will-change: auto;
+    transform: none;
+    backface-visibility: visible;
+  }
+  .routine-title-abbrev-inner--oneline,
+  .routine-title-abbrev-inner--wrap {
+    animation: none;
+    -webkit-clip-path: none !important;
+    clip-path: none !important;
+    white-space: inherit;
+    overflow: visible;
+  }
+}
+
 /* Start button: pulse only on play triangle */
 @keyframes start-play-triangle-pulse {
   0%,
@@ -832,22 +972,6 @@ input:focus-visible:invalid {
 }
 .animate-pulse-badge {
   animation: badge-pulse 2.4s ease-in-out infinite;
-}
-
-/* Start tab "Up next": text-only pulse — no box-shadow (avoids rectangular glow on inline text) */
-@keyframes up-next-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    text-shadow: 0 0 6px rgba(123, 127, 255, 0.45);
-  }
-  50% {
-    opacity: 0.42;
-    text-shadow: 0 0 16px rgba(123, 127, 255, 0.85);
-  }
-}
-.animate-pulse-up-next {
-  animation: up-next-pulse 1.85s ease-in-out infinite;
 }
 
 @keyframes slide-up {

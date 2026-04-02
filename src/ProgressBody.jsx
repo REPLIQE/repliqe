@@ -538,7 +538,7 @@ function PhotoSessionThumb({ filename, label, onClick }) {
       ) : (
         <span className={TYPE_LABEL_UPPER}>{label}</span>
       )}
-      <span className={`absolute bottom-1.5 left-0 right-0 text-center ${TYPE_LABEL_MICRO} text-white/25`}>
+      <span className={`absolute bottom-1.5 left-0 right-0 text-center ${TYPE_LABEL_MICRO} !font-semibold text-white/25`}>
         {label}
       </span>
     </div>

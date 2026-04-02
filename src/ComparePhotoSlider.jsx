@@ -172,10 +172,10 @@ export default function ComparePhotoSlider({
             </svg>
           </div>
         </div>
-        <div className={`pointer-events-none absolute bottom-2 left-2 z-[3] max-w-[46%] truncate rounded-md bg-black/55 px-2 py-1 ${TYPE_EMPHASIS_SM} uppercase tracking-wide text-white backdrop-blur-sm`}>
+        <div className={`pointer-events-none absolute bottom-2 left-2 z-[3] max-w-[46%] truncate rounded-md bg-black/55 px-2 py-1 ${TYPE_EMPHASIS_SM} !font-semibold uppercase tracking-wide text-white backdrop-blur-sm`}>
           {beforeDateLabel}
         </div>
-        <div className={`pointer-events-none absolute bottom-2 right-2 z-[3] max-w-[46%] truncate rounded-md bg-black/55 px-2 py-1 text-right ${TYPE_EMPHASIS_SM} uppercase tracking-wide text-white backdrop-blur-sm`}>
+        <div className={`pointer-events-none absolute bottom-2 right-2 z-[3] max-w-[46%] truncate rounded-md bg-black/55 px-2 py-1 text-right ${TYPE_EMPHASIS_SM} !font-semibold uppercase tracking-wide text-white backdrop-blur-sm`}>
           {afterDateLabel}
         </div>
       </div>
