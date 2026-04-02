@@ -426,7 +426,6 @@ export default function PhotosModal({
   const [captureThumbSrcs, setCaptureThumbSrcs] = useState({ front: null, back: null, side: null })
   const inputCameraRef = useRef(null)
   const inputLibraryRef = useRef(null)
-  const captureDateInputRef = useRef(null)
   const initialPhotoSessionsRef = useRef(null)
   /** Angles that already triggered onProgressPhotoAdded this capture (retake does not re-add). */
   const progressQuotaAnglesRef = useRef(new Set())
@@ -701,25 +700,6 @@ export default function PhotosModal({
     if (openToAdd) onClose()
   }
 
-  function openCaptureDatePicker() {
-    const el = captureDateInputRef.current
-    if (!el) return
-    if (typeof el.showPicker === 'function') {
-      try {
-        el.showPicker()
-        return
-      } catch {
-        /* NotAllowedError or unsupported */
-      }
-    }
-    try {
-      el.focus({ preventScroll: true })
-    } catch {
-      el.focus()
-    }
-    el.click()
-  }
-
   if (showCaptureUI) {
     const currentAngle = ANGLES[captureStep]
     const isDone = captureStep >= ANGLES.length
@@ -989,24 +969,15 @@ export default function PhotosModal({
           <div className="w-full max-w-sm mb-6">
             <div className="relative flex w-full flex-col rounded-2xl border-2 border-dashed border-border-strong bg-card-alt p-4 transition-colors hover:border-accent/50 hover:bg-card">
               <input
-                ref={captureDateInputRef}
+                id="progress-photo-capture-date-done"
                 type="date"
                 value={enGBToDateInput(captureSessionDate)}
                 onChange={handleCaptureSessionDateChange}
-                className="sr-only"
+                className="absolute inset-0 z-10 h-full min-h-[4.5rem] w-full cursor-pointer opacity-0"
                 style={{ fontSize: 16 }}
-                tabIndex={-1}
-              />
-              <button
-                type="button"
-                className="absolute inset-0 z-10 rounded-2xl cursor-pointer"
                 aria-label="Change session date"
-                onClick={(e) => {
-                  e.preventDefault()
-                  openCaptureDatePicker()
-                }}
               />
-              <div className="flex items-center gap-3 pointer-events-none">
+              <div className="pointer-events-none relative z-0 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-accent">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -1070,24 +1041,15 @@ export default function PhotosModal({
         <div className="px-6 pb-3">
           <div className="relative flex w-full flex-col rounded-xl border-2 border-dashed border-border-strong bg-card-alt p-3 transition-colors hover:border-accent/50 hover:bg-card">
             <input
-              ref={captureDateInputRef}
+              id="progress-photo-capture-date-capture"
               type="date"
               value={enGBToDateInput(captureSessionDate)}
               onChange={handleCaptureSessionDateChange}
-              className="sr-only"
+              className="absolute inset-0 z-10 h-full min-h-[3.75rem] w-full cursor-pointer opacity-0"
               style={{ fontSize: 16 }}
-              tabIndex={-1}
-            />
-            <button
-              type="button"
-              className="absolute inset-0 z-10 rounded-xl cursor-pointer"
               aria-label="Change session date"
-              onClick={(e) => {
-                e.preventDefault()
-                openCaptureDatePicker()
-              }}
             />
-            <div className="flex items-center gap-3 pointer-events-none">
+            <div className="pointer-events-none relative z-0 flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-accent">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
