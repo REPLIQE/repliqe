@@ -380,15 +380,24 @@ function sanitizeExerciseForCurrentWorkoutPersist(ex) {
   return out
 }
 
+/** Samme fuldskærms-spinner som under workout bootstrap — undgår hop mellem auth og app */
+function FullScreenBootSpinner({ ariaBusy, ariaLive } = {}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-page"
+      aria-busy={ariaBusy}
+      aria-live={ariaLive}
+    >
+      <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+}
+
 function App() {
   const { user, loading } = useAuth()
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-page flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+    return <FullScreenBootSpinner />
   }
   if (!user) {
     return <LoginScreen />
@@ -2724,16 +2733,19 @@ ${JSON.stringify(ctx)}`
     }
   }
 
-  /** Undgå glimt af Start-skærm / "no programme" før Firestore har gendannet currentWorkout og hentet planer. */
+  /** Undgå glimt før både appData (fx currentWorkout) og workout-plans er klar — ellers forsvinder overlay når kun den ene gren er færdig (typisk ved genlogin / cache). */
   const workoutBootstrapLoading =
     page === 'workout' &&
     !showCompleteScreen &&
-    (!appDataLoaded || (!workoutActive && !workoutPlansLoaded))
+    (!appDataLoaded || !workoutPlansLoaded)
 
   return (
     <>
       {showPrivacy && <PrivacyPolicy onClose={closePrivacyLegal} />}
       {showTerms && <TermsOfService onClose={closeTermsLegal} />}
+      {workoutBootstrapLoading ? (
+        <FullScreenBootSpinner ariaBusy={true} ariaLive="polite" />
+      ) : null}
       <div className="min-h-screen bg-page text-text pb-16 overflow-x-hidden w-full max-w-[100%]">
         <div className="px-4 py-6 max-w-md mx-auto w-full min-w-0">
 
@@ -2804,12 +2816,6 @@ ${JSON.stringify(ctx)}`
               unitWeight={unitWeight}
               formatDecimal={formatDecimal}
             />
-          )}
-
-          {page === 'workout' && !showCompleteScreen && workoutBootstrapLoading && (
-            <div className="flex flex-col items-center justify-center min-h-[65vh] px-4" aria-busy="true">
-              <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-            </div>
           )}
 
           {/* WORKOUT START SCREEN (also when workout active but sheet closed) */}
@@ -3369,7 +3375,7 @@ ${JSON.stringify(ctx)}`
           )}
 
           {/* ACTIVE WORKOUT - full bottom sheet */}
-          {page === 'workout' && workoutActive && showActiveWorkoutSheet && !showCompleteScreen && (
+          {page === 'workout' && workoutActive && showActiveWorkoutSheet && !showCompleteScreen && !workoutBootstrapLoading && (
             <BottomSheet onClose={() => setShowActiveWorkoutSheet(false)} variant="page" layout="flex" showHandle={false} padding="none">
                 <div className="sticky top-0 z-10 pt-2 pb-2 px-4 bg-page">
                   <div className="w-9 h-1 bg-handle rounded mx-auto mb-3 shrink-0" />
@@ -4866,13 +4872,15 @@ ${JSON.stringify(ctx)}`
           </BottomSheet>
         )}
 
-        {/* BOTTOM NAV */}
+        {/* BOTTOM NAV — skjules under workout bootstrap så spinner ikke hopper når menuen mountes */}
+        {!workoutBootstrapLoading ? (
         <div className="fixed bottom-0 left-0 right-0 z-30 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-2.5 pb-4 flex justify-around max-w-md mx-auto" role="navigation" aria-label="Main">
           <button type="button" onClick={() => setPage('progress')} aria-current={page === 'progress' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-accent' : 'stroke-text'}`} aria-hidden><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-xs font-semibold ${page === 'progress' ? 'text-accent' : 'text-text'}`}>Progress</span></button>
           <button type="button" onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} aria-current={page === 'workout' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-accent' : 'stroke-text'}`} aria-hidden><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-xs font-semibold ${page === 'workout' ? 'text-accent' : 'text-text'}`}>Workout</span></button>
           <button type="button" onClick={() => setPage('coach')} aria-current={page === 'coach' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'coach' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'coach' ? 'text-accent' : 'text-text'}`} aria-hidden><path d="M12 3a6 6 0 0 0 4.5 9.97A5 5 0 0 1 12 21a5 5 0 0 1-4.5-8.03A6 6 0 0 0 12 3z" /></svg><span className={`text-xs font-semibold ${page === 'coach' ? 'text-accent' : 'text-text'}`}>Coach</span></button>
           <button type="button" onClick={() => setPage('profile')} aria-current={page === 'profile' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'profile' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'profile' ? 'stroke-accent' : 'stroke-text'}`} aria-hidden><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg><span className={`text-xs font-semibold ${page === 'profile' ? 'text-accent' : 'text-text'}`}>Profile</span></button>
         </div>
+        ) : null}
       </div>
     </>
   )
