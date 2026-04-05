@@ -2859,6 +2859,7 @@ ${JSON.stringify(ctx)}`
                   const emptyInProgress = workoutActive && startedFromEmptyRef.current
                   return (
                     <>
+                      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">New programme</h2>
                       <div className="rounded-2xl border border-border bg-card p-6 text-center mb-5">
                         <div className="w-12 h-12 rounded-full bg-card-alt flex items-center justify-center mx-auto mb-3 text-muted-strong">
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -2867,6 +2868,7 @@ ${JSON.stringify(ctx)}`
                         <p className="text-muted-strong text-sm mb-4">Create a programme to get structured workouts and track your progress.</p>
                         <button type="button" onClick={createProgramme} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">+ Create programme</button>
                       </div>
+                      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">Empty workout</h2>
                       <button
                         type="button"
                         onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
@@ -2879,8 +2881,7 @@ ${JSON.stringify(ctx)}`
                               <span className={`${TYPE_STATUS_BADGE} text-in-progress`}>IN PROGRESS</span>
                             </div>
                           ) : null}
-                          <div className="text-text text-sm font-bold">Empty Workout</div>
-                          <div className={`${TYPE_MICRO} text-muted-strong`}>{emptyInProgress ? 'Tap to open workout' : 'Start fresh and add exercises as you go'}</div>
+                          <div className="text-text text-sm font-bold">{emptyInProgress ? 'Tap to open workout' : 'Start fresh and add exercises as you go'}</div>
                         </div>
                       </button>
                     </>
@@ -2893,6 +2894,7 @@ ${JSON.stringify(ctx)}`
                   const emptyInProgress = workoutActive && startedFromEmptyRef.current
                   return (
                     <>
+                      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">New programme</h2>
                       <div className="rounded-2xl border border-border bg-card p-6 text-center mb-5">
                         <div className="w-12 h-12 rounded-full bg-card-alt flex items-center justify-center mx-auto mb-3 text-muted-strong">
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -2901,6 +2903,7 @@ ${JSON.stringify(ctx)}`
                         <div className="text-muted-deep text-xs mb-4">Suggestions for your next routine will only be shown after you've created your first programme.</div>
                         <button type="button" onClick={() => setWorkoutTab('plan')} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">Go to Plan</button>
                       </div>
+                      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">Empty workout</h2>
                       <button
                         type="button"
                         onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
@@ -2913,8 +2916,7 @@ ${JSON.stringify(ctx)}`
                               <span className={`${TYPE_STATUS_BADGE} text-in-progress`}>IN PROGRESS</span>
                             </div>
                           ) : null}
-                          <div className="text-text text-sm font-bold">Empty Workout</div>
-                          <div className={`${TYPE_MICRO} text-muted-strong`}>{emptyInProgress ? 'Tap to open workout' : 'Start fresh and add exercises as you go'}</div>
+                          <div className="text-text text-sm font-bold">{emptyInProgress ? 'Tap to open workout' : 'Start fresh and add exercises as you go'}</div>
                         </div>
                       </button>
                     </>
@@ -2937,19 +2939,17 @@ ${JSON.stringify(ctx)}`
                 const dayMuscles = displayRtn ? getDayMusclesSlugs(displayRtn.exercises || [], allLibraryExercises) : { primary: [], secondary: [] }
                 const emptyInProgress = workoutActive && startedFromEmptyRef.current
                 const startReadinessHint = null
-                const startCardZoneTabCls =
-                  'inline-flex shrink-0 items-center rounded-md px-2 py-[3px] border border-[var(--plan-border-35)]/45 bg-[var(--plan-surface-07)] text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--plan-text-muted)]'
 
                 return (
                   <>
+                    <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">Active programme</h2>
                     {/* Programme card — Design C */}
                     <div className="rounded-[18px] border border-white/[0.07] overflow-hidden mb-5">
 
                       {/* TOP ZONE: programme name + day selector */}
                       <div className="px-4 pt-4 pb-3 bg-white/[0.02]">
-                        <div className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
-                          <span className={startCardZoneTabCls}>Programme</span>
-                          <div className="text-sm font-semibold text-white min-w-0 [overflow-wrap:anywhere]">{activeProgramme.name}</div>
+                        <div className="mb-3 w-full min-w-0 text-left text-sm font-semibold text-white [overflow-wrap:anywhere]">
+                          {activeProgramme.name}
                         </div>
                         {startReadinessHint ? (
                           <p className={`${TYPE_MICRO} text-amber-400/90 leading-snug mb-3`}>{startReadinessHint}</p>
@@ -3169,10 +3169,11 @@ ${JSON.stringify(ctx)}`
                         </div>
                       )}
                     </div>
+                    <h2 className="mb-2 mt-3 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">Empty workout</h2>
                     <button
                       type="button"
                       onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
-                      className={`w-full mt-3 rounded-2xl p-4 flex items-center gap-3.5 transition-colors ${
+                      className={`w-full rounded-2xl p-4 flex items-center gap-3.5 transition-colors ${
                         emptyInProgress
                           ? 'border-[1.5px] border-[var(--in-progress-border-40)] bg-[var(--in-progress-surface-08)]'
                           : 'border border-[var(--plan-border-35)] bg-[var(--plan-surface-07)]'
@@ -3185,8 +3186,7 @@ ${JSON.stringify(ctx)}`
                             <span className={`${TYPE_STATUS_BADGE} text-in-progress`}>IN PROGRESS</span>
                           </div>
                         ) : null}
-                        <div className="text-sm font-bold text-text">Empty Workout</div>
-                        <div className="text-xs text-white/35 mt-0.5">{emptyInProgress ? 'Tap to open workout' : 'Start fresh and add exercises as you go'}</div>
+                        <div className="text-sm font-bold text-text">{emptyInProgress ? 'Tap to open workout' : 'Start fresh and add exercises as you go'}</div>
                       </div>
                     </button>
                     {showStartRecoveryInfo && displayRtn ? (
