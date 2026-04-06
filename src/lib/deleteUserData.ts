@@ -1,6 +1,7 @@
 import { doc, collection, getDocs, deleteDoc, setDoc } from 'firebase/firestore'
 import { ref, listAll, deleteObject } from 'firebase/storage'
 import { db, storage } from './firebase'
+import { DEFAULT_SETTINGS } from './userFirestore'
 
 /**
  * Clears all user content (programmes, sessions, app data, photos) and resets profile flags
@@ -27,7 +28,16 @@ export async function clearAllUserContent(uid: string): Promise<void> {
   }
 
   const userRef = doc(db, 'users', uid)
-  await setDoc(userRef, { hasSeenProgrammeExplainer: false }, { merge: true })
+  await setDoc(
+    userRef,
+    {
+      hasSeenProgrammeExplainer: false,
+      onboardingComplete: false,
+      onboardingStep: 0,
+      settings: DEFAULT_SETTINGS,
+    },
+    { merge: true }
+  )
 }
 
 /**
