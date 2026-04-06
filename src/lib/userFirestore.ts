@@ -60,15 +60,6 @@ export async function mergeUserSettings(uid: string, settings: UserSettings): Pr
   })
 }
 
-/**
- * Set that the user has seen the "How programmes work" explainer (first-time create flow).
- * Stored at users/{uid}.hasSeenProgrammeExplainer
- */
-export async function setHasSeenProgrammeExplainer(uid: string): Promise<void> {
-  const ref = doc(db, 'users', uid)
-  await updateDoc(ref, { hasSeenProgrammeExplainer: true })
-}
-
 /** Paid subscription tier stored at users/{uid}.plan (top-level field). */
 export type PaidPlan = 'pro' | 'elite'
 export type UserPlan = 'free' | PaidPlan

@@ -12,6 +12,9 @@ import MuscleMapCard from './MuscleMapCard'
 import { getDayMuscles, getDayMusclesSlugs, getRecoveryPct, formatMuscleLabel, formatDecimal as formatDecimalUtil, parseDecimal as parseDecimalUtil } from './utils'
 import { formatStoredDateForDisplay, DATE_FORMAT_DDMY, DATE_FORMAT_MMDY } from './dateFormatUtils'
 import OnboardingScreen from './OnboardingScreen'
+
+/** Welcome “Skip” → terms screen only; after accept, exit to app without prefs/programme. */
+const ONBOARDING_TERMS_ONLY_KEY = 'repliqe_onboarding_terms_only_path'
 import { useAuth } from './lib/AuthContext'
 import LoginScreen from './lib/LoginScreen'
 import AccountTab, { AboutTab } from './lib/AccountTab'
@@ -478,7 +481,6 @@ function AppContent() {
   const [onboardingRequired, setOnboardingRequired] = useState(false)
   const [onboardingStep, setOnboardingStep] = useState(0)
   const [onboardingProgrammeFlowLaunched, setOnboardingProgrammeFlowLaunched] = useState(false)
-  const [onboardingCreatedProgrammeName, setOnboardingCreatedProgrammeName] = useState('')
   const [onboardingPrefsDraft, setOnboardingPrefsDraft] = useState({
     unitWeight: 'kg',
     unitDistance: 'km',
@@ -488,6 +490,8 @@ function AppContent() {
     bodyweightInput: '',
   })
   const [onboardingLegalChecked, setOnboardingLegalChecked] = useState(false)
+  /** True after Welcome → Skip: user must accept terms, then lands on Workout with no programme. */
+  const [onboardingTermsOnlyPath, setOnboardingTermsOnlyPath] = useState(false)
   const isOnboardingRouteRef = useRef(false)
   const workoutPlansLoadedRef = useRef(false)
   const workoutSessionsLoadedRef = useRef(false)
@@ -499,7 +503,7 @@ function AppContent() {
   const [muscleLastWorked, setMuscleLastWorked] = useState({})
   const [routines, setRoutines] = useState([])
   const [showCreateProgramme, setShowCreateProgramme] = useState(false)
-  const [createProgrammeFlowStep, setCreateProgrammeFlowStep] = useState(null) // 'entry' | 'explainer' | 'choice' | 'coach'
+  const [createProgrammeFlowStep, setCreateProgrammeFlowStep] = useState(null) // 'entry' | 'choice' | 'coach'
   const [editingProgrammeId, setEditingProgrammeId] = useState(null)
   const [showCreateRoutine, setShowCreateRoutine] = useState(false)
   const [editingRoutineId, setEditingRoutineId] = useState(null)
@@ -620,7 +624,7 @@ function AppContent() {
       setOnboardingRequired(need)
       if (need) {
         const st = typeof d?.onboardingStep === 'number' ? d.onboardingStep : 0
-        setOnboardingStep(Math.min(4, Math.max(0, st)))
+        setOnboardingStep(Math.min(3, Math.max(0, st)))
       }
       setOnboardingGateLoaded(true)
     })()
@@ -628,6 +632,13 @@ function AppContent() {
       cancelled = true
     }
   }, [user?.uid])
+
+  useEffect(() => {
+    if (!onboardingGateLoaded || onboardingStep !== 1) return
+    try {
+      if (sessionStorage.getItem(ONBOARDING_TERMS_ONLY_KEY) === '1') setOnboardingTermsOnlyPath(true)
+    } catch (_) {}
+  }, [onboardingGateLoaded, onboardingStep])
 
   useEffect(() => {
     if (!onboardingGateLoaded) return
@@ -1415,6 +1426,23 @@ function AppContent() {
     setEditingProgrammeId(null)
   }
 
+  /** Complete onboarding and leave — after first programme save, or Skip from legal. Lands on Workout → Start (empty programme state when none exist). */
+  function finishOnboardingAfterProgramme() {
+    const uid = user?.uid
+    if (!uid || !isOnboardingRouteRef.current) return
+    setOnboardingProgrammeFlowLaunched(false)
+    setCreateProgrammeFlowStep(null)
+    void completeUserOnboarding(uid)
+      .then(() => {
+        setOnboardingRequired(false)
+        setPage('workout')
+        setWorkoutTab('start')
+        setSelectedStartRoutineId(null)
+        navigate('/workout', { replace: true })
+      })
+      .catch((err) => console.error('completeUserOnboarding:', err))
+  }
+
   function saveNewProgramme(name, type, routineIdsToSave, newRoutinesData) {
     const ts = Date.now()
     const progId = 'prog_' + ts
@@ -1442,11 +1470,7 @@ function AppContent() {
     setShowCreateProgramme(false)
     if (!isFirstProgramme) setShowSetActiveAfterCreate(progId)
     if (isOnboardingRouteRef.current && user?.uid) {
-      const displayName = (name && name.trim()) ? name.trim() : '2 Split - Push/Pull'
-      setOnboardingCreatedProgrammeName(displayName)
-      setOnboardingStep(4)
-      void updateOnboardingProgress(user.uid, 4)
-      setOnboardingProgrammeFlowLaunched(false)
+      finishOnboardingAfterProgramme()
     }
   }
 
@@ -1493,10 +1517,7 @@ function AppContent() {
       .then(setPlanUsage)
       .catch((err) => console.error('planUsage coach programme saved:', err?.code || err?.message || err))
     if (isOnboardingRouteRef.current && user?.uid) {
-      setOnboardingCreatedProgrammeName(progIn.name || 'Programme')
-      setOnboardingStep(4)
-      void updateOnboardingProgress(user.uid, 4)
-      setOnboardingProgrammeFlowLaunched(false)
+      finishOnboardingAfterProgramme()
     }
   }
 
@@ -2781,70 +2802,94 @@ ${JSON.stringify(ctx)}`
   }
 
   const showOnboardingUi = onboardingRequired && location.pathname === '/onboarding'
+  const onboardingProgrammeFlowOpen =
+    onboardingStep === 3 && !!(createProgrammeFlowStep || showCreateProgramme)
 
   function handleOnboardingWelcomeContinue() {
     if (!user?.uid) return
+    setOnboardingTermsOnlyPath(false)
+    try {
+      sessionStorage.removeItem(ONBOARDING_TERMS_ONLY_KEY)
+    } catch (_) {}
+    setOnboardingStep(1)
+    void updateOnboardingProgress(user.uid, 1)
+  }
+
+  function handleOnboardingWelcomeSkip() {
+    if (!user?.uid) return
+    setOnboardingTermsOnlyPath(true)
+    try {
+      sessionStorage.setItem(ONBOARDING_TERMS_ONLY_KEY, '1')
+    } catch (_) {}
     setOnboardingStep(1)
     void updateOnboardingProgress(user.uid, 1)
   }
 
   function handleOnboardingLegalContinue() {
     if (!user?.uid) return
+    const termsOnly =
+      onboardingTermsOnlyPath ||
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(ONBOARDING_TERMS_ONLY_KEY) === '1')
+    if (termsOnly) {
+      try {
+        sessionStorage.removeItem(ONBOARDING_TERMS_ONLY_KEY)
+      } catch (_) {}
+      setOnboardingTermsOnlyPath(false)
+      finishOnboardingAfterProgramme()
+      return
+    }
     setOnboardingStep(2)
     void updateOnboardingProgress(user.uid, 2)
   }
 
   function handleOnboardingPreferencesContinue() {
     if (!user?.uid) return
-    const bw = parseDecimal(onboardingPrefsDraft.bodyweightInput)
-    if (Number.isNaN(bw) || bw <= 0) return
+    const bw = parseDecimal(String(onboardingPrefsDraft.bodyweightInput ?? '').trim())
+    const bodyweightOk = !Number.isNaN(bw) && bw > 0
     setUnitWeight(onboardingPrefsDraft.unitWeight)
     setUnitDistance(onboardingPrefsDraft.unitDistance)
     setUnitLength(onboardingPrefsDraft.unitLength)
     setDecimalSeparator(onboardingPrefsDraft.decimalSeparator)
     setDateFormat(onboardingPrefsDraft.dateFormat)
-    setBodyweight(bw)
+    if (bodyweightOk) setBodyweight(bw)
     mergeUserSettings(user.uid, {
       unitWeight: onboardingPrefsDraft.unitWeight,
       unitDistance: onboardingPrefsDraft.unitDistance,
       unitLength: onboardingPrefsDraft.unitLength,
       decimalSeparator: onboardingPrefsDraft.decimalSeparator,
       dateFormat: onboardingPrefsDraft.dateFormat,
-      bodyweight: bw,
+      ...(bodyweightOk ? { bodyweight: bw } : {}),
     }).catch((err) => console.error('mergeUserSettings onboarding:', err))
     setOnboardingStep(3)
     void updateOnboardingProgress(user.uid, 3)
-  }
-
-  function handleOnboardingCoach() {
     setOnboardingProgrammeFlowLaunched(true)
     createProgramme()
   }
 
-  function handleOnboardingManual() {
+  function handleOnboardingResumeProgrammeFlow() {
     setOnboardingProgrammeFlowLaunched(true)
-    openManualCreateProgramme()
+    createProgramme()
+  }
+
+  function handleOnboardingSkipAfterLegal() {
+    finishOnboardingAfterProgramme()
   }
 
   function handleOnboardingBack() {
     if (!user?.uid) return
     if (onboardingStep === 1) {
+      setOnboardingTermsOnlyPath(false)
+      try {
+        sessionStorage.removeItem(ONBOARDING_TERMS_ONLY_KEY)
+      } catch (_) {}
       setOnboardingStep(0)
       void updateOnboardingProgress(user.uid, 0)
     } else if (onboardingStep === 2) {
       setOnboardingStep(1)
       void updateOnboardingProgress(user.uid, 1)
-    }
-  }
-
-  async function handleOnboardingFinishTraining() {
-    if (!user?.uid) return
-    try {
-      await completeUserOnboarding(user.uid)
-      setOnboardingRequired(false)
-      navigate('/workout', { replace: true })
-    } catch (err) {
-      console.error('completeUserOnboarding:', err)
+    } else if (onboardingStep === 3 && !onboardingProgrammeFlowLaunched) {
+      setOnboardingStep(2)
+      void updateOnboardingProgress(user.uid, 2)
     }
   }
 
@@ -2909,27 +2954,25 @@ ${JSON.stringify(ctx)}`
           <OnboardingScreen
             step={onboardingStep}
             onWelcomeContinue={handleOnboardingWelcomeContinue}
+            onWelcomeSkip={handleOnboardingWelcomeSkip}
             legalChecked={onboardingLegalChecked}
             onLegalCheckedChange={setOnboardingLegalChecked}
             onLegalContinue={handleOnboardingLegalContinue}
+            onSkipOnboarding={handleOnboardingSkipAfterLegal}
+            termsOnlyPath={onboardingTermsOnlyPath}
             onOpenTerms={() => setShowTerms(true)}
             onOpenPrivacy={() => setShowPrivacy(true)}
             prefs={onboardingPrefsDraft}
             onPrefsChange={setOnboardingPrefsDraft}
             onPreferencesContinue={handleOnboardingPreferencesContinue}
-            onCoach={handleOnboardingCoach}
-            onManual={handleOnboardingManual}
-            programmeFlowLaunched={onboardingProgrammeFlowLaunched}
-            createdProgrammeName={
-              onboardingStep === 4
-                ? onboardingCreatedProgrammeName ||
-                  programmes.find((p) => p.isActive)?.name ||
-                  'Your programme'
-                : onboardingCreatedProgrammeName
-            }
-            onFinishTraining={handleOnboardingFinishTraining}
+            onResumeProgrammeFlow={handleOnboardingResumeProgrammeFlow}
+            programmeFlowOpen={onboardingProgrammeFlowOpen}
             onBack={handleOnboardingBack}
-            canGoBack={onboardingStep === 1 || onboardingStep === 2}
+            canGoBack={
+              onboardingStep === 1 ||
+              onboardingStep === 2 ||
+              (onboardingStep === 3 && !onboardingProgrammeFlowLaunched)
+            }
           />
         </div>
       ) : null}
@@ -4108,6 +4151,8 @@ ${JSON.stringify(ctx)}`
               saveCoachGeneratedProgramme={saveCoachGeneratedProgramme}
               onCoachGenerationSuccess={handleCoachGenerationSuccess}
               onOpenPrivacyPolicy={() => setShowPrivacy(true)}
+              inOnboarding={onboardingRequired && location.pathname === '/onboarding'}
+              onSkipOnboarding={onboardingRequired && location.pathname === '/onboarding' ? handleOnboardingSkipAfterLegal : undefined}
             />
           </Suspense>
         )}

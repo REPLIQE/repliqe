@@ -1,11 +1,11 @@
 import RepliqeLogo from './RepliqeLogo'
 import ActionButton from './ActionButton'
 import { DATE_FORMAT_DDMY, DATE_FORMAT_MMDY } from './dateFormatUtils'
-import { parseDecimal } from './utils'
+import { LegalDocumentIcon, LegalRowChevronRight } from './lib/legalRowIcons'
 
 function ProgressBar({ currentStep }) {
   if (currentStep < 1) return null
-  const total = 4
+  const total = 3
   const filled = Math.min(currentStep, total)
   return (
     <div className="flex gap-1.5 mb-6" role="progressbar" aria-valuenow={filled} aria-valuemin={0} aria-valuemax={total}>
@@ -15,6 +15,48 @@ function ProgressBar({ currentStep }) {
           className={`h-1 flex-1 rounded-full transition-colors ${i < filled ? 'bg-accent' : 'bg-white/10'}`}
         />
       ))}
+    </div>
+  )
+}
+
+function OnboardingJourneyPreview() {
+  const steps = [
+    { n: 1, title: 'Terms & privacy', sub: 'Review and accept' },
+    { n: 2, title: 'Preferences', sub: 'Units, dates, bodyweight' },
+    {
+      n: 3,
+      title: 'Your first programme',
+      sub: 'Coach builds a plan from your answers, or create everything yourself from scratch.',
+    },
+  ]
+  return (
+    <div
+      className="w-full max-w-sm mx-auto mt-7 rounded-2xl border border-border-strong bg-card-alt/45 px-4 py-4 text-left shadow-sm shadow-black/10"
+      aria-label="Onboarding overview"
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <span className="h-px flex-1 bg-gradient-to-r from-transparent to-border-strong/80" aria-hidden />
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-mid shrink-0">Your setup</p>
+        <span className="h-px flex-1 bg-gradient-to-l from-transparent to-border-strong/80" aria-hidden />
+      </div>
+      <ol className="space-y-0">
+        {steps.map((s, i) => (
+          <li key={s.n} className="flex gap-3.5">
+            <div className="flex flex-col items-center shrink-0 w-9">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-accent/40 bg-accent/[0.12] text-xs font-bold text-accent tabular-nums shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset]">
+                {s.n}
+              </span>
+              {i < steps.length - 1 ? (
+                <span className="w-px flex-1 min-h-[14px] bg-gradient-to-b from-border-strong to-border-strong/40 my-1" aria-hidden />
+              ) : null}
+            </div>
+            <div className={`min-w-0 ${i < steps.length - 1 ? 'pb-5' : ''} pt-1`}>
+              <p className="text-sm font-semibold text-text leading-snug">{s.title}</p>
+              <p className="text-xs text-muted-mid mt-1 leading-snug">{s.sub}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   )
 }
@@ -44,25 +86,22 @@ function ToggleRow({ label, options, value, onChange, optionLabels }) {
 export default function OnboardingScreen({
   step,
   onWelcomeContinue,
+  onWelcomeSkip,
   legalChecked,
   onLegalCheckedChange,
   onLegalContinue,
+  onSkipOnboarding,
+  termsOnlyPath,
   onOpenTerms,
   onOpenPrivacy,
   prefs,
   onPrefsChange,
   onPreferencesContinue,
-  onCoach,
-  onManual,
-  programmeFlowLaunched,
-  createdProgrammeName,
-  onFinishTraining,
+  onResumeProgrammeFlow,
+  programmeFlowOpen,
   onBack,
   canGoBack,
 }) {
-  const bwNum = parseDecimal(prefs.bodyweightInput)
-  const bodyweightValid = prefs.bodyweightInput.trim() !== '' && !Number.isNaN(bwNum) && bwNum > 0
-
   return (
     <div className="min-h-[100dvh] flex flex-col bg-page text-text px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-md mx-auto w-full">
       {step !== 0 ? (
@@ -85,46 +124,118 @@ export default function OnboardingScreen({
         </div>
       ) : null}
 
-      {step >= 1 && step <= 4 ? <ProgressBar currentStep={step} /> : step !== 0 ? <div className="mb-6" /> : null}
+      {step >= 1 && step <= 3 ? <ProgressBar currentStep={step} /> : step !== 0 ? <div className="mb-6" /> : null}
 
       {step === 0 && (
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-2">
-            <RepliqeLogo size={56} className="mb-6" />
-            <p className="text-lg text-muted-strong max-w-xs">Simple tracking. Real progress.</p>
+          <div className="shrink-0 flex justify-center px-1 pt-1 pb-2">
+            <div className="w-full max-w-sm rounded-2xl border border-border-strong/80 bg-card-alt/35 px-4 py-4 shadow-sm shadow-black/5">
+              <div className="flex items-center gap-4">
+                <div className="relative shrink-0">
+                  <div className="absolute -inset-1 rounded-2xl bg-accent/5 blur-md" aria-hidden />
+                  <RepliqeLogo size={56} className="relative shrink-0" />
+                </div>
+                <div className="text-left min-w-0">
+                  <h1 className="text-2xl font-bold text-text tracking-tight leading-tight mb-1">REPLIQE</h1>
+                  <p className="text-sm text-muted-strong leading-snug">Simple tracking. Real progress.</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="w-full max-w-sm mx-auto pt-4 shrink-0">
+          <div className="flex-1 flex flex-col justify-center min-h-0 overflow-y-auto px-1 py-4">
+            <div className="text-center w-full max-w-sm mx-auto">
+              <div className="mb-2 flex justify-center">
+                <span className="h-1 w-10 rounded-full bg-accent/50" aria-hidden />
+              </div>
+              <h2 className="text-[1.35rem] font-bold text-text tracking-tight mb-2">Welcome</h2>
+              <p className="text-sm text-muted-strong max-w-[280px] mx-auto leading-relaxed">
+                With a few short questions we&apos;ll get you training in no time.
+              </p>
+              <OnboardingJourneyPreview />
+            </div>
+          </div>
+          <div className="shrink-0 w-full max-w-sm mx-auto border-t border-border-strong/50 pt-5 mt-1 space-y-3 pb-1">
             <ActionButton type="button" variant="primary" className="w-full" onClick={onWelcomeContinue}>
               Get started
             </ActionButton>
+            <button
+              type="button"
+              onClick={onWelcomeSkip}
+              className="w-full text-center text-sm font-semibold text-muted-strong hover:text-text py-2.5 rounded-xl transition-colors"
+            >
+              Skip onboarding
+            </button>
           </div>
         </div>
       )}
 
       {step === 1 && (
-        <div className="flex-1 flex flex-col">
-          <p className="text-sm text-muted-strong mb-6">Before you continue, please review our terms.</p>
-          <div className="flex flex-col gap-3 mb-6">
-            <button type="button" onClick={onOpenTerms} className="text-left text-accent text-sm font-semibold underline underline-offset-2">
-              Terms of Use
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="mb-6">
+            <h1 className="text-xl font-bold text-text tracking-tight mb-2">Terms &amp; privacy</h1>
+            <p className="text-sm text-muted-strong leading-relaxed">
+              {termsOnlyPath
+                ? 'Accept the terms below to continue to the app without a programme. You can set preferences and add a programme later from Profile and Plan.'
+                : 'Review the documents below, then confirm to continue.'}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-border-strong bg-card-alt/50 overflow-hidden mb-5">
+            <button
+              type="button"
+              onClick={onOpenTerms}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left border-b border-border-strong/70 hover:bg-card-alt/80 active:bg-card-alt transition-colors"
+            >
+              <span className="flex items-center gap-3 min-w-0">
+                <span className="w-8 h-8 rounded-lg bg-card-alt flex items-center justify-center shrink-0 text-muted-strong">
+                  <LegalDocumentIcon />
+                </span>
+                <span className="text-sm font-semibold text-text">Terms of Use</span>
+              </span>
+              <LegalRowChevronRight />
             </button>
-            <button type="button" onClick={onOpenPrivacy} className="text-left text-accent text-sm font-semibold underline underline-offset-2">
-              Privacy Policy
+            <button
+              type="button"
+              onClick={onOpenPrivacy}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-card-alt/80 active:bg-card-alt transition-colors"
+            >
+              <span className="flex items-center gap-3 min-w-0">
+                <span className="w-8 h-8 rounded-lg bg-card-alt flex items-center justify-center shrink-0 text-muted-strong">
+                  <LegalDocumentIcon />
+                </span>
+                <span className="text-sm font-semibold text-text">Privacy Policy</span>
+              </span>
+              <LegalRowChevronRight />
             </button>
           </div>
-          <label className="flex items-start gap-3 mb-8 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={legalChecked}
-              onChange={(e) => onLegalCheckedChange(e.target.checked)}
-              className="mt-1 w-4 h-4 rounded border-border-strong accent-accent"
-            />
-            <span className="text-sm text-text leading-snug">I have read and agree to the Terms of Use and Privacy Policy</span>
-          </label>
-          <div className="mt-auto">
+
+          <div className="rounded-2xl border border-border-strong/90 bg-card-alt/30 p-4 mb-6">
+            <label className="flex items-start gap-3.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={legalChecked}
+                onChange={(e) => onLegalCheckedChange(e.target.checked)}
+                className="mt-0.5 w-[18px] h-[18px] rounded border-border-strong accent-accent shrink-0"
+              />
+              <span className="text-sm text-text leading-snug">
+                I have read and agree to the Terms of Use and Privacy Policy
+              </span>
+            </label>
+          </div>
+
+          <div className="mt-auto space-y-3 pt-2">
             <ActionButton type="button" variant="primary" className="w-full" disabled={!legalChecked} onClick={onLegalContinue}>
               Continue
             </ActionButton>
+            {legalChecked && !termsOnlyPath ? (
+              <button
+                type="button"
+                onClick={onSkipOnboarding}
+                className="w-full text-center text-sm font-semibold text-muted-strong hover:text-text py-2.5 rounded-xl transition-colors"
+              >
+                Skip onboarding
+              </button>
+            ) : null}
           </div>
         </div>
       )}
@@ -167,51 +278,33 @@ export default function OnboardingScreen({
               </div>
             </div>
           </div>
-          <ActionButton type="button" variant="primary" className="w-full shrink-0" disabled={!bodyweightValid} onClick={onPreferencesContinue}>
+          <ActionButton type="button" variant="primary" className="w-full shrink-0" onClick={onPreferencesContinue}>
             Continue
           </ActionButton>
         </div>
       )}
 
-      {step === 3 && (
-        <div className="flex-1 flex flex-col">
-          <h1 className="text-xl font-bold text-text mb-1">Create your first programme</h1>
-          <p className="text-sm text-muted-strong mb-6">Choose how you want to get started.</p>
-          <div className="flex flex-col gap-4 flex-1">
+      {step === 3 && programmeFlowOpen ? <div className="flex-1 min-h-0" aria-hidden /> : null}
+      {step === 3 && !programmeFlowOpen ? (
+        <div className="flex-1 flex flex-col justify-center text-center px-2">
+          <h1 className="text-xl font-bold text-text mb-2">Create your programme</h1>
+          <p className="text-sm text-muted-strong mb-8 max-w-sm mx-auto leading-relaxed">
+            You closed the setup. Continue here to choose Coach or manual — same as creating a programme from Plan.
+          </p>
+          <div className="w-full max-w-sm mx-auto space-y-3">
+            <ActionButton type="button" variant="primary" className="w-full" onClick={onResumeProgrammeFlow}>
+              Continue
+            </ActionButton>
             <button
               type="button"
-              onClick={onCoach}
-              disabled={programmeFlowLaunched}
-              className="flex-1 min-h-[120px] rounded-2xl border border-border-strong bg-card-alt p-5 text-left transition-colors hover:border-accent/50 disabled:opacity-50"
+              onClick={onSkipOnboarding}
+              className="w-full text-center text-sm font-semibold text-muted-strong hover:text-text py-2.5 rounded-xl transition-colors"
             >
-              <div className="text-base font-bold text-text mb-2">Build with Coach</div>
-              <p className="text-sm text-muted-strong">Answer a few questions and Coach will build a programme for you.</p>
-            </button>
-            <button
-              type="button"
-              onClick={onManual}
-              disabled={programmeFlowLaunched}
-              className="flex-1 min-h-[120px] rounded-2xl border border-border-strong bg-card-alt p-5 text-left transition-colors hover:border-accent/50 disabled:opacity-50"
-            >
-              <div className="text-base font-bold text-text mb-2">Build manually</div>
-              <p className="text-sm text-muted-strong">Create your own programme from scratch.</p>
+              Skip onboarding
             </button>
           </div>
-          <p className="text-center text-xs text-white/35 mt-6 mb-2">Your first programme is free.</p>
         </div>
-      )}
-
-      {step === 4 && (
-        <div className="flex-1 flex flex-col justify-center text-center px-1">
-          <h1 className="text-xl font-bold text-text mb-4">You&apos;re ready to train</h1>
-          <p className="text-sm text-muted-strong mb-10 leading-relaxed">
-            <span className="font-semibold text-text">{createdProgrammeName || 'Your programme'}</span> is set as your active programme and ready to go on the Workout screen.
-          </p>
-          <ActionButton type="button" variant="primary" className="w-full" onClick={onFinishTraining}>
-            Start training
-          </ActionButton>
-        </div>
-      )}
+      ) : null}
     </div>
   )
 }

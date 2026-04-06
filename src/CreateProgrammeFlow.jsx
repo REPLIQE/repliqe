@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { getAuth } from 'firebase/auth'
-import { getUserDoc, setHasSeenProgrammeExplainer } from './lib/userFirestore'
 import { PRIVACY_POLICY_URL } from './lib/legalUrls'
 import { app } from './lib/firebase'
 import { RepliqeLogoBuilding } from './RepliqeLogo'
@@ -154,6 +153,45 @@ function sanitizeParsedProgramme(parsed, validNamesLowerSet) {
   return { ...parsed, routines }
 }
 
+/** Matches OnboardingScreen step 1–3 shell (progress bar + typography). */
+function OnboardingFlowShell({ onBack, onSkipOnboarding, title, subtitle, children }) {
+  return (
+    <div className={`fixed inset-0 ${Z_OVERLAY} flex justify-center bg-page`}>
+      <div className="w-full max-w-md mx-auto flex flex-col min-h-[100dvh] px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] text-text">
+        <div className="flex items-center gap-2 min-h-[44px] mb-2">
+          <button type="button" onClick={onBack} className="p-2 -ml-2 rounded-xl text-muted-strong hover:text-text" aria-label="Back">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <div className="flex-1" />
+        </div>
+        <div className="flex gap-1.5 mb-6" role="progressbar" aria-valuenow={3} aria-valuemin={0} aria-valuemax={3}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i < 3 ? 'bg-accent' : 'bg-white/10'}`} />
+          ))}
+        </div>
+        <div className="flex-1 flex flex-col min-h-0">
+          <h1 className="text-xl font-bold text-text tracking-tight mb-2">{title}</h1>
+          {subtitle ? <p className="text-sm text-muted-strong leading-relaxed mb-6">{subtitle}</p> : null}
+          {children}
+        </div>
+        {onSkipOnboarding ? (
+          <div className="shrink-0 w-full max-w-sm mx-auto border-t border-border-strong/50 pt-5 mt-1 space-y-3 pb-1">
+            <button
+              type="button"
+              onClick={onSkipOnboarding}
+              className="w-full text-center text-sm font-semibold text-muted-strong hover:text-text py-2.5 rounded-xl transition-colors"
+            >
+              Skip onboarding
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 function SheetFrame({ label, title, subtitle, onBack, onClose, children, showFlowProgress, flowProgressCurrent }) {
   const hasProgress = showFlowProgress && typeof flowProgressCurrent === 'number'
   return (
@@ -187,7 +225,82 @@ function SheetFrame({ label, title, subtitle, onBack, onClose, children, showFlo
   )
 }
 
-export function CreateProgrammeChoiceScreen({ onCoach, onManual, onClose }) {
+export function CreateProgrammeChoiceScreen({ onCoach, onManual, onClose, inOnboarding = false, onSkipOnboarding }) {
+  const cards = (
+    <div className="space-y-3">
+      <button
+        type="button"
+        onClick={onCoach}
+        className={`w-full rounded-2xl p-4 text-left flex items-start gap-4 transition-colors ${
+          inOnboarding
+            ? 'border border-border-strong bg-card-alt/50 hover:bg-card-alt/80 active:bg-card-alt'
+            : 'border-2 border-accent/40 bg-accent/5 hover:border-accent/60 hover:bg-accent/[0.08]'
+        }`}
+      >
+        <div
+          className={`w-12 h-12 rounded-[10px] flex items-center justify-center shrink-0 ${
+            inOnboarding ? 'bg-accent/10 text-accent' : 'bg-accent/15 text-accent'
+          }`}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="M12 3a6 6 0 0 0 4.5 9.97A5 5 0 0 1 12 21a5 5 0 0 1-4.5-8.03A6 6 0 0 0 12 3z" />
+            <path d="M15 9.5a2.5 2.5 0 0 0-5 0 2.5 2.5 0 0 0 5 0z" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          {inOnboarding ? null : (
+            <span className={`inline-block ${TYPE_EMPHASIS_SM} px-2 py-0.5 rounded-full mb-2 bg-accent/15 text-accent`}>Coach</span>
+          )}
+          <div className="text-base font-bold text-text">{inOnboarding ? 'Build with Coach' : 'Create with Coach'}</div>
+          <p className="text-xs text-muted-strong mt-0.5 leading-snug">
+            {inOnboarding
+              ? 'Answer a few questions and Coach will build a programme for you.'
+              : 'Answer a few questions. Coach builds a programme tailored to your goals, level and equipment.'}
+          </p>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        onClick={onManual}
+        className={`w-full rounded-2xl p-4 text-left flex items-start gap-4 transition-colors ${
+          inOnboarding
+            ? 'border border-border-strong bg-card-alt/50 hover:bg-card-alt/80 active:bg-card-alt'
+            : 'border-2 border-border bg-card hover:border-border-strong'
+        }`}
+      >
+        <div className={`w-12 h-12 rounded-[10px] flex items-center justify-center shrink-0 ${inOnboarding ? 'bg-card-alt text-muted-strong' : 'bg-card-alt'}`}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-muted-strong" aria-hidden>
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-base font-bold text-text">Build manually</div>
+          <p className="text-xs text-muted-strong mt-0.5 leading-snug">
+            Create your own programme from scratch. Add routines and exercises yourself.
+          </p>
+        </div>
+      </button>
+    </div>
+  )
+
+  if (inOnboarding) {
+    return (
+      <OnboardingFlowShell
+        onBack={onClose}
+        onSkipOnboarding={onSkipOnboarding}
+        title="Your first programme"
+        subtitle="Choose how you want to get started — same steps as under Plan when you add a programme."
+      >
+        {cards}
+        <p className="text-center text-xs text-muted-mid mt-6">Your first programme is free.</p>
+      </OnboardingFlowShell>
+    )
+  }
+
   return (
     <SheetFrame
       label="NEW PROGRAMME"
@@ -196,124 +309,7 @@ export function CreateProgrammeChoiceScreen({ onCoach, onManual, onClose }) {
       onBack={onClose}
       onClose={onClose}
     >
-      <div className="space-y-3">
-        <button
-          type="button"
-          onClick={onCoach}
-          className="w-full rounded-2xl p-4 text-left border-2 border-accent/40 bg-accent/5 flex items-start gap-4 transition-colors hover:border-accent/60 hover:bg-accent/[0.08]"
-        >
-          <div className="w-12 h-12 rounded-[10px] flex items-center justify-center shrink-0 bg-accent/15 text-accent">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M12 3a6 6 0 0 0 4.5 9.97A5 5 0 0 1 12 21a5 5 0 0 1-4.5-8.03A6 6 0 0 0 12 3z" />
-              <path d="M15 9.5a2.5 2.5 0 0 0-5 0 2.5 2.5 0 0 0 5 0z" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className={`inline-block ${TYPE_EMPHASIS_SM} px-2 py-0.5 rounded-full mb-2 bg-accent/15 text-accent`}>Coach</span>
-            <div className="text-base font-bold text-text">Create with Coach</div>
-            <p className="text-xs text-muted-strong mt-0.5">Answer a few questions. Coach builds a programme tailored to your goals, level and equipment.</p>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={onManual}
-          className="w-full rounded-2xl p-4 text-left border-2 border-border bg-card flex items-start gap-4 transition-colors hover:border-border-strong"
-        >
-          <div className="w-12 h-12 rounded-[10px] bg-card-alt flex items-center justify-center shrink-0">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-muted-strong">
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-base font-bold text-text">Build manually</div>
-            <p className="text-xs text-muted-strong mt-0.5">Create your own programme from scratch. Add routines and choose exercises yourself.</p>
-          </div>
-        </button>
-      </div>
-    </SheetFrame>
-  )
-}
-
-/** Shared Programme → Routines → Exercises ladder (readable icons via currentColor + theme tokens). */
-export function ProgrammeStructureExplainerCards({ className = '' }) {
-  return (
-    <div className={`space-y-4 ${className}`}>
-      <div className="rounded-2xl p-4 border border-border bg-card flex items-start gap-3">
-        <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0 bg-accent/15 text-accent ring-1 ring-accent/20">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-          </svg>
-        </div>
-        <div>
-          <div className="font-bold text-text">Programme</div>
-          <p className="text-xs text-muted-strong mt-0.5">Your overall training plan. Ex: &quot;3 Day Push/Pull/Legs&quot;</p>
-        </div>
-      </div>
-      <div className="flex justify-center">
-        <span className="text-muted-strong" aria-hidden>
-          ↓
-        </span>
-      </div>
-      <div className="rounded-2xl p-4 border border-border bg-card flex items-start gap-3">
-        <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0 bg-success/15 text-success ring-1 ring-success/25">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M9 11l3 3L22 4" />
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-          </svg>
-        </div>
-        <div>
-          <div className="font-bold text-text">Routines</div>
-          <p className="text-xs text-muted-strong mt-0.5">Individual workouts in the plan. Ex: &quot;Day 1 Push&quot;</p>
-        </div>
-      </div>
-      <div className="flex justify-center">
-        <span className="text-muted-strong" aria-hidden>
-          ↓
-        </span>
-      </div>
-      <div className="rounded-2xl p-4 border border-border bg-card flex items-start gap-3">
-        <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0 bg-amber-500/15 text-amber-500 ring-1 ring-amber-500/30">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-            <path d="M6 4v16" />
-            <path d="M18 4v16" />
-            <path d="M2 8h4" />
-            <path d="M2 16h4" />
-            <path d="M18 8h4" />
-            <path d="M18 16h4" />
-          </svg>
-        </div>
-        <div>
-          <div className="font-bold text-text">Exercises + sets</div>
-          <p className="text-xs text-muted-strong mt-0.5">The exercises in each routine with reps and weight.</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export function CreateProgrammeExplainerScreen({ onGotIt, onSkip, onBack, onClose }) {
-  return (
-    <SheetFrame
-      label="BEFORE YOU START"
-      title="How programmes work"
-      subtitle="Here's how your training is structured in Repliqe."
-      onBack={onBack}
-      onClose={onClose}
-    >
-      <ProgrammeStructureExplainerCards className="mb-8" />
-      <div className="space-y-2">
-        <ActionButton type="button" onClick={onGotIt} variant="primary">
-          Got it — create my programme
-        </ActionButton>
-        <ActionButton type="button" onClick={onSkip} variant="tertiary" className="!min-h-0 py-2.5 active:scale-100">
-          Skip for now
-        </ActionButton>
-      </div>
+      {cards}
     </SheetFrame>
   )
 }
@@ -949,6 +945,8 @@ export default function CreateProgrammeFlow({
   allExercises,
   onCoachGenerationSuccess,
   onOpenPrivacyPolicy,
+  inOnboarding = false,
+  onSkipOnboarding,
 }) {
   const [resolvingEntry, setResolvingEntry] = useState(false)
 
@@ -956,25 +954,17 @@ export default function CreateProgrammeFlow({
     if (step !== 'entry' || !userId) return
     let cancelled = false
     setResolvingEntry(true)
-    getUserDoc(userId)
-      .then((data) => {
-        if (cancelled) return
-        onStepChange(data?.hasSeenProgrammeExplainer ? 'choice' : 'explainer')
-      })
-      .finally(() => {
-        if (!cancelled) setResolvingEntry(false)
-      })
+    queueMicrotask(() => {
+      if (cancelled) return
+      onStepChange('choice')
+      setResolvingEntry(false)
+    })
     return () => {
       cancelled = true
     }
   }, [step, userId, onStepChange])
 
   if (!step || step === null) return null
-
-  async function handleExplainerDone() {
-    if (userId) await setHasSeenProgrammeExplainer(userId)
-    onStepChange('choice')
-  }
 
   function handleCoachSelected() {
     onStepChange('coach')
@@ -991,11 +981,16 @@ export default function CreateProgrammeFlow({
   }
   if (step === 'entry') return null
 
-  if (step === 'explainer') {
-    return <CreateProgrammeExplainerScreen onGotIt={handleExplainerDone} onSkip={handleExplainerDone} onBack={onClose} onClose={onClose} />
-  }
   if (step === 'choice') {
-    return <CreateProgrammeChoiceScreen onCoach={handleCoachSelected} onManual={onManual} onClose={onClose} />
+    return (
+      <CreateProgrammeChoiceScreen
+        onCoach={handleCoachSelected}
+        onManual={onManual}
+        onClose={onClose}
+        inOnboarding={inOnboarding}
+        onSkipOnboarding={onSkipOnboarding}
+      />
+    )
   }
   if (step === 'coach') {
     return (

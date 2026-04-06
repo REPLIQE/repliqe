@@ -31,7 +31,6 @@ export async function clearAllUserContent(uid: string): Promise<void> {
   await setDoc(
     userRef,
     {
-      hasSeenProgrammeExplainer: false,
       onboardingComplete: false,
       onboardingStep: 0,
       settings: DEFAULT_SETTINGS,
