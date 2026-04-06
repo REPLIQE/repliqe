@@ -8,6 +8,7 @@ import { DEFAULT_EXERCISES } from './exerciseLibrary'
 import { invokeCoachGenerate } from './lib/invokeCoachGenerate'
 import ActionButton from './ActionButton'
 import { TYPE_EMPHASIS_SM, TYPE_OVERLINE_STRONG, TYPE_TAB } from './typographyTokens'
+import { Z_OVERLAY } from './zLayers'
 
 const warningIcon = (className = 'w-4 h-4 text-amber-400 shrink-0 mt-0.5') => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
@@ -156,7 +157,7 @@ function sanitizeParsedProgramme(parsed, validNamesLowerSet) {
 function SheetFrame({ label, title, subtitle, onBack, onClose, children, showFlowProgress, flowProgressCurrent }) {
   const hasProgress = showFlowProgress && typeof flowProgressCurrent === 'number'
   return (
-    <div className="fixed inset-0 z-20 flex justify-center bg-page">
+    <div className={`fixed inset-0 ${Z_OVERLAY} flex justify-center bg-page`}>
       <div className="w-full max-w-md flex flex-col bg-page mx-auto">
         <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b border-border">
           <button type="button" onClick={onBack} className="p-2 -ml-2 rounded-lg text-muted-strong hover:bg-card-alt transition-colors" aria-label="Back">
@@ -981,7 +982,7 @@ export default function CreateProgrammeFlow({
 
   if (step === 'entry' && resolvingEntry) {
     return (
-      <div className="fixed inset-0 z-20 flex justify-center items-center bg-page">
+      <div className={`fixed inset-0 ${Z_OVERLAY} flex justify-center items-center bg-page`}>
         <div className="w-full max-w-md flex justify-center py-20">
           <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
         </div>

@@ -31,6 +31,8 @@ export async function ensureUserDoc(user: User): Promise<void> {
     email: user.email ?? '',
     createdAt: serverTimestamp(),
     settings: DEFAULT_SETTINGS,
+    onboardingComplete: false,
+    onboardingStep: 0,
   })
 }
 
@@ -85,4 +87,15 @@ export function normalizeUserPlan(value: unknown): UserPlan {
 export async function setUserPlanInFirestore(uid: string, plan: UserPlan): Promise<void> {
   const ref = doc(db, 'users', uid)
   await updateDoc(ref, { plan })
+}
+
+/** Onboarding wizard progress on `users/{uid}` (not under settings). */
+export async function updateOnboardingProgress(uid: string, onboardingStep: number): Promise<void> {
+  const ref = doc(db, 'users', uid)
+  await updateDoc(ref, { onboardingStep })
+}
+
+export async function completeUserOnboarding(uid: string): Promise<void> {
+  const ref = doc(db, 'users', uid)
+  await updateDoc(ref, { onboardingComplete: true, onboardingStep: 5 })
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Component, lazy, Suspense } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import ExerciseCard from './ExerciseCard'
 import ExerciseLibrary from './ExerciseLibraryUI'
 import CreateExerciseModal from './CreateExerciseModal'
@@ -10,13 +11,23 @@ import RirSheet from './RirSheet'
 import MuscleMapCard from './MuscleMapCard'
 import { getDayMuscles, getDayMusclesSlugs, getRecoveryPct, formatMuscleLabel, formatDecimal as formatDecimalUtil, parseDecimal as parseDecimalUtil } from './utils'
 import { formatStoredDateForDisplay, DATE_FORMAT_DDMY, DATE_FORMAT_MMDY } from './dateFormatUtils'
+import OnboardingScreen from './OnboardingScreen'
 import { useAuth } from './lib/AuthContext'
 import LoginScreen from './lib/LoginScreen'
 import AccountTab, { AboutTab } from './lib/AccountTab'
 import { PrivacyPolicy, TermsOfService } from './lib/LegalPages'
 import { fetchWorkoutPlans, saveWorkoutPlans, deleteWorkoutPlan } from './lib/workoutPlansFirestore'
 import { addWorkoutSession, fetchWorkoutSessions, fetchWorkoutSessionsFromServer, updateWorkoutSessionRating, updateWorkoutSessionPhotoSessions } from './lib/workoutSessionsFirestore'
-import { getUserDoc, mergeUserSettings, DEFAULT_SETTINGS, normalizeUserPlan, USER_PLAN_STORAGE_KEY } from './lib/userFirestore'
+import {
+  getUserDoc,
+  mergeUserSettings,
+  DEFAULT_SETTINGS,
+  normalizeUserPlan,
+  USER_PLAN_STORAGE_KEY,
+  ensureUserDoc,
+  updateOnboardingProgress,
+  completeUserOnboarding,
+} from './lib/userFirestore'
 import { fetchAppData, updateAppData } from './lib/appDataFirestore'
 import { DEFAULT_EXERCISES, MUSCLE_GROUPS, SLUG_TO_GROUP } from './exerciseLibrary'
 import RecoveryModal from './RecoveryModal'
@@ -461,6 +472,23 @@ function AppContent() {
   const [workoutTab, setWorkoutTab] = useState('start') // 'start' | 'plan'
   const [profileSection, setProfileSection] = useState(null) // null | 'account' | 'settings' | 'about'
   const { user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [onboardingGateLoaded, setOnboardingGateLoaded] = useState(false)
+  const [onboardingRequired, setOnboardingRequired] = useState(false)
+  const [onboardingStep, setOnboardingStep] = useState(0)
+  const [onboardingProgrammeFlowLaunched, setOnboardingProgrammeFlowLaunched] = useState(false)
+  const [onboardingCreatedProgrammeName, setOnboardingCreatedProgrammeName] = useState('')
+  const [onboardingPrefsDraft, setOnboardingPrefsDraft] = useState({
+    unitWeight: 'kg',
+    unitDistance: 'km',
+    unitLength: 'cm',
+    decimalSeparator: 'comma',
+    dateFormat: DATE_FORMAT_DDMY,
+    bodyweightInput: '',
+  })
+  const [onboardingLegalChecked, setOnboardingLegalChecked] = useState(false)
+  const isOnboardingRouteRef = useRef(false)
   const workoutPlansLoadedRef = useRef(false)
   const workoutSessionsLoadedRef = useRef(false)
   const appDataLoadedRef = useRef(false)
@@ -575,6 +603,52 @@ function AppContent() {
   useEffect(() => {
     if (workoutTab !== 'start') setShowStartRecoveryInfo(false)
   }, [workoutTab])
+
+  useEffect(() => {
+    isOnboardingRouteRef.current = onboardingRequired && location.pathname === '/onboarding'
+  }, [onboardingRequired, location.pathname])
+
+  useEffect(() => {
+    if (!user?.uid) return
+    let cancelled = false
+    ;(async () => {
+      await ensureUserDoc(user)
+      if (cancelled) return
+      const d = await getUserDoc(user.uid)
+      if (cancelled) return
+      const need = d?.onboardingComplete === false
+      setOnboardingRequired(need)
+      if (need) {
+        const st = typeof d?.onboardingStep === 'number' ? d.onboardingStep : 0
+        setOnboardingStep(Math.min(4, Math.max(0, st)))
+      }
+      setOnboardingGateLoaded(true)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.uid])
+
+  useEffect(() => {
+    if (!onboardingGateLoaded) return
+    if (location.pathname === '/') {
+      navigate(onboardingRequired ? '/onboarding' : '/workout', { replace: true })
+    }
+  }, [onboardingGateLoaded, onboardingRequired, location.pathname, navigate])
+
+  useEffect(() => {
+    if (!onboardingGateLoaded) return
+    if (onboardingRequired && location.pathname === '/workout') {
+      navigate('/onboarding', { replace: true })
+    }
+  }, [onboardingGateLoaded, onboardingRequired, location.pathname, navigate])
+
+  useEffect(() => {
+    if (!onboardingGateLoaded) return
+    if (!onboardingRequired && location.pathname === '/onboarding') {
+      navigate('/workout', { replace: true })
+    }
+  }, [onboardingGateLoaded, onboardingRequired, location.pathname, navigate])
 
   useEffect(() => {
     function syncLegalHash() {
@@ -1367,6 +1441,13 @@ function AppContent() {
     setShowDiscardCreateProgrammeConfirm(false)
     setShowCreateProgramme(false)
     if (!isFirstProgramme) setShowSetActiveAfterCreate(progId)
+    if (isOnboardingRouteRef.current && user?.uid) {
+      const displayName = (name && name.trim()) ? name.trim() : '2 Split - Push/Pull'
+      setOnboardingCreatedProgrammeName(displayName)
+      setOnboardingStep(4)
+      void updateOnboardingProgress(user.uid, 4)
+      setOnboardingProgrammeFlowLaunched(false)
+    }
   }
 
   /**
@@ -1411,6 +1492,12 @@ function AppContent() {
     incrementPlanUsage(user.uid, { coachProgrammesSaved: 1 })
       .then(setPlanUsage)
       .catch((err) => console.error('planUsage coach programme saved:', err?.code || err?.message || err))
+    if (isOnboardingRouteRef.current && user?.uid) {
+      setOnboardingCreatedProgrammeName(progIn.name || 'Programme')
+      setOnboardingStep(4)
+      void updateOnboardingProgress(user.uid, 4)
+      setOnboardingProgrammeFlowLaunched(false)
+    }
   }
 
   function openEditProgramme(progId) {
@@ -1495,6 +1582,7 @@ function AppContent() {
     setCreateProgrammeRoutines([])
     setCreateProgrammeTriedSave(false)
     setCreateProgrammeConfirmEmptyRoutines(false)
+    if (isOnboardingRouteRef.current) setOnboardingProgrammeFlowLaunched(false)
   }
 
   function requestCloseCreateProgramme() {
@@ -2692,6 +2780,74 @@ ${JSON.stringify(ctx)}`
     return total
   }
 
+  const showOnboardingUi = onboardingRequired && location.pathname === '/onboarding'
+
+  function handleOnboardingWelcomeContinue() {
+    if (!user?.uid) return
+    setOnboardingStep(1)
+    void updateOnboardingProgress(user.uid, 1)
+  }
+
+  function handleOnboardingLegalContinue() {
+    if (!user?.uid) return
+    setOnboardingStep(2)
+    void updateOnboardingProgress(user.uid, 2)
+  }
+
+  function handleOnboardingPreferencesContinue() {
+    if (!user?.uid) return
+    const bw = parseDecimal(onboardingPrefsDraft.bodyweightInput)
+    if (Number.isNaN(bw) || bw <= 0) return
+    setUnitWeight(onboardingPrefsDraft.unitWeight)
+    setUnitDistance(onboardingPrefsDraft.unitDistance)
+    setUnitLength(onboardingPrefsDraft.unitLength)
+    setDecimalSeparator(onboardingPrefsDraft.decimalSeparator)
+    setDateFormat(onboardingPrefsDraft.dateFormat)
+    setBodyweight(bw)
+    mergeUserSettings(user.uid, {
+      unitWeight: onboardingPrefsDraft.unitWeight,
+      unitDistance: onboardingPrefsDraft.unitDistance,
+      unitLength: onboardingPrefsDraft.unitLength,
+      decimalSeparator: onboardingPrefsDraft.decimalSeparator,
+      dateFormat: onboardingPrefsDraft.dateFormat,
+      bodyweight: bw,
+    }).catch((err) => console.error('mergeUserSettings onboarding:', err))
+    setOnboardingStep(3)
+    void updateOnboardingProgress(user.uid, 3)
+  }
+
+  function handleOnboardingCoach() {
+    setOnboardingProgrammeFlowLaunched(true)
+    createProgramme()
+  }
+
+  function handleOnboardingManual() {
+    setOnboardingProgrammeFlowLaunched(true)
+    openManualCreateProgramme()
+  }
+
+  function handleOnboardingBack() {
+    if (!user?.uid) return
+    if (onboardingStep === 1) {
+      setOnboardingStep(0)
+      void updateOnboardingProgress(user.uid, 0)
+    } else if (onboardingStep === 2) {
+      setOnboardingStep(1)
+      void updateOnboardingProgress(user.uid, 1)
+    }
+  }
+
+  async function handleOnboardingFinishTraining() {
+    if (!user?.uid) return
+    try {
+      await completeUserOnboarding(user.uid)
+      setOnboardingRequired(false)
+      navigate('/workout', { replace: true })
+    } catch (err) {
+      console.error('completeUserOnboarding:', err)
+    }
+  }
+
   const lastWorkout = history.length > 0 ? history[0] : null
   const suggestedNext = getSuggestedNext()
   const isNew = history.length === 0
@@ -2737,12 +2893,46 @@ ${JSON.stringify(ctx)}`
   const workoutBootstrapLoading =
     page === 'workout' &&
     !showCompleteScreen &&
-    (!appDataLoaded || !workoutPlansLoaded)
+    (!appDataLoaded || !workoutPlansLoaded) &&
+    !showOnboardingUi
+
+  if (!onboardingGateLoaded) {
+    return <FullScreenBootSpinner ariaBusy={true} ariaLive="polite" />
+  }
 
   return (
     <>
       {showPrivacy && <PrivacyPolicy onClose={closePrivacyLegal} />}
       {showTerms && <TermsOfService onClose={closeTermsLegal} />}
+      {showOnboardingUi ? (
+        <div className="fixed inset-0 z-[40] bg-page overflow-y-auto">
+          <OnboardingScreen
+            step={onboardingStep}
+            onWelcomeContinue={handleOnboardingWelcomeContinue}
+            legalChecked={onboardingLegalChecked}
+            onLegalCheckedChange={setOnboardingLegalChecked}
+            onLegalContinue={handleOnboardingLegalContinue}
+            onOpenTerms={() => setShowTerms(true)}
+            onOpenPrivacy={() => setShowPrivacy(true)}
+            prefs={onboardingPrefsDraft}
+            onPrefsChange={setOnboardingPrefsDraft}
+            onPreferencesContinue={handleOnboardingPreferencesContinue}
+            onCoach={handleOnboardingCoach}
+            onManual={handleOnboardingManual}
+            programmeFlowLaunched={onboardingProgrammeFlowLaunched}
+            createdProgrammeName={
+              onboardingStep === 4
+                ? onboardingCreatedProgrammeName ||
+                  programmes.find((p) => p.isActive)?.name ||
+                  'Your programme'
+                : onboardingCreatedProgrammeName
+            }
+            onFinishTraining={handleOnboardingFinishTraining}
+            onBack={handleOnboardingBack}
+            canGoBack={onboardingStep === 1 || onboardingStep === 2}
+          />
+        </div>
+      ) : null}
       {workoutBootstrapLoading ? (
         <FullScreenBootSpinner ariaBusy={true} ariaLive="polite" />
       ) : null}
@@ -3909,7 +4099,10 @@ ${JSON.stringify(ctx)}`
               step={createProgrammeFlowStep}
               onStepChange={setCreateProgrammeFlowStep}
               onManual={openManualCreateProgramme}
-              onClose={() => setCreateProgrammeFlowStep(null)}
+              onClose={() => {
+                setCreateProgrammeFlowStep(null)
+                if (isOnboardingRouteRef.current) setOnboardingProgrammeFlowLaunched(false)
+              }}
               userId={user.uid}
               allExercises={allLibraryExercises}
               saveCoachGeneratedProgramme={saveCoachGeneratedProgramme}
@@ -4873,7 +5066,7 @@ ${JSON.stringify(ctx)}`
         )}
 
         {/* BOTTOM NAV — skjules under workout bootstrap så spinner ikke hopper når menuen mountes */}
-        {!workoutBootstrapLoading ? (
+        {!workoutBootstrapLoading && !showOnboardingUi ? (
         <div className="fixed bottom-0 left-0 right-0 z-30 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-2.5 pb-4 flex justify-around max-w-md mx-auto" role="navigation" aria-label="Main">
           <button type="button" onClick={() => setPage('progress')} aria-current={page === 'progress' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-accent' : 'stroke-text'}`} aria-hidden><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-xs font-semibold ${page === 'progress' ? 'text-accent' : 'text-text'}`}>Progress</span></button>
           <button type="button" onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} aria-current={page === 'workout' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-accent' : 'stroke-text'}`} aria-hidden><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-xs font-semibold ${page === 'workout' ? 'text-accent' : 'text-text'}`}>Workout</span></button>
