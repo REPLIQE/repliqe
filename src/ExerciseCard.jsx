@@ -6,8 +6,7 @@ import { CARD_SURFACE_LG } from './cardTokens'
 import { TYPE_EMPHASIS_SM, TYPE_LABEL_UPPER } from './typographyTokens'
 import { DeleteTrashBadge, DeleteTrashGlyph } from './DeleteConfirmTrashIcon'
 import { MUSCLE_GROUPS } from './exerciseLibrary'
-
-const REST_PRESETS = [0, 30, 60, 90, 120, 180]
+import { REST_PRESETS } from './restPresets'
 
 const RIR_BADGE_STYLE = { color: '#2DD4BF', background: 'rgba(45,212,191,.14)', border: '1px solid rgba(45,212,191,.3)' }
 
@@ -170,7 +169,20 @@ function ExerciseCard({
   function confirmDelete(si) { const el = rowRefs.current[si]; if (el) { el.style.transition = 'transform 0.2s ease'; el.style.transform = 'translateX(0)' }; setSwipedSet(null); onDeleteSet(exIndex, si) }
   function tapOutside(si) { if (swipedSet !== null && swipedSet !== si) { const el = rowRefs.current[swipedSet]; if (el) { el.style.transition = 'transform 0.2s ease'; el.style.transform = 'translateX(0)' }; setSwipedSet(null) } }
 
-  const currentRest = exercise.restOverride !== null && exercise.restOverride !== undefined ? exercise.restOverride : defaultRest
+  const currentRest =
+    exercise.restOverride !== null && exercise.restOverride !== undefined
+      ? exercise.restOverride
+      : supersetRole === 'A'
+        ? 0
+        : defaultRest
+  const restMenuDetail =
+    supersetRole === 'A' && (exercise.restOverride === null || exercise.restOverride === undefined)
+      ? 'None'
+      : currentRest === 0
+        ? 'None'
+        : exercise.restOverride === null || exercise.restOverride === undefined
+          ? `Default (${formatTime(defaultRest)})`
+          : formatTime(currentRest)
   const hasPrevious = previousSets && previousSets.length > 0
   const showRirColumn = rirEnabled && type !== 'time_only' && type !== 'distance_time'
 
@@ -249,7 +261,7 @@ function ExerciseCard({
   const displayName = exercise.name ?? exercise.exerciseId ?? ''
   const borderClass = isLinkSource ? 'border-accent/50 bg-card-alt' : isLinkTarget ? 'border-success/40 cursor-pointer' : 'border-border'
   const outerClass = [
-    `${CARD_SURFACE_LG} p-3.5 mb-2 transition-all duration-200 w-full min-w-0`,
+    `${CARD_SURFACE_LG} py-2.5 px-3.5 mb-2 transition-all duration-200 w-full min-w-0`,
     borderClass,
     isLinkModeActive && !isLinkSource && !isLinkTarget ? 'opacity-40 pointer-events-none' : '',
     isLinkTarget ? 'animate-pulse-border' : ''
@@ -273,7 +285,7 @@ function ExerciseCard({
                 {libraryEntry.equipment}
               </span>
             ) : null}
-            {!isEditing && supersetRole !== 'A' ? (
+            {!isEditing ? (
               <span className="flex items-center gap-1 text-xs text-muted-mid tabular-nums whitespace-nowrap shrink-0">
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 stroke-current shrink-0" aria-hidden>
                   <circle cx="12" cy="12" r="10" />
@@ -346,12 +358,10 @@ function ExerciseCard({
                 </button>
               ))
             : null)}
-          {supersetRole !== 'A' && (
           <button onClick={() => { setShowExerciseMenu(false); setShowRestPicker(true) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Rest timer {exercise.restOverride !== null && exercise.restOverride !== undefined ? `· ${currentRest === 0 ? 'None' : formatTime(currentRest)}` : `· Default (${formatTime(defaultRest)})`}
+            Rest timer · {restMenuDetail}
           </button>
-          )}
           {type !== 'time_only' && type !== 'distance_time' && (
           <button
             type="button"
@@ -427,15 +437,41 @@ function ExerciseCard({
         <div className="mt-3 mb-2 p-3 bg-card-alt rounded-xl border border-border-strong">
           <div className="text-sm text-muted-mid font-semibold uppercase tracking-wide mb-2">Rest timer for this exercise</div>
           <div className="flex gap-1.5 flex-wrap">
-            <button onClick={() => { onUpdateExerciseRest(exIndex, ''); setShowRestPicker(false) }} className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${exercise.restOverride === null || exercise.restOverride === undefined ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card text-muted'}`}>Default</button>
-            {REST_PRESETS.map(seconds => (
-              <button key={seconds} onClick={() => { onUpdateExerciseRest(exIndex, seconds); setShowRestPicker(false) }} className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${exercise.restOverride === seconds ? 'border-success bg-success/10 text-success' : 'border-border-strong bg-card text-muted'}`}>{seconds === 0 ? 'None' : formatTime(seconds)}</button>
-            ))}
+            {supersetRole !== 'A' ? (
+              <button
+                type="button"
+                onClick={() => { onUpdateExerciseRest(exIndex, ''); setShowRestPicker(false) }}
+                className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${exercise.restOverride === null || exercise.restOverride === undefined ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card text-muted'}`}
+              >
+                Default
+              </button>
+            ) : null}
+            {REST_PRESETS.map((seconds) => {
+              const noneSelectedForA =
+                supersetRole === 'A' &&
+                seconds === 0 &&
+                (exercise.restOverride === null || exercise.restOverride === undefined || exercise.restOverride === 0)
+              const presetSelected = noneSelectedForA || exercise.restOverride === seconds
+              return (
+                <button
+                  type="button"
+                  key={seconds}
+                  onClick={() => {
+                    if (supersetRole === 'A' && seconds === 0) onUpdateExerciseRest(exIndex, '')
+                    else onUpdateExerciseRest(exIndex, seconds)
+                    setShowRestPicker(false)
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${presetSelected ? 'border-success bg-success/10 text-success' : 'border-border-strong bg-card text-muted'}`}
+                >
+                  {seconds === 0 ? 'None' : formatTime(seconds)}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
 
-      <div className="gap-1.5 mt-3 mb-1" style={{ display: 'grid', ...gridStyle }}>
+      <div className="gap-1.5 mt-2 mb-1" style={{ display: 'grid', ...gridStyle }}>
         <span className="text-xs font-bold text-muted-strong uppercase text-center">Set</span>
         {hasPrevious && <span className="text-xs font-bold text-muted-strong uppercase text-center">Prev</span>}
         {headers.map(h => <span key={h} className="text-xs font-bold text-muted-strong uppercase text-center">{h}</span>)}
@@ -519,7 +555,7 @@ function ExerciseCard({
               </div>
             </div>
 
-            <SmoothRestReveal show={supersetRole !== 'A' && (isActiveRest || hasCompletedRest)}>
+            <SmoothRestReveal show={isActiveRest || hasCompletedRest}>
               {isActiveRest ? (() => {
                 const progress = restDuration > 0 ? Math.max(0, Math.min(1, restTime / restDuration)) : 0
                 const barWidthPct = progress * 100
@@ -635,7 +671,13 @@ function ExerciseCard({
         )
       })}
 
-      <button onClick={() => onAddSet(exIndex)} className="w-full py-2 mt-2 border border-dashed border-border-strong rounded-lg text-muted-mid text-sm font-semibold hover:border-accent hover:text-accent transition-colors">+ Add set</button>
+      <button
+        type="button"
+        onClick={() => onAddSet(exIndex)}
+        className="w-full mt-1.5 py-2.5 rounded-lg border-2 border-dashed border-muted-strong/55 bg-card-alt/60 text-sm font-bold text-muted-strong hover:bg-card-alt/85 hover:border-accent/60 hover:text-accent transition-colors"
+      >
+        + Add set
+      </button>
     </div>
     {showRemoveNoteConfirm &&
       typeof document !== 'undefined' &&

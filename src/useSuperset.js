@@ -14,7 +14,9 @@ export function useSuperset(exercises, setExercises) {
     const groupId = crypto.randomUUID()
     setExercises(prev => {
       const updated = prev.map(ex => {
-        if (ex.id === linkMode.sourceId) return { ...ex, supersetGroupId: groupId, supersetRole: 'A' }
+        if (ex.id === linkMode.sourceId) {
+          return { ...ex, supersetGroupId: groupId, supersetRole: 'A', restOverride: null }
+        }
         if (ex.id === bId) return { ...ex, supersetGroupId: groupId, supersetRole: 'B' }
         return ex
       })

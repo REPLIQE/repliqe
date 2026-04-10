@@ -37,6 +37,7 @@ import RecoveryModal from './RecoveryModal'
 import BottomSheet from './BottomSheet'
 import ActionButton from './ActionButton'
 import { Z_NAV, Z_OVERLAY, Z_OVERLAY_STACKED } from './zLayers'
+import { REST_PRESETS } from './restPresets'
 import RepliqeLogo from './RepliqeLogo'
 import ProgressPhoto from './ProgressPhoto'
 import { loadPhotoSrc } from './PhotosModal'
@@ -132,7 +133,6 @@ class ProgressErrorBoundary extends Component {
   }
 }
 
-const REST_PRESETS = [0, 30, 60, 90, 120, 180]
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 /** Index ranges in routine editor flat list: one block = ét trin (én øvelse eller superset A+B ved siden af hinanden). */
@@ -1320,6 +1320,13 @@ function AppContent() {
     return Array.from({ length: n }, () => ({ targetReps: ex.targetReps || '8-10', targetKg: '' }))
   }
 
+  /** Rest after a set in workout: superset exercise A defaults to 0 unless restOverride is set explicitly. */
+  function getEffectiveRestAfterSet(ex, defaultRestSec) {
+    if (ex?.restOverride !== undefined && ex?.restOverride !== null) return ex.restOverride
+    if (ex?.supersetRole === 'A') return 0
+    return defaultRestSec
+  }
+
   function serializeRoutineExercisesForCompare(list) {
     return JSON.stringify(
       (list || []).map((ex) => ({
@@ -2184,9 +2191,8 @@ ${JSON.stringify(ctx)}`
   }
 
   function startRestAfterSet(exIndex, setIndex, ex) {
-    const dur = ex.restOverride !== null && ex.restOverride !== undefined ? ex.restOverride : defaultRest
+    const dur = getEffectiveRestAfterSet(ex, defaultRest)
     if (dur === 0) return
-    if (ex.supersetRole === 'A') return
     restStartRef.current = Date.now()
     setActiveRest({ exIndex, setIndex })
     setRestTime(dur)
@@ -2317,10 +2323,13 @@ ${JSON.stringify(ctx)}`
     const { a, b } = group
     const allDone = (a.sets || []).every(s => s.done) && (b.sets || []).every(s => s.done)
     if (!allDone) return false
+    const iA = exercises.indexOf(a)
     const iB = exercises.indexOf(b)
-    const lastSetIndex = (b.sets || []).length - 1
-    const restActive = activeRest && activeRest.exIndex === iB && activeRest.setIndex === lastSetIndex
-    return !restActive
+    const lastIdxA = Math.max(0, (a.sets || []).length - 1)
+    const lastIdxB = Math.max(0, (b.sets || []).length - 1)
+    const restAfterLastA = activeRest && activeRest.exIndex === iA && activeRest.setIndex === lastIdxA
+    const restAfterLastB = activeRest && activeRest.exIndex === iB && activeRest.setIndex === lastIdxB
+    return !restAfterLastA && !restAfterLastB
   }
 
   function getGlobalNextSet() {
@@ -2768,7 +2777,7 @@ ${JSON.stringify(ctx)}`
     const totalSets = routine.exercises.reduce((s, e) => s + getSetConfigs(e).length, 0)
     for (const ex of routine.exercises) {
       const numSets = getSetConfigs(ex).length
-      const rest = ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : defaultRestSec
+      const rest = getEffectiveRestAfterSet(ex, defaultRestSec)
       for (let i = 0; i < numSets; i++) {
         total += SET_SECONDS_DEFAULT
         setIndex++
@@ -2794,8 +2803,7 @@ ${JSON.stringify(ctx)}`
       const setSec = isTimeSet && (item.set.time !== '' && item.set.time != null) ? parseTimeToSeconds(item.set.time) : SET_SECONDS_DEFAULT
       total += setSec
       if (i < remaining.length - 1) {
-        const rest = item.ex.restOverride !== undefined && item.ex.restOverride !== null ? item.ex.restOverride : defaultRest
-        total += rest
+        total += getEffectiveRestAfterSet(item.ex, defaultRest)
       }
     })
     return total
@@ -4562,7 +4570,8 @@ ${JSON.stringify(ctx)}`
                       const exType = lib?.type || 'weight_reps'
                       const routineRepsOnly = exType === 'reps_only'
                       const restOverride = ex.restOverride !== undefined && ex.restOverride !== null ? ex.restOverride : null
-                      const currentRestSec = restOverride !== null ? restOverride : defaultRest
+                      const currentRestSec =
+                        restOverride !== null && restOverride !== undefined ? restOverride : supersetRole === 'A' ? 0 : defaultRest
                       const note = ex.note ?? ''
                       const updateSetConfigs = (newConfigs) => {
                         setEditRoutineExercises((prev) =>
@@ -4621,7 +4630,12 @@ ${JSON.stringify(ctx)}`
                                     {exs.length > 1 && <div className="border-t border-border-strong" />}
                                     <button type="button" onClick={() => { setRoutineEditorRestForIndex(i); setRoutineEditorSupersetMenuForId(null) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors">
                                       <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 stroke-current"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                      Rest timer {restOverride !== null && restOverride !== undefined ? `· ${restOverride === 0 ? 'None' : formatTime(restOverride)}` : `· Default (${formatTime(defaultRest)})`}
+                                      Rest timer{' '}
+                                      {restOverride !== null && restOverride !== undefined
+                                        ? `· ${restOverride === 0 ? 'None' : formatTime(restOverride)}`
+                                        : supersetRole === 'A'
+                                          ? '· None'
+                                          : `· Default (${formatTime(defaultRest)})`}
                                     </button>
                                     <button type="button" onClick={() => { setRoutineEditorNoteForIndex(i); setRoutineEditorSupersetMenuForId(null) }} className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-sm font-semibold text-text hover:bg-white/5 transition-colors border-t border-border-strong">
                                       <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -4682,8 +4696,35 @@ ${JSON.stringify(ctx)}`
                           <div className="mt-2 mb-2 p-3 bg-card-alt rounded-xl border border-border-strong">
                             <div className={`${TYPE_LABEL_FORM} mb-2`}>Rest timer for this exercise</div>
                             <div className="flex gap-1.5 flex-wrap">
-                              <button type="button" onClick={() => setRest(null)} className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${restOverride === null ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card text-muted'}`}>Default</button>
-                              {REST_PRESETS.map(s => <button key={s} type="button" onClick={() => setRest(s)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${restOverride === s ? 'bg-success text-[#0D0D1A]' : 'bg-card border border-border-strong text-muted'}`}>{s === 0 ? 'None' : formatTime(s)}</button>)}
+                              {supersetRole !== 'A' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setRest(null)}
+                                  className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${restOverride === null ? 'border-accent bg-accent/10 text-accent' : 'border-border-strong bg-card text-muted'}`}
+                                >
+                                  Default
+                                </button>
+                              ) : null}
+                              {REST_PRESETS.map((s) => {
+                                const presetSelected =
+                                  (supersetRole === 'A' &&
+                                    s === 0 &&
+                                    (restOverride === null || restOverride === 0)) ||
+                                  restOverride === s
+                                return (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => {
+                                      if (supersetRole === 'A' && s === 0) setRest(null)
+                                      else setRest(s)
+                                    }}
+                                    className={`px-3 py-1.5 rounded-lg text-sm font-bold ${presetSelected ? 'bg-success text-[#0D0D1A]' : 'bg-card border border-border-strong text-muted'}`}
+                                  >
+                                    {s === 0 ? 'None' : formatTime(s)}
+                                  </button>
+                                )
+                              })}
                             </div>
                           </div>
                         )}
@@ -4728,7 +4769,13 @@ ${JSON.stringify(ctx)}`
                             ))}
                           </>
                         )}
-                        <button type="button" onClick={addSet} className="w-full py-2 mt-2 border border-dashed border-border-strong rounded-lg text-muted-mid text-sm font-semibold hover:border-accent hover:text-accent">+ Add set</button>
+                        <button
+                          type="button"
+                          onClick={addSet}
+                          className="w-full mt-1.5 py-2.5 rounded-lg border-2 border-dashed border-muted-strong/55 bg-card-alt/60 text-sm font-bold text-muted-strong hover:bg-card-alt/85 hover:border-accent/60 hover:text-accent transition-colors"
+                        >
+                          + Add set
+                        </button>
                       </div>
                     )
                     }

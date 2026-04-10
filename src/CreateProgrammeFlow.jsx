@@ -8,6 +8,7 @@ import { invokeCoachGenerate } from './lib/invokeCoachGenerate'
 import ActionButton from './ActionButton'
 import { TYPE_EMPHASIS_SM, TYPE_OVERLINE_STRONG, TYPE_TAB } from './typographyTokens'
 import { Z_OVERLAY } from './zLayers'
+import { REST_PRESETS, REST_MAX_SEC, snapRestSecondsToPreset } from './restPresets'
 
 const warningIcon = (className = 'w-4 h-4 text-amber-400 shrink-0 mt-0.5') => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
@@ -97,7 +98,10 @@ export function buildProgrammeFromCoach(parsed, allExercises, quiz) {
         id: crypto.randomUUID(),
         exerciseId: name,
         setConfigs,
-        restOverride: ex.restSeconds != null && ex.restSeconds !== '' ? Number(ex.restSeconds) : null,
+        restOverride:
+          ex.restSeconds != null && ex.restSeconds !== ''
+            ? snapRestSecondsToPreset(ex.restSeconds)
+            : null,
         note: '',
         rirOverride: null,
         supersetGroupId: null,
@@ -144,13 +148,44 @@ function sanitizeParsedProgramme(parsed, validNamesLowerSet) {
   const routines = (parsed.routines || [])
     .map((r) => ({
       ...r,
-      exercises: (r.exercises || []).filter((e) => {
-        const n = (e.exerciseName || '').trim().toLowerCase()
-        return n && validNamesLowerSet.has(n)
-      }),
+      exercises: (r.exercises || [])
+        .filter((e) => {
+          const n = (e.exerciseName || '').trim().toLowerCase()
+          return n && validNamesLowerSet.has(n)
+        })
+        .map((e) => {
+          if (e.restSeconds == null || e.restSeconds === '') return e
+          return { ...e, restSeconds: snapRestSecondsToPreset(e.restSeconds) }
+        }),
     }))
     .filter((r) => (r.exercises || []).length > 0)
   return { ...parsed, routines }
+}
+
+/** Max exercises per routine from Coach — align with SESSION LENGTH rules in prompt. */
+const COACH_SESSION_EXERCISE_CAP = { '30': 5, '45': 6, '60': 7, '75': 8, '90': 9 }
+
+function validateCoachAgainstQuiz(parsed, { daysPerWeek, sessionLength, goal }) {
+  const expectedDays = Number(daysPerWeek)
+  const routines = parsed?.routines ?? []
+  if (Number.isFinite(expectedDays) && expectedDays >= 1 && routines.length !== expectedDays) {
+    throw new Error(
+      `Coach returned ${routines.length} training day(s), but you selected ${expectedDays}. Tap Try again.`
+    )
+  }
+  let cap = COACH_SESSION_EXERCISE_CAP[sessionLength] ?? 7
+  if (goal === 'get_stronger') cap = Math.max(3, cap - 1)
+  routines.forEach((r, idx) => {
+    const n = (r.exercises ?? []).length
+    if (n < 1) {
+      throw new Error(`Day ${idx + 1} has no exercises. Tap Try again.`)
+    }
+    if (n > cap + 1) {
+      throw new Error(
+        `A session has ${n} exercises — too many for a ~${sessionLength} min workout (aim for at most about ${cap}). Tap Try again.`
+      )
+    }
+  })
 }
 
 /** Matches OnboardingScreen step 1–3 shell (progress bar + typography). */
@@ -257,6 +292,9 @@ export function CreateProgrammeChoiceScreen({ onCoach, onManual, onClose, inOnbo
               ? 'Answer a few questions and Coach will build a programme for you.'
               : 'Answer a few questions. Coach builds a programme tailored to your goals, level and equipment.'}
           </p>
+          {inOnboarding ? (
+            <p className="text-xs text-muted-mid mt-2 leading-snug">Your first programme is free.</p>
+          ) : null}
         </div>
       </button>
 
@@ -282,6 +320,9 @@ export function CreateProgrammeChoiceScreen({ onCoach, onManual, onClose, inOnbo
           <p className="text-xs text-muted-strong mt-0.5 leading-snug">
             Create your own programme from scratch. Add routines and exercises yourself.
           </p>
+          {inOnboarding ? (
+            <p className="text-xs text-muted-mid mt-2 leading-snug">Manual programmes are always free, with no limits.</p>
+          ) : null}
         </div>
       </button>
     </div>
@@ -296,7 +337,6 @@ export function CreateProgrammeChoiceScreen({ onCoach, onManual, onClose, inOnbo
         subtitle="Choose how you want to get started — same steps as under Plan when you add a programme."
       >
         {cards}
-        <p className="text-center text-xs text-muted-mid mt-6">Your first programme is free.</p>
       </OnboardingFlowShell>
     )
   }
@@ -399,6 +439,7 @@ export function CreateProgrammeCoachOnboarding({
   const [coachConsentAccepted, setCoachConsentAccepted] = useState(false)
   const [generatedProgramme, setGeneratedProgramme] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [coachErrorDetail, setCoachErrorDetail] = useState(null)
 
   const titles = [
     "What's your main goal?",
@@ -423,6 +464,7 @@ export function CreateProgrammeCoachOnboarding({
 
   async function startBuilding() {
     setLoading(true)
+    setCoachErrorDetail(null)
     try {
       const equipmentMap = {
         full_gym: ['Barbell', 'Dumbbell', 'Cable', 'Machine', 'Bodyweight', 'Kettlebell', 'Smith Machine'],
@@ -459,26 +501,43 @@ Rules:
 - Create exactly ${daysPerWeek} routines (one per training day)
 - Name routines clearly: e.g. "Day 1 – Push", "Day 2 – Pull", 
   "Day 3 – Legs", or "Upper A", "Lower B" etc.
-- MUSCLE COVERAGE (mandatory unless user explicitly excludes): Across all routines for the week, the programme must train every major area: chest, back, shoulders, arms (include both elbow flexors and triceps across the week — e.g. on pull/push or an arm-focused day), legs, and core. Never omit a whole major group by default. If Additional notes or focus clearly say to skip a group (injury, "upper only for now", etc.), follow that instead. On few training days (e.g. 2-day), still schedule at least one substantive leg movement and core work across the week within session-length limits (use compounds where helpful).
+- WHOLE-BODY MUSCLE COVERAGE (mandatory): Over the **full week** (all ${daysPerWeek} routines together), every major region below must receive **real training volume** — not name-only. Map exercises using their muscle tag / movement pattern from the exercise list.
+  **Checklist** (unless Additional notes or focus **explicitly** limit scope — e.g. injury, temporary "upper only", doctor restriction, user says "no legs this block"):
+  • **Chest** — horizontal or incline press / fly pattern; not zero chest work.
+  • **Back** — at least one vertical pull **and** one horizontal pull pattern across the week where equipment allows (or closest substitutes from the list).
+  • **Shoulders** — overhead or high-incline press **and** at least one lateral or rear-delt angle across the week when possible.
+  • **Arms** — across the week hit **both** biceps (elbow flexion) **and** triceps (elbow extension); isolation or clear compound emphasis.
+  • **Legs** — knee-dominant (squat/lunge/leg press) **and** a hip hinge or hamstring/knee accessory when equipment allows; **never** omit legs unless user explicitly excludes.
+  • **Glutes** — hip thrust, lunge, squat, RDL, or isolation; when **Glutes** tag is selected, add **≥2** glute-biased movements across the week on lower-body days.
+  • **Core** — anti-extension, rotation, or flexion (plank, carry, crunch, leg raise, etc.) — **≥2** distinct core exposures across the week (can be shorter finishers).
+  **Few days per week (2–3):** Use **efficient compounds** and **full-body or hybrid** days so the checklist still clears — e.g. leg + pull + core on one day, push + legs + core on another; never “all upper” on every day unless user asked.
+  **Explicit opt-out only:** If the user clearly writes they want to **skip or postpone** a region (notes or focus), follow that and mention it briefly in rationale — never silently drop a checklist item otherwise.
 - Use progressive structure (compound lifts first, isolation after)
 - NEVER schedule the same primary muscle group on back-to-back days
 - Beginner: simpler movements, 3 sets, higher reps (10-15)
 - Intermediate: moderate complexity, 3-4 sets, 8-12 reps
 - Advanced: compound-heavy, 4-5 sets, 5-10 reps
 
-SESSION LENGTH — follow these guidelines:
-- 30 min: max 5 exercises, 3 sets each
-- 45 min: max 6 exercises, 3 sets each
-- 60 min: max 7 exercises, 3-4 sets each
-- 75 min: max 8 exercises, 4 sets each
-- 90+ min: max 9 exercises, 4-5 sets each
-- For get_stronger goal: reduce exercise count by 1-2 due to longer rest periods
+SESSION LENGTH — user target is **~${sessionLength} minutes per session** (not per week). Hard caps per routine:
+- 30 min: max **5** exercises, ~3 sets each
+- 45 min: max **6** exercises, ~3 sets each
+- 60 min: max **7** exercises, ~3–4 sets each
+- 75 min: max **8** exercises, ~4 sets each
+- 90+ min: max **9** exercises, ~4–5 sets each
+- **get_stronger**: subtract **1** from the exercise-count cap above (longer rests).
+
+TIME TARGET — stay close to **${sessionLength} minutes** each day:
+- Output **exactly ${daysPerWeek}** routine objects — one per training day, **no more, no fewer**.
+- Before finalising each routine, estimate: (total working sets × ~2.5–4 min per set depending on rest) + **~8 min** warmup/changeover. If the total **clearly exceeds** ${sessionLength} min, **remove** an isolation or reduce sets — do **not** exceed the caps above.
+- Short sessions (**30–45 min**): fewer exercises, quality sets — do not cram volume.
 
 GOAL-SPECIFIC RULES:
 - lose_weight: include 1-2 cardio exercises per routine if 
   equipment allows. Higher reps (12-15), shorter rest.
 - build_muscle: no cardio unless user requested it. 
-  Focus on hypertrophy rep ranges (8-12).
+  Focus on hypertrophy rep ranges (8-12). Use **generous rest** between hard sets 
+  (especially on compounds) — not short “metabolic” rest unless lose_weight; 
+  recovery drives volume and quality for muscle gain.
 - get_stronger: prioritise compound barbell/dumbbell movements. 
   Lower reps (5-8), longer rest.
 - stay_in_shape: balanced mix of compound and isolation. 
@@ -494,23 +553,51 @@ PROGRAMME STRUCTURE — if user selected structure in focus areas:
 - "Supersets": pair complementary exercises as supersets 
   where appropriate.
 
-FOCUS AREAS — muscle group tags:
-- If specific muscle groups selected (e.g. Chest, Glutes), 
-  include at least 2 exercises targeting those muscles 
-  per relevant routine day.
+FOCUS AREAS — muscle group tags (${QORE_MUSCLE_TAGS.join(', ')}):
+- Muscle tags mean **extra emphasis** (more exercises, harder variations, priority earlier in session), **not** permission to drop untagged regions — still satisfy the WHOLE-BODY checklist above unless Additional notes explicitly narrow the programme.
+- For **each selected** tag: include **≥2** exercises biased to that area **across the week** (not necessarily both on one day unless it fits the split). If **one** tag only: still programme the rest of the body for balance.
+- If **no** muscle tags: spread work so **every** checklist region gets fair attention for the user’s goal and level.
 
-REST SECONDS — use this matrix, maximum 120 seconds:
-Compound heavy (squat, deadlift, bench press, overhead press, row):
-  - lose_weight: 90s | build_muscle: 90s | get_stronger: 120s | stay_in_shape: 90s
+REST SECONDS — User Goal=${goal}, Level=${level}. Each exercise "restSeconds" MUST be exactly 
+one of: ${REST_PRESETS.join(', ')} (0 = none). Max ${REST_MAX_SEC}s. Never any other number.
 
-Compound moderate (dumbbell press, cable row, lat pulldown etc.):
-  - lose_weight: 60s | build_muscle: 75s | get_stronger: 90s | stay_in_shape: 75s
+Step 1 — Classify every exercise into ONE category (pick best fit):
+- **A Compound heavy**: barbell squat, deadlift, bench, OHP, heavy rows, hip thrust, heavy leg press as main lift
+- **B Compound moderate**: dumbbell presses, cable rows, lat pulldown, machine compounds, RDL moderate, goblet squat
+- **C Isolation**: curls, extensions, flyes, raises, leg curl/extension, calves, single-joint work
+- **D Cardio / conditioning / easy BW circuits**: burpees, jumping jacks, mountain climbers, jump rope, light BW rounds
 
-Isolation (curl, lateral raise, extension, fly etc.):
-  - lose_weight: 30s | build_muscle: 60s | get_stronger: 75s | stay_in_shape: 60s
+Step 2 — Use the range for the user’s Goal + Level + category. Every number in ranges is already valid (15s steps).
+Pick **one** value inside the range: harder work (heavier, more sets, lower reps) → **upper** end; 
+easier or metabolic work → **lower** end. Main “money” lift of the day for that muscle → upper end.
 
-Cardio and bodyweight:
-  - lose_weight: 30s | build_muscle: 45s | stay_in_shape: 45s
+lose_weight (density + some fatigue; still allow quality on heavy compounds):
+- beginner: A 60–75 | B 45–60 | C 30–45 | D 30–45
+- intermediate: A 75–90 | B 60–75 | C 45 | D 30–45
+- advanced: A 75–90 | B 60–75 | C 45–60 | D 45
+
+build_muscle (hypertrophy — enough rest to repeat sets with good form):
+- beginner: A 90–105 | B 75–90 | C 60–75 | D 45
+- intermediate: A 105–120 | B 90–105 | C 75 | D 45–60
+- advanced: A 120–150 | B 90–120 | C 75–90 | D 45–60
+
+get_stronger (strength — longest rests on heavy compounds; use full ranges):
+- beginner: A 105–120 | B 90–105 | C 75 | D 45–60
+- intermediate: A 120–135 | B 105–120 | C 75–90 | D 45–60
+- advanced: A 135–180 | B 120–135 | C 90–105 | D 60
+
+stay_in_shape (balanced maintenance; moderate density):
+- beginner: A 75–90 | B 60–75 | C 45–60 | D 30–45
+- intermediate: A 90–105 | B 75–90 | C 60–75 | D 45
+- advanced: A 90–120 | B 75–90 | C 60–75 | D 45–60
+
+Step 3 — Focus tag overrides (if selected in Focus areas):
+- **Less rest time**: subtract **15s** from your chosen value (floor: **30s** for A/B/C work sets; D can stay 30s).
+- **More rest time**: add **15s** (ceiling: **${REST_MAX_SEC}s**). Combine sensibly with session length—if time is tight, 
+  drop an exercise rather than cutting big-compound rest below the range minimum.
+
+Step 4 — Session length: if rest targets make the routine too long, reduce **number of exercises** (per SESSION LENGTH rules), 
+not below the **minimum** of the range for the heaviest compounds that day.
 
 PROGRAMME NAME:
 - Must be motivational and specific, e.g. "4-Day Strength Builder",
@@ -541,7 +628,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
           "sets": number,
           "reps": number or null,
           "duration": number or null (seconds, for time_only),
-          "restSeconds": number (follow rest matrix above, max 120)
+          "restSeconds": number (must be one of: ${REST_PRESETS.join(', ')})
         }
       ]
     }
@@ -558,6 +645,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
       if (!parsed.routines?.length) {
         throw new Error('No valid exercises returned — try again')
       }
+      validateCoachAgainstQuiz(parsed, { daysPerWeek, sessionLength, goal })
       setGeneratedProgramme(parsed)
       try {
         await Promise.resolve(onCoachGenerationSuccess?.())
@@ -567,6 +655,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
       setPhase('result')
     } catch (err) {
       console.error('Coach generation error:', err)
+      setCoachErrorDetail(err instanceof Error ? err.message : null)
       setPhase('error')
     } finally {
       setLoading(false)
@@ -636,16 +725,21 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
       <SheetFrame
         title="Something went wrong"
         subtitle="Coach couldn't build your programme right now."
-        onBack={() => setPhase('consent')}
+        onBack={() => { setCoachErrorDetail(null); setPhase('consent') }}
         onClose={onClose}
         showFlowProgress
         flowProgressCurrent={6}
       >
         <div className="rounded-2xl p-6 border border-border bg-card text-center">
+          {coachErrorDetail ? (
+            <p className="text-muted-strong text-sm mb-3 text-left whitespace-pre-wrap break-words">
+              {coachErrorDetail}
+            </p>
+          ) : null}
           <p className="text-muted-strong text-sm mb-4">
-            This can happen if there's a connection issue. Try again — your answers are saved.
+            This can happen if there&apos;s a connection issue or the programme didn&apos;t match your choices. Try again — your answers are saved.
           </p>
-          <ActionButton type="button" onClick={() => setPhase('consent')} variant="primary">
+          <ActionButton type="button" onClick={() => { setCoachErrorDetail(null); setPhase('consent') }} variant="primary">
             Try again
           </ActionButton>
         </div>
