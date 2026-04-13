@@ -3227,25 +3227,6 @@ ${JSON.stringify(ctx)}`
                                       : `${daysSinceRtn} days ago`
                               const routineMetaBadgeBox =
                                 'inline-flex h-6 w-[5.25rem] shrink-0 items-center justify-center rounded-md border px-1 text-[9px] leading-none text-center sm:w-[5.5rem]'
-                              const SLUG_COLORS = {
-                                chest: '#7B7BFF',
-                                'front-delts': '#4ECDC4',
-                                'side-delts': '#4ECDC4',
-                                'rear-delts': '#4ECDC4',
-                                triceps: '#ff6b6b',
-                                biceps: '#ff6b6b',
-                                forearms: '#ff6b6b',
-                                back: '#5BF5A0',
-                                lats: '#5BF5A0',
-                                traps: '#5BF5A0',
-                                'lower-back': '#5BF5A0',
-                                abs: '#C8A0FF',
-                                obliques: '#C8A0FF',
-                                quads: '#FFAA50',
-                                hamstrings: '#FFAA50',
-                                glutes: '#FFAA50',
-                                calves: '#FFAA50',
-                              }
                               return (
                                 <div key={rtnId} className="flex w-full min-w-0">
                                   <div
@@ -3388,14 +3369,12 @@ ${JSON.stringify(ctx)}`
                                       {allSlugs.length > 0 ? (
                                         <div className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 touch-pan-x [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]">
                                           {allSlugs.map((slug) => {
-                                            const color = SLUG_COLORS[slug] || 'rgba(255,255,255,0.4)'
                                             const label = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ')
                                             return (
                                               <span
                                                 key={slug}
                                                 title={label}
-                                                className={`shrink-0 ${TYPE_CAPTION} font-semibold px-[7px] py-[3px] rounded-full whitespace-nowrap`}
-                                                style={{ color, background: `${color}14` }}
+                                                className={`shrink-0 ${TYPE_CAPTION} font-semibold px-[7px] py-[3px] rounded-full whitespace-nowrap text-plan-text bg-white/[0.08]`}
                                               >
                                                 {label}
                                               </span>
@@ -3555,53 +3534,21 @@ ${JSON.stringify(ctx)}`
                               {progRoutines.map((r) => (
                                 <div
                                   key={r.id}
-                                  className={`flex min-w-0 items-center gap-1 px-4 py-2 ${
+                                  className={`flex min-w-0 items-center px-4 py-2 ${
                                     isActive ? 'hover:bg-white/[0.03]' : 'hover:bg-white/[0.02]'
                                   }`}
                                 >
                                   <button
                                     type="button"
                                     onClick={() => openRoutineFromPlan(prog, r)}
-                                    className="min-w-0 flex-1 py-0.5 text-left"
+                                    className={`min-w-0 flex-1 py-0.5 text-left rounded-lg -mx-1 px-1 transition-colors active:opacity-80 ${isActive ? 'hover:bg-white/[0.04]' : 'hover:bg-white/[0.03]'}`}
+                                    title="Edit routine"
+                                    aria-label={`Edit routine ${r.name || '—'}`}
                                   >
                                     <span className={`block min-w-0 truncate text-[12px] font-medium leading-snug ${isActive ? 'text-plan-text' : 'text-[var(--plan-text-row)]'}`}>
                                       {r.name || '—'}
                                     </span>
                                   </button>
-                                  <div className="flex shrink-0 items-center gap-0.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => openRoutineFromPlan(prog, r)}
-                                      className="rounded-lg p-2 text-plan-text transition-colors hover:bg-white/5 hover:text-plan-hover active:opacity-80"
-                                      title="Edit routine"
-                                      aria-label={`Edit routine ${r.name || ''}`}
-                                    >
-                                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 stroke-current">
-                                        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                                      </svg>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => copyRoutine(r.id, prog.id)}
-                                      className="rounded-lg p-2 text-plan-text transition-colors hover:bg-white/5 hover:text-plan-hover active:opacity-80"
-                                      title="Copy routine"
-                                      aria-label={`Copy routine ${r.name || ''}`}
-                                    >
-                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                                      </svg>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditProgrammeRoutinePendingDelete({ progId: prog.id, rtnId: r.id, name: r.name || 'Routine' })}
-                                      className="rounded-lg p-2 text-[var(--semantic-negative-soft)] transition-colors hover:bg-white/5 hover:text-red-400 active:opacity-80"
-                                      title="Delete routine"
-                                      aria-label={`Delete routine ${r.name || ''}`}
-                                    >
-                                      <DeleteTrashGlyph className="h-4 w-4" />
-                                    </button>
-                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -4107,6 +4054,7 @@ ${JSON.stringify(ctx)}`
                     const { progId, rtnId } = editProgrammeRoutinePendingDelete
                     setEditProgrammeRoutinePendingDelete(null)
                     removeRoutineFromProgramme(progId, rtnId)
+                    if (editingRoutineId === rtnId) routineEditorCloseRef.current?.()
                   }}
                 >
                   <DeleteTrashGlyph className="w-4 h-4 shrink-0" />
@@ -4579,7 +4527,31 @@ ${JSON.stringify(ctx)}`
                   </>
                 )}
                 <label className={`block ${TYPE_LABEL_FORM} mb-1.5`}>Name</label>
-                <input type="text" value={name} onChange={e => setEditRoutineName(e.target.value)} placeholder="e.g. Day 1 - Pull" onFocus={e => e.target.select()} autoFocus={!isEdit && !editRoutineName.trim() && (!programmeId || editProgrammeName.trim())} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent mb-4 shrink-0" />
+                <input type="text" value={name} onChange={e => setEditRoutineName(e.target.value)} placeholder="e.g. Day 1 - Pull" onFocus={e => e.target.select()} autoFocus={!isEdit && !editRoutineName.trim() && (!programmeId || editProgrammeName.trim())} className={`w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent shrink-0 ${isEdit && programmeId ? 'mb-2' : 'mb-4'}`} />
+                {isEdit && programmeId ? (
+                  <div className="flex flex-wrap gap-x-5 gap-y-1 mb-4 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => copyRoutine(editingRoutineId, programmeId)}
+                      className="text-sm font-semibold text-accent hover:underline"
+                    >
+                      Duplicate routine
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditProgrammeRoutinePendingDelete({
+                          progId: programmeId,
+                          rtnId: editingRoutineId,
+                          name: (editRoutineName || '').trim() || 'Routine',
+                        })
+                      }
+                      className="text-sm font-semibold text-[var(--semantic-negative-soft)] hover:text-red-400 hover:underline"
+                    >
+                      Delete routine
+                    </button>
+                  </div>
+                ) : null}
                 <label className={`block ${TYPE_LABEL_FORM} mb-2`}>Exercises</label>
                 <div className="overflow-y-auto flex-1 min-h-0 -mx-4 px-4 space-y-2">
                   {routineLinkMode.active && (
