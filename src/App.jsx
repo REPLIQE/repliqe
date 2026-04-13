@@ -75,24 +75,6 @@ function LazyFallback({ label = 'Loading…' }) {
   )
 }
 
-/** Plan programme tiles: exercise/set counts + unique muscle group labels from library */
-function routinePlanTileMeta(routine, library) {
-  const exs = routine?.exercises || []
-  const exCount = exs.length
-  const setCount = exs.reduce((n, ex) => n + (ex.setConfigs?.length || 0), 0)
-  const { primary } = getDayMusclesSlugs(exs, library)
-  const labels = []
-  const seen = new Set()
-  for (const slug of primary) {
-    const gk = SLUG_TO_GROUP[slug]
-    const label = gk && MUSCLE_GROUPS[gk] ? MUSCLE_GROUPS[gk].label : formatMuscleLabel(slug)
-    if (!seen.has(label)) {
-      seen.add(label)
-      labels.push(label)
-    }
-  }
-  return { exCount, setCount, focusLabels: labels }
-}
 import PricingSheet from './PricingSheet'
 import {
   defaultPlanUsage,
@@ -1301,6 +1283,28 @@ function AppContent() {
     idx = ((idx % routineIds.length) + routineIds.length) % routineIds.length
     return routineIds[idx]
   }
+
+  const upNextRoutineIdForStart = activeProgramme ? getNextRoutine(activeProgramme, history) : null
+  const upNextRoutineIdPrevRef = useRef(null)
+  const activeProgrammeIdForStartRef = useRef(null)
+  useEffect(() => {
+    const pid = activeProgramme?.id ?? null
+    if (pid !== activeProgrammeIdForStartRef.current) {
+      activeProgrammeIdForStartRef.current = pid
+      upNextRoutineIdPrevRef.current = upNextRoutineIdForStart
+      setSelectedStartRoutineId(null)
+      return
+    }
+    const prev = upNextRoutineIdPrevRef.current
+    if (
+      prev != null &&
+      upNextRoutineIdForStart != null &&
+      prev !== upNextRoutineIdForStart
+    ) {
+      setSelectedStartRoutineId(null)
+    }
+    upNextRoutineIdPrevRef.current = upNextRoutineIdForStart
+  }, [activeProgramme?.id, upNextRoutineIdForStart])
 
   function advanceProgrammeRotation(routineId) {
     const prog = programmes.find(p => p.routineIds?.includes(routineId))
@@ -3118,7 +3122,7 @@ ${JSON.stringify(ctx)}`
                         <span className={`w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-lg font-bold shrink-0 ${emptyInProgress ? 'bg-[var(--in-progress-bg-strong)] text-in-progress' : 'bg-accent/10 text-accent'}`}>+</span>
                         <div className="text-left min-w-0">
                           {emptyInProgress ? (
-                            <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-pulse-badge">
+                            <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-up-next-pulse-soft">
                               <span className={`${TYPE_STATUS_BADGE} text-in-progress`}>IN PROGRESS</span>
                             </div>
                           ) : null}
@@ -3153,7 +3157,7 @@ ${JSON.stringify(ctx)}`
                         <span className={`w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-lg font-bold shrink-0 ${emptyInProgress ? 'bg-[var(--in-progress-bg-strong)] text-in-progress' : 'bg-accent/10 text-accent'}`}>+</span>
                         <div className="text-left min-w-0">
                           {emptyInProgress ? (
-                            <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-pulse-badge">
+                            <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-up-next-pulse-soft">
                               <span className={`${TYPE_STATUS_BADGE} text-in-progress`}>IN PROGRESS</span>
                             </div>
                           ) : null}
@@ -3166,20 +3170,14 @@ ${JSON.stringify(ctx)}`
 
                 const nextRtnId = getNextRoutine(activeProgramme, history)
                 const routineIds = activeProgramme.routineIds || []
-                const routineChipGridStyle =
-                  routineIds.length > 0
-                    ? { gridTemplateColumns: `repeat(${routineIds.length}, minmax(0, 1fr))` }
-                    : undefined
                 const displayRtnId = (selectedStartRoutineId && routineIds.includes(selectedStartRoutineId)) ? selectedStartRoutineId : nextRtnId
-                const displayRtnIdx = displayRtnId ? routineIds.indexOf(displayRtnId) : -1
                 const displayRtn = displayRtnId ? routines.find(r => r.id === displayRtnId) : null
-                const exCount = displayRtn?.exercises?.length ?? 0
-                const setCountR = displayRtn?.exercises?.reduce((s, e) => s + getSetConfigs(e).length, 0) ?? 0
-                const estMin = displayRtn ? Math.round(getEstimatedSecondsForRoutine(displayRtn, defaultRest) / 60) : 0
 
                 const dayMuscles = displayRtn ? getDayMusclesSlugs(displayRtn.exercises || [], allLibraryExercises) : { primary: [], secondary: [] }
                 const emptyInProgress = workoutActive && startedFromEmptyRef.current
                 const startReadinessHint = null
+                /** Rolig accordion ved rutineskift — blød in-out, længere end globale motion-tokens */
+                const startRtnAccordionEase = '[transition-timing-function:cubic-bezier(0.45,0.05,0.55,0.95)]'
 
                 return (
                   <>
@@ -3188,12 +3186,14 @@ ${JSON.stringify(ctx)}`
                     <div className="rounded-[18px] border border-white/[0.07] overflow-hidden mb-5">
 
                       {/* TOP ZONE: programme name + day selector */}
-                      <div className="px-4 pt-4 pb-3 bg-white/[0.02]">
-                        <div className="mb-3 w-full min-w-0 text-left text-sm font-semibold text-white [overflow-wrap:anywhere]">
-                          {activeProgramme.name}
+                      <div className="bg-white/[0.02] px-4 pb-3">
+                        <div className="-mx-4 border-b border-white/[0.06] bg-white/[0.045] px-4 pb-3 pt-4">
+                          <div className="w-full min-w-0 text-left text-sm font-medium text-white [overflow-wrap:anywhere]">
+                            {activeProgramme.name}
+                          </div>
                         </div>
                         {startReadinessHint ? (
-                          <p className={`${TYPE_MICRO} text-amber-400/90 leading-snug mb-3`}>{startReadinessHint}</p>
+                          <p className={`${TYPE_MICRO} mb-3 pt-3 leading-snug text-amber-400/90`}>{startReadinessHint}</p>
                         ) : null}
                         {routineIds.length === 0 ? (
                           <div className="rounded-xl border border-border-strong bg-card-alt/80 p-4 text-sm text-muted-strong">
@@ -3203,31 +3203,212 @@ ${JSON.stringify(ctx)}`
                             </button>
                           </div>
                         ) : (
-                          <div className="grid gap-x-1.5 items-end" style={routineChipGridStyle}>
+                          <div className="-mx-4 divide-y divide-white/[0.06]">
                             {routineIds.map((rtnId) => {
                               const rtn = routines.find(r => r.id === rtnId)
-                              const isSelected = rtnId === displayRtnId
+                              const isNext = rtnId === nextRtnId
+                              const isOpen = rtnId === displayRtnId
+                              const inProgressHere = workoutActive && !emptyInProgress && currentRoutineIdRef.current === rtnId
+                              const panelExercises = rtn?.exercises ?? []
+                              const panelExCount = panelExercises.length
+                              const panelEstMin = rtn ? Math.round(getEstimatedSecondsForRoutine(rtn, defaultRest) / 60) : 0
+                              const panelDayMuscles = rtn ? getDayMusclesSlugs(panelExercises, allLibraryExercises) : { primary: [], secondary: [] }
+                              const allSlugs = [...new Set([...(panelDayMuscles.primary || []), ...(panelDayMuscles.secondary || [])])]
+                              const recoveryPct = allSlugs.length ? getRecoveryPct(panelDayMuscles, muscleLastWorked) : null
+                              const recoveryAccent = 'var(--plan-text)'
+                              const daysSinceRtn = getDaysSinceRoutine(rtnId)
+                              const daysAgoLabel =
+                                daysSinceRtn === null
+                                  ? 'Not yet'
+                                  : daysSinceRtn === 0
+                                    ? 'Today'
+                                    : daysSinceRtn === 1
+                                      ? '1 day ago'
+                                      : `${daysSinceRtn} days ago`
+                              const routineMetaBadgeBox =
+                                'inline-flex h-6 w-[5.25rem] shrink-0 items-center justify-center rounded-md border px-1 text-[9px] leading-none text-center sm:w-[5.5rem]'
+                              const SLUG_COLORS = {
+                                chest: '#7B7BFF',
+                                'front-delts': '#4ECDC4',
+                                'side-delts': '#4ECDC4',
+                                'rear-delts': '#4ECDC4',
+                                triceps: '#ff6b6b',
+                                biceps: '#ff6b6b',
+                                forearms: '#ff6b6b',
+                                back: '#5BF5A0',
+                                lats: '#5BF5A0',
+                                traps: '#5BF5A0',
+                                'lower-back': '#5BF5A0',
+                                abs: '#C8A0FF',
+                                obliques: '#C8A0FF',
+                                quads: '#FFAA50',
+                                hamstrings: '#FFAA50',
+                                glutes: '#FFAA50',
+                                calves: '#FFAA50',
+                              }
                               return (
-                                <div key={rtnId} className="min-w-0 flex flex-col items-stretch">
+                                <div key={rtnId} className="flex w-full min-w-0">
+                                  <div
+                                    className={`shrink-0 rounded-full bg-accent transition-[width,opacity] duration-[420ms] motion-reduce:duration-0 ${startRtnAccordionEase} motion-reduce:transition-none ${
+                                      isOpen ? 'w-[3px] opacity-90' : 'w-0 opacity-0'
+                                    }`}
+                                    aria-hidden
+                                  />
+                                  <div className="flex min-w-0 flex-1 flex-col">
                                   <button
                                     type="button"
-                                    onClick={() => rtn && setSelectedStartRoutineId(rtnId)}
-                                    className={`w-full flex-1 min-w-0 rounded-[10px] py-2.5 px-1.5 text-center border relative transition-[transform,colors,background-color,border-color] duration-200 ease-out ${
-                                      isSelected
-                                        ? 'border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] translate-y-[10px] z-10'
-                                        : 'z-0 translate-y-0 bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
+                                    onClick={() => {
+                                      if (!rtn) return
+                                      setSelectedStartRoutineId(rtnId === nextRtnId ? null : rtnId)
+                                    }}
+                                    className={`w-full px-4 py-2 text-left transition-colors duration-[400ms] motion-reduce:duration-0 ${startRtnAccordionEase} motion-reduce:transition-none ${
+                                      isOpen ? 'bg-[var(--plan-surface-08)]' : 'bg-transparent hover:bg-white/[0.03]'
                                     }`}
                                   >
-                                    <div className={`${TYPE_MICRO} font-semibold truncate ${isSelected ? 'text-plan-text' : 'text-[var(--plan-text-muted)]'}`}>
-                                      {isSelected ? (
-                                        <span className="inline-flex justify-center min-h-[1em] animate-up-next-fade-in-after-title">
-                                          <span className="inline-block text-[10px] tracking-[0.14em] uppercase animate-up-next-pulse-soft">Up next</span>
+                                    <div className="flex min-w-0 items-center justify-between gap-3">
+                                      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2">
+                                        <span className="min-w-0 truncate text-[12px] font-medium leading-snug text-plan-text">
+                                          {rtn?.name || '—'}
+                                        </span>
+                                      </div>
+                                      {isNext ? (
+                                        <span
+                                          className={`${routineMetaBadgeBox} border-accent/40 bg-accent/10 font-extrabold uppercase tracking-[0.14em] text-accent animate-up-next-pulse-soft shadow-[0_0_14px_var(--accent-primary-glow)]`}
+                                          aria-label="Up next in your programme"
+                                        >
+                                          Up Next
                                         </span>
                                       ) : (
-                                        rtn?.name || '—'
+                                        <span
+                                          className={`${routineMetaBadgeBox} border-white/[0.12] bg-white/[0.04] font-semibold tracking-wide text-white/45 tabular-nums`}
+                                          aria-label={`Last completed: ${daysAgoLabel}`}
+                                        >
+                                          {daysAgoLabel}
+                                        </span>
                                       )}
                                     </div>
                                   </button>
+                                  {rtn ? (
+                                    <div
+                                      className={`grid overflow-hidden transition-[grid-template-rows] duration-[480ms] motion-reduce:duration-0 ${startRtnAccordionEase} motion-reduce:transition-none ${
+                                        isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                                      }`}
+                                      aria-hidden={!isOpen}
+                                    >
+                                      <div className="min-h-0 overflow-hidden">
+                                        <div
+                                          className={`origin-top border-t border-white/[0.05] bg-white/[0.02] transition-[opacity,transform] duration-[420ms] motion-reduce:duration-0 ease-out motion-reduce:transition-none ${
+                                            isOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-3 opacity-0'
+                                          }`}
+                                        >
+                                          <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
+                                      <div className="grid grid-cols-4 gap-1.5 sm:gap-2 items-stretch">
+                                        <div className="flex min-w-0 flex-col items-center justify-center rounded-[10px] bg-white/[0.03] px-1 py-2 text-center sm:px-2">
+                                          <span className={`${TYPE_STAT_NUMBER} block leading-none text-[1.1rem] sm:text-xl tabular-nums`}>{panelExCount}</span>
+                                          <span className={`${TYPE_MICRO_TIGHT} mt-1 block font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
+                                            Exercise{panelExCount !== 1 ? 's' : ''}
+                                          </span>
+                                        </div>
+                                        <div className="flex min-w-0 flex-col items-center justify-center rounded-[10px] bg-white/[0.03] px-1 py-2 text-center sm:px-2">
+                                          <span className={`${TYPE_STAT_NUMBER} block leading-none text-[1.1rem] sm:text-xl tabular-nums`}>{panelEstMin}</span>
+                                          <span className={`${TYPE_MICRO_TIGHT} mt-1 block font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
+                                            Est. time
+                                          </span>
+                                        </div>
+                                        <div className="relative flex min-w-0 flex-col items-center justify-center overflow-hidden rounded-[10px] border border-plan-text/40 bg-white/[0.03] px-1 py-2 text-center sm:px-2">
+                                          {recoveryPct != null ? (
+                                            <>
+                                              <div
+                                                className="pointer-events-none absolute inset-y-0 left-0 transition-[width] duration-300 ease-out motion-reduce:transition-none"
+                                                style={{
+                                                  width: `${recoveryPct}%`,
+                                                  background: `color-mix(in srgb, ${recoveryAccent} 36%, transparent)`,
+                                                }}
+                                                aria-hidden
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => setShowStartRecoveryInfo(true)}
+                                                className="relative z-10 flex w-full min-w-0 flex-col items-center rounded-lg transition-colors outline-none hover:bg-white/[0.06] focus-visible:ring-1 focus-visible:ring-[var(--a11y-focus-ring)]"
+                                                aria-label="Recovery details for this day"
+                                              >
+                                                <span className={`${TYPE_STAT_NUMBER} block leading-none text-[1.1rem] sm:text-xl tabular-nums`} style={{ color: recoveryAccent }}>
+                                                  {recoveryPct}%
+                                                </span>
+                                                <span className={`${TYPE_MICRO_TIGHT} mt-1 inline-flex items-center justify-center gap-1 font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
+                                                  Recovery
+                                                  <span className={`${TYPE_BODY_SM} leading-none text-accent`} aria-hidden>
+                                                    →
+                                                  </span>
+                                                </span>
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <div className="flex flex-col items-center">
+                                              <span className={`${TYPE_STAT_NUMBER} block leading-none text-[1.1rem] sm:text-xl tabular-nums text-white/25`}>—</span>
+                                              <span className={`${TYPE_MICRO_TIGHT} mt-1 block font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
+                                                Recovery
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="min-w-0 flex items-stretch">
+                                          {inProgressHere ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActiveWorkoutSheetContinueIntent(true)
+                                                setShowActiveWorkoutSheet(true)
+                                              }}
+                                              className="w-full min-h-[4.5rem] rounded-[10px] flex flex-col items-center justify-center border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] px-1 text-center animate-up-next-pulse-soft cursor-pointer transition-colors hover:border-[var(--in-progress-border-40)] hover:brightness-110 active:opacity-90 outline-none focus-visible:ring-1 focus-visible:ring-[var(--a11y-focus-ring)]"
+                                              aria-label="Continue workout for this routine"
+                                            >
+                                              <span className={`${TYPE_MICRO} font-extrabold tracking-[0.8px] text-in-progress`}>
+                                                IN PROGRESS
+                                              </span>
+                                            </button>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => tryStart('routine', rtn)}
+                                              className={`w-full min-h-[4.5rem] rounded-[10px] ${TYPE_MICRO} sm:text-sm font-bold text-white flex flex-col items-center justify-center gap-1 active:opacity-95 px-1`}
+                                              style={{ background: 'var(--plan-gradient)', boxShadow: 'var(--plan-shadow-card)' }}
+                                              aria-label={`Start ${rtn.name || 'workout'}`}
+                                            >
+                                              <span
+                                                className="inline-block w-0 h-0 border-y-[5px] border-y-transparent border-l-[8px] border-l-white shrink-0"
+                                                style={{ marginLeft: 2 }}
+                                                aria-hidden
+                                              />
+                                              Start
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {allSlugs.length > 0 ? (
+                                        <div className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 touch-pan-x [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]">
+                                          {allSlugs.map((slug) => {
+                                            const color = SLUG_COLORS[slug] || 'rgba(255,255,255,0.4)'
+                                            const label = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ')
+                                            return (
+                                              <span
+                                                key={slug}
+                                                title={label}
+                                                className={`shrink-0 ${TYPE_CAPTION} font-semibold px-[7px] py-[3px] rounded-full whitespace-nowrap`}
+                                                style={{ color, background: `${color}14` }}
+                                              >
+                                                {label}
+                                              </span>
+                                            )
+                                          })}
+                                        </div>
+                                      ) : null}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  </div>
                                 </div>
                               )
                             })}
@@ -3235,180 +3416,6 @@ ${JSON.stringify(ctx)}`
                         )}
                       </div>
 
-                      {/* BOTTOM ZONE: samme kolonne-grid som chips — titel spænder fra valgt boks til højre kant */}
-                      {displayRtn && (
-                        <div className="border-t border-white/[0.05]">
-                          <div className="px-4 pt-3 pb-4">
-                          <div className="grid gap-x-1.5 items-start mb-3" style={routineChipGridStyle}>
-                            {(() => {
-                              const narrowEndChip = displayRtnIdx >= 3
-                              const oneLineNarrow = displayRtnIdx >= 1
-                              const gridCol = oneLineNarrow
-                                ? `${displayRtnIdx + 1} / ${displayRtnIdx + 2}`
-                                : `${displayRtnIdx + 1} / -1`
-                              const titleRow =
-                                displayRtnIdx === 0
-                                  ? 'flex flex-wrap gap-x-2 gap-y-1 justify-start items-center'
-                                  : 'flex flex-nowrap gap-x-2 justify-start items-center'
-                              const badgeSelf = 'self-center'
-                              const h3Cls = oneLineNarrow
-                                ? 'text-sm font-semibold text-white whitespace-nowrap shrink-0 leading-snug animate-start-routine-title-move'
-                                : 'text-sm font-semibold text-white min-w-0 max-w-full leading-snug animate-start-routine-title-move [overflow-wrap:anywhere]'
-                              const titleAbbrevInnerCls = oneLineNarrow
-                                ? 'routine-title-abbrev-inner routine-title-abbrev-inner--oneline'
-                                : 'routine-title-abbrev-inner routine-title-abbrev-inner--wrap'
-                              const metaCls = oneLineNarrow
-                                ? `${TYPE_META} text-white/30 mt-[2px] whitespace-nowrap text-left`
-                                : `${TYPE_META} text-white/30 mt-[2px] min-w-0 text-left leading-snug [overflow-wrap:anywhere]`
-                              const trained = (() => {
-                                const days = getDaysSinceRoutine(displayRtnId)
-                                if (days === null) return 'Never trained'
-                                if (days === 0) return 'Trained today'
-                                if (days === 1) return 'Last trained yesterday'
-                                return `Last trained ${days} days ago`
-                              })()
-                              const gridItemStyle = oneLineNarrow
-                                ? {
-                                    gridColumn: gridCol,
-                                    justifySelf: narrowEndChip ? 'end' : 'center',
-                                    width: 'max-content',
-                                  }
-                                : { gridColumn: gridCol }
-                              return (
-                                <div
-                                  key={displayRtnId}
-                                  className={oneLineNarrow ? 'min-w-0 z-[1]' : 'min-w-0'}
-                                  style={gridItemStyle}
-                                >
-                                  <div className="flex flex-col items-start text-left">
-                                    <div className={titleRow}>
-                                      <h3 className={h3Cls}>
-                                        <span className={titleAbbrevInnerCls}>{displayRtn.name}</span>
-                                      </h3>
-                                      {workoutActive && !emptyInProgress ? (
-                                        <div className={`inline-flex items-center rounded-full px-3 py-1 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-pulse-badge shrink-0 ${badgeSelf}`}>
-                                          <span className={`${TYPE_MICRO} font-extrabold tracking-[0.8px] text-in-progress`}>IN PROGRESS</span>
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                    <div className={metaCls}>{trained}</div>
-                                  </div>
-                                </div>
-                              )
-                            })()}
-                          </div>
-
-                          <div className="flex gap-2 mb-3">
-                            {[
-                              { val: exCount, lbl: 'Exercises' },
-                              { val: setCountR, lbl: 'Sets' },
-                              { val: estMin, lbl: 'Est. min' },
-                            ].map(({ val, lbl }) => (
-                              <div key={lbl} className="flex-1 bg-white/[0.03] rounded-[10px] py-[9px] px-2 text-center">
-                                <span className={`${TYPE_STAT_NUMBER} block leading-none`}>{val}</span>
-                                <span className={`${TYPE_MICRO_TIGHT} font-semibold tracking-[0.06em] uppercase text-white/30 block mt-[3px]`}>{lbl}</span>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Compact recovery bar + muscle pills inline */}
-                          {!workoutActive && (() => {
-                            const allSlugs = [...new Set([...(dayMuscles.primary || []), ...(dayMuscles.secondary || [])])]
-                            if (allSlugs.length === 0) return null
-                            const recoveryPct = getRecoveryPct(dayMuscles, muscleLastWorked)
-                            const recoveryAccent = 'var(--plan-text)'
-                            return (
-                              <div
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => setShowStartRecoveryInfo(true)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault()
-                                    setShowStartRecoveryInfo(true)
-                                  }
-                                }}
-                                className="mb-3 w-full rounded-lg -mx-1 px-1 py-1 text-left cursor-pointer hover:bg-white/[0.04] active:bg-white/[0.06] transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[var(--a11y-focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-page"
-                                aria-label="Recovery details for this day"
-                              >
-                                <div className="flex items-center justify-between mb-1.5 gap-2">
-                                  <span className="flex items-center gap-2 min-w-0">
-                                    <span className={`${TYPE_LABEL_UPPER} tracking-[0.06em] text-[var(--plan-text-muted)]`}>Recovery</span>
-                                    <span
-                                      className={`shrink-0 text-accent ${TYPE_BODY_SM} leading-none pointer-events-none`}
-                                      aria-hidden
-                                    >
-                                      →
-                                    </span>
-                                  </span>
-                                  <span className={`${TYPE_MICRO} font-bold tabular-nums`} style={{ color: recoveryAccent }}>{recoveryPct}%</span>
-                                </div>
-                                <div className="h-[3px] rounded-full bg-white/[0.07] overflow-hidden mb-2">
-                                  <div
-                                    className="h-full rounded-full transition-all duration-500"
-                                    style={{ width: `${recoveryPct}%`, background: recoveryAccent }}
-                                  />
-                                </div>
-                                <div
-                                  className="flex flex-nowrap gap-1 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 touch-pan-x [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]"
-                                >
-                                  {allSlugs.map((slug) => {
-                                    const SLUG_COLORS = {
-                                      chest: '#7B7BFF',
-                                      'front-delts': '#4ECDC4',
-                                      'side-delts': '#4ECDC4',
-                                      'rear-delts': '#4ECDC4',
-                                      triceps: '#ff6b6b',
-                                      biceps: '#ff6b6b',
-                                      forearms: '#ff6b6b',
-                                      back: '#5BF5A0',
-                                      lats: '#5BF5A0',
-                                      traps: '#5BF5A0',
-                                      'lower-back': '#5BF5A0',
-                                      abs: '#C8A0FF',
-                                      obliques: '#C8A0FF',
-                                      quads: '#FFAA50',
-                                      hamstrings: '#FFAA50',
-                                      glutes: '#FFAA50',
-                                      calves: '#FFAA50',
-                                    }
-                                    const color = SLUG_COLORS[slug] || 'rgba(255,255,255,0.4)'
-                                    const label = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ')
-                                    return (
-                                      <span
-                                        key={slug}
-                                        title={label}
-                                        className={`shrink-0 ${TYPE_CAPTION} font-semibold px-[7px] py-[3px] rounded-full whitespace-nowrap`}
-                                        style={{ color, background: `${color}14` }}
-                                      >
-                                        {label}
-                                      </span>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            )
-                          })()}
-
-                          {!workoutActive && (
-                            <button
-                              type="button"
-                              onClick={() => tryStart('routine', displayRtn)}
-                              className={`w-full py-4 rounded-2xl ${TYPE_TITLE_BLOCK} !font-semibold text-white flex items-center justify-center gap-2.5 active:opacity-95`}
-                              style={{ background: 'var(--plan-gradient)', boxShadow: 'var(--plan-shadow-card)' }}
-                              aria-label={`Start ${displayRtn?.name || 'workout'}`}
-                            >
-                              <span
-                                className="inline-block w-0 h-0 border-y-[6px] border-y-transparent border-l-[10px] border-l-white shrink-0 animate-start-play-triangle"
-                                style={{ marginLeft: 2 }}
-                                aria-hidden
-                              />
-                              Start
-                            </button>
-                          )}
-                          </div>
-                        </div>
-                      )}
                     </div>
                     <h2 className="mb-2 mt-3 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">Empty workout</h2>
                     <button
@@ -3423,7 +3430,7 @@ ${JSON.stringify(ctx)}`
                       <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${TYPE_HERO_PLUS} shrink-0 ${emptyInProgress ? 'bg-[var(--in-progress-bg-soft)] text-in-progress' : 'bg-[var(--plan-surface-18)] text-plan-text'}`}>+</div>
                       <div className="text-left min-w-0">
                         {emptyInProgress ? (
-                          <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-pulse-badge">
+                          <div className="inline-flex items-center rounded-full px-2.5 py-0.5 mb-1.5 border border-[var(--in-progress-border-30)] bg-[var(--in-progress-surface-10)] animate-up-next-pulse-soft">
                             <span className={`${TYPE_STATUS_BADGE} text-in-progress`}>IN PROGRESS</span>
                           </div>
                         ) : null}
@@ -3464,19 +3471,51 @@ ${JSON.stringify(ctx)}`
                     }
                     const manualProgrammes = sortedProgrammes.filter((p) => !p.isQoreGenerated)
                     const coachProgrammes = sortedProgrammes.filter((p) => p.isQoreGenerated)
+                    const openRoutineFromPlan = (prog, r) => {
+                      routineEditorOpenedFromPlanRef.current = true
+                      setEditProgrammeName(prog.name ?? '')
+                      setEditRoutineName(r.name)
+                      setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })))
+                      setEditingRoutineId(r.id)
+                      setEditingRoutineProgrammeId(prog.id)
+                    }
                     const renderProgrammeCard = (prog) => {
                       const progRoutines = (prog.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
                       const isActive = prog.isActive
                       return (
                         <div
                           key={prog.id}
-                          className={`rounded-[14px] p-4 mb-4 border ${isActive ? 'border border-white/[0.07] bg-white/[0.02]' : 'border border-border bg-card'}`}
+                          className={`mb-4 flex w-full flex-col rounded-[18px] border overflow-hidden ${
+                            isActive ? 'border-white/[0.07] bg-white/[0.02]' : 'border-border bg-card'
+                          }`}
                         >
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <div className="flex-1 min-w-0 pr-1">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-sm font-semibold tracking-tight text-white flex-1 min-w-0 truncate">{prog.name}</span>
-                                <div className="flex items-center shrink-0">
+                          <div className={`flex min-h-0 min-w-0 flex-col px-4 pb-3 ${isActive ? 'bg-white/[0.02]' : ''}`}>
+                            <div
+                              className={`-mx-4 border-b px-4 pb-3 pt-4 ${
+                                isActive ? 'border-white/[0.06] bg-white/[0.045]' : 'border-border-strong bg-card-alt/80'
+                              }`}
+                            >
+                              <div className="flex min-w-0 items-center justify-between gap-2">
+                                <div className="min-w-0 flex-1 text-left text-sm font-medium text-white [overflow-wrap:anywhere] pr-1">
+                                  {prog.name}
+                                </div>
+                                <div className="flex shrink-0 items-center gap-1">
+                                  {isActive ? (
+                                    <span
+                                      className={`inline-flex min-h-[30px] min-w-[4.75rem] items-center justify-center rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-10)] px-1.5 py-1 text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none animate-up-next-pulse sm:min-w-[5.5rem] sm:px-2 sm:py-1.5`}
+                                      aria-label="Active programme"
+                                    >
+                                      Active
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setProgrammeActive(prog.id)}
+                                      className={`inline-flex min-h-[30px] min-w-[4.75rem] items-center justify-center whitespace-nowrap rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] px-1.5 py-1 text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none transition-colors hover:bg-[var(--plan-surface-12)] active:opacity-90 sm:min-w-[5.5rem] sm:px-2 sm:py-1.5`}
+                                    >
+                                      Set active
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => openEditProgramme(prog.id)}
@@ -3511,69 +3550,61 @@ ${JSON.stringify(ctx)}`
                                   </button>
                                 </div>
                               </div>
-                              <div className={`${TYPE_MICRO} text-white/35 mt-0.5`}>{progRoutines.length} routines</div>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0 self-center">
-                              {isActive ? (
-                                <span
-                                  className={`inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-10)] text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none animate-up-next-pulse min-h-[32px]`}
-                                  aria-label="Active programme"
+                            <div className="-mx-4 divide-y divide-white/[0.06]">
+                              {progRoutines.map((r) => (
+                                <div
+                                  key={r.id}
+                                  className={`flex min-w-0 items-center gap-1 px-4 py-2 ${
+                                    isActive ? 'hover:bg-white/[0.03]' : 'hover:bg-white/[0.02]'
+                                  }`}
                                 >
-                                  Active
-                                </span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setProgrammeActive(prog.id)}
-                                  className={`inline-flex items-center justify-center w-24 shrink-0 py-1.5 rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none hover:bg-[var(--plan-surface-12)] active:opacity-90 transition-colors whitespace-nowrap min-h-[32px]`}
-                                >
-                                  Set active
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex gap-2 mt-2">
-                            {progRoutines.map((r) => {
-                              const meta = routinePlanTileMeta(r, allLibraryExercises)
-                              const focusStr =
-                                meta.focusLabels.length === 0
-                                  ? null
-                                  : meta.focusLabels.length <= 3
-                                    ? meta.focusLabels.join(' · ')
-                                    : `${meta.focusLabels.slice(0, 3).join(' · ')} · +${meta.focusLabels.length - 3}`
-                              return (
-                              <button
-                                key={r.id}
-                                type="button"
-                                onClick={() => {
-                                  routineEditorOpenedFromPlanRef.current = true
-                                  setEditProgrammeName(prog.name ?? '')
-                                  setEditRoutineName(r.name)
-                                  setEditRoutineExercises((r.exercises || []).map(ex => ({ ...ex, id: ex.id ?? crypto.randomUUID(), supersetGroupId: ex.supersetGroupId ?? null, supersetRole: ex.supersetRole ?? null })))
-                                  setEditingRoutineId(r.id)
-                                  setEditingRoutineProgrammeId(prog.id)
-                                }}
-                                className={`flex-1 min-w-0 rounded-[10px] py-2.5 px-2 sm:py-2 sm:px-1.5 text-center border transition-colors ${
-                                  isActive
-                                    ? 'border-[var(--plan-border-45)] bg-[var(--plan-surface-10)]'
-                                    : 'bg-card-alt border-border-strong hover:bg-card-alt/80 hover:border-[#3A3A5A]'
-                                }`}
-                              >
-                                <div className={`${TYPE_BODY_SM_SEMIBOLD} sm:text-[13px] truncate leading-tight ${isActive ? 'text-plan-hover' : 'text-[var(--plan-text-row)]'}`}>{r.name}</div>
-                                <div className={`${TYPE_MICRO} sm:text-[11px] mt-1 tabular-nums leading-snug font-medium ${isActive ? 'text-white/65' : 'text-white/50'}`}>
-                                  {meta.exCount} ex · {meta.setCount} sets
-                                </div>
-                                {focusStr ? (
-                                  <div
-                                    className={`${TYPE_META} sm:text-[10px] mt-1 leading-snug line-clamp-2 font-medium ${isActive ? 'text-[var(--plan-text-focus-secondary)]' : 'text-white/42'}`}
-                                    title={meta.focusLabels.join(', ')}
+                                  <button
+                                    type="button"
+                                    onClick={() => openRoutineFromPlan(prog, r)}
+                                    className="min-w-0 flex-1 py-0.5 text-left"
                                   >
-                                    {focusStr}
+                                    <span className={`block min-w-0 truncate text-[12px] font-medium leading-snug ${isActive ? 'text-plan-text' : 'text-[var(--plan-text-row)]'}`}>
+                                      {r.name || '—'}
+                                    </span>
+                                  </button>
+                                  <div className="flex shrink-0 items-center gap-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => openRoutineFromPlan(prog, r)}
+                                      className="rounded-lg p-2 text-plan-text transition-colors hover:bg-white/5 hover:text-plan-hover active:opacity-80"
+                                      title="Edit routine"
+                                      aria-label={`Edit routine ${r.name || ''}`}
+                                    >
+                                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 stroke-current">
+                                        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyRoutine(r.id, prog.id)}
+                                      className="rounded-lg p-2 text-plan-text transition-colors hover:bg-white/5 hover:text-plan-hover active:opacity-80"
+                                      title="Copy routine"
+                                      aria-label={`Copy routine ${r.name || ''}`}
+                                    >
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditProgrammeRoutinePendingDelete({ progId: prog.id, rtnId: r.id, name: r.name || 'Routine' })}
+                                      className="rounded-lg p-2 text-[var(--semantic-negative-soft)] transition-colors hover:bg-white/5 hover:text-red-400 active:opacity-80"
+                                      title="Delete routine"
+                                      aria-label={`Delete routine ${r.name || ''}`}
+                                    >
+                                      <DeleteTrashGlyph className="h-4 w-4" />
+                                    </button>
                                   </div>
-                                ) : null}
-                              </button>
-                              )
-                            })}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       )
@@ -3582,25 +3613,19 @@ ${JSON.stringify(ctx)}`
                       <>
                         {manualProgrammes.length > 0 && (
                           <>
-                            <div role="heading" aria-level={2} className="plan-section-title">
-                              My Programmes
-                            </div>
+                            <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">My programmes</h2>
                             {manualProgrammes.map(renderProgrammeCard)}
                           </>
                         )}
                         {coachProgrammes.length > 0 && (
                           <>
-                            <div
-                              role="heading"
-                              aria-level={2}
-                              className={
-                                manualProgrammes.length > 0
-                                  ? 'plan-section-title plan-section-title--after-block'
-                                  : 'plan-section-title'
-                              }
+                            <h2
+                              className={`mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45 ${
+                                manualProgrammes.length > 0 ? 'mt-1' : ''
+                              }`}
                             >
                               Coach programmes
-                            </div>
+                            </h2>
                             {coachProgrammes.map(renderProgrammeCard)}
                           </>
                         )}
@@ -4772,7 +4797,7 @@ ${JSON.stringify(ctx)}`
                         <button
                           type="button"
                           onClick={addSet}
-                          className="w-full mt-1.5 py-2.5 rounded-lg border-2 border-dashed border-muted-strong/55 bg-card-alt/60 text-sm font-bold text-muted-strong hover:bg-card-alt/85 hover:border-accent/60 hover:text-accent transition-colors"
+                          className="w-full mt-1.5 py-0.5 min-h-[1.2rem] box-border flex items-center justify-center rounded-lg border-2 border-dashed border-muted-strong/55 bg-card-alt/60 text-xs font-semibold text-muted-strong leading-none hover:bg-card-alt/85 hover:border-accent/60 hover:text-accent transition-colors"
                         >
                           + Add set
                         </button>
@@ -5084,9 +5109,15 @@ ${JSON.stringify(ctx)}`
           <BottomSheet align="center" variant="card" zClass="z-50" maxWidthClass="max-w-sm" showHandle={false} closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="text-center">
               <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-accent"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div></div>
               <h2 className="text-base font-bold text-center mb-2">Active workout</h2>
-              <p className="text-sm text-muted text-center mb-5">You have an active workout with <span className="font-bold text-text">{exercises.length} exercise{exercises.length !== 1 ? 's' : ''}</span>. Starting a new one will discard it.</p>
+              <p className="text-sm text-muted text-center mb-5">
+                You have an active workout with{' '}
+                <span className="font-bold text-text">
+                  {exercises.length} exercise{exercises.length !== 1 ? 's' : ''}
+                </span>
+                . Starting this one will end the current workout <span className="font-semibold text-text">without saving</span> — your sets will be lost.
+              </p>
               <ActionButton variant="danger" className="!rounded-xl mb-2" onClick={confirmDiscardAndStart}>
-                Discard & start new
+                End without saving &amp; start
               </ActionButton>
               <ActionButton variant="tertiary" onClick={() => setPendingStart(null)}>
                 Keep current workout

@@ -674,7 +674,7 @@ function ExerciseCard({
       <button
         type="button"
         onClick={() => onAddSet(exIndex)}
-        className="w-full mt-1.5 py-2.5 rounded-lg border-2 border-dashed border-muted-strong/55 bg-card-alt/60 text-sm font-bold text-muted-strong hover:bg-card-alt/85 hover:border-accent/60 hover:text-accent transition-colors"
+        className="w-full mt-1.5 py-0.5 min-h-[1.2rem] box-border flex items-center justify-center rounded-lg border-2 border-dashed border-muted-strong/55 bg-card-alt/60 text-xs font-semibold text-muted-strong leading-none hover:bg-card-alt/85 hover:border-accent/60 hover:text-accent transition-colors"
       >
         + Add set
       </button>

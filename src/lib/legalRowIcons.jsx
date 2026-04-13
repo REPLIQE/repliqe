@@ -13,10 +13,10 @@ export function LegalDocumentIcon() {
   )
 }
 
-/** Same chevron as About row actions */
-export function LegalRowChevronRight() {
+/** Same chevron as About row actions (Profile → Privacy / Terms, m.fl.) */
+export function LegalRowChevronRight({ className = '' }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-muted-strong shrink-0" aria-hidden>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className={`text-muted-strong shrink-0 ${className}`.trim()} aria-hidden>
       <polyline points="5,3 9,7 5,11" />
     </svg>
   )
