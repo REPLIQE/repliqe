@@ -56,7 +56,6 @@ import {
   TYPE_MICRO,
   TYPE_MICRO_TIGHT,
   TYPE_OVERLINE_MID,
-  TYPE_STAT_NUMBER,
   TYPE_STATUS_BADGE,
   TYPE_TAB,
   TYPE_HERO_PLUS,
@@ -3285,13 +3284,13 @@ ${JSON.stringify(ctx)}`
                                           <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
                                       <div className="grid grid-cols-4 gap-1.5 sm:gap-2 items-stretch">
                                         <div className="flex min-w-0 flex-col items-center justify-center rounded-[10px] bg-white/[0.03] px-1 py-2 text-center sm:px-2">
-                                          <span className={`${TYPE_STAT_NUMBER} block leading-none text-[1.1rem] sm:text-xl tabular-nums`}>{panelExCount}</span>
+                                          <span className="block leading-none tabular-nums text-[0.9375rem] sm:text-base font-semibold text-text">{panelExCount}</span>
                                           <span className={`${TYPE_MICRO_TIGHT} mt-1 block font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
                                             Exercise{panelExCount !== 1 ? 's' : ''}
                                           </span>
                                         </div>
                                         <div className="flex min-w-0 flex-col items-center justify-center rounded-[10px] bg-white/[0.03] px-1 py-2 text-center sm:px-2">
-                                          <span className={`${TYPE_STAT_NUMBER} block leading-none text-[1.1rem] sm:text-xl tabular-nums`}>{panelEstMin}</span>
+                                          <span className="block leading-none tabular-nums text-[0.9375rem] sm:text-base font-semibold text-text">{panelEstMin}</span>
                                           <span className={`${TYPE_MICRO_TIGHT} mt-1 block font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
                                             Est. time
                                           </span>
@@ -3313,7 +3312,7 @@ ${JSON.stringify(ctx)}`
                                                 className="relative z-10 flex w-full min-w-0 flex-col items-center rounded-lg transition-colors outline-none hover:bg-white/[0.06] focus-visible:ring-1 focus-visible:ring-[var(--a11y-focus-ring)]"
                                                 aria-label="Recovery details for this day"
                                               >
-                                                <span className={`${TYPE_STAT_NUMBER} block leading-none text-[1.1rem] sm:text-xl tabular-nums`} style={{ color: recoveryAccent }}>
+                                                <span className="block leading-none tabular-nums text-[0.9375rem] sm:text-base font-semibold" style={{ color: recoveryAccent }}>
                                                   {recoveryPct}%
                                                 </span>
                                                 <span className={`${TYPE_MICRO_TIGHT} mt-1 inline-flex items-center justify-center gap-1 font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
@@ -3326,7 +3325,7 @@ ${JSON.stringify(ctx)}`
                                             </>
                                           ) : (
                                             <div className="flex flex-col items-center">
-                                              <span className={`${TYPE_STAT_NUMBER} block leading-none text-[1.1rem] sm:text-xl tabular-nums text-white/25`}>—</span>
+                                              <span className="block leading-none tabular-nums text-[0.9375rem] sm:text-base font-semibold text-white/25">—</span>
                                               <span className={`${TYPE_MICRO_TIGHT} mt-1 block font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
                                                 Recovery
                                               </span>
