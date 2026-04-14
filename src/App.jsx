@@ -3548,12 +3548,15 @@ ${JSON.stringify(ctx)}`
                                       </button>
                                     )}
                                     {!isExpanded ? (
-                                      <span
-                                        className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] px-2 py-1 text-[11px] font-bold tabular-nums leading-none text-plan-text"
-                                        aria-label={`${routineCount} ${routineCount === 1 ? 'routine' : 'routines'}`}
+                                      <button
+                                        type="button"
+                                        onClick={() => setPlanExpandedProgrammeId(prog.id)}
+                                        className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] px-2 py-1 text-[11px] font-bold tabular-nums leading-none text-plan-text transition-colors hover:bg-[var(--plan-surface-12)] active:opacity-90"
+                                        aria-label={`Show routines: ${routineCount} ${routineCount === 1 ? 'routine' : 'routines'}`}
+                                        title="Show routines"
                                       >
                                         {routineCount} {routineCount === 1 ? 'routine' : 'routines'}
-                                      </span>
+                                      </button>
                                     ) : null}
                                   </div>
                                   <div className="flex shrink-0 items-center gap-0.5 sm:ml-auto">
