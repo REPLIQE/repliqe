@@ -82,7 +82,13 @@ const BREAKDOWN_COLORS = {
   mobility: '#34d399',
 }
 
-export default function StrengthVolumeSection({ history = [], allLibraryExercises = [], unitWeight = 'kg', onGoToStrength }) {
+export default function StrengthVolumeSection({
+  history = [],
+  allLibraryExercises = [],
+  unitWeight = 'kg',
+  onGoToStrength,
+  formatDecimal,
+}) {
   const [period, setPeriod] = useState('4W')
   const [muscleGroup, setMuscleGroup] = useState('All')
   const isCompact = typeof onGoToStrength === 'function'
@@ -156,7 +162,10 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
       .slice(0, 5)
   }, [filteredByMuscle])
 
-  const totalFormatted = totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : String(Math.round(totalVolume))
+  const totalFormatted =
+    totalVolume >= 1000
+      ? `${formatDecimal ? formatDecimal(totalVolume / 1000, 1) : (totalVolume / 1000).toFixed(1)}k`
+      : String(Math.round(totalVolume))
 
   const lineChartData = {
     labels,
@@ -172,15 +181,28 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
     }],
   }
 
-  const lineChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: 'rgba(255,255,255,0.35)', font: { size: 9 } } },
-      y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: 'rgba(255,255,255,0.35)', font: { size: 9 }, callback: (v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v) } },
-    },
-  }
+  const lineChartOptions = useMemo(() => {
+    const maxV = chartData.length ? Math.max(...chartData) : 0
+    const stepSize =
+      maxV <= 0 ? 1000 : Math.max(1000, Math.ceil(maxV / 4 / 1000) * 1000)
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: 'rgba(255,255,255,0.35)', font: { size: 9 } } },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.06)' },
+          ticks: {
+            color: 'rgba(255,255,255,0.35)',
+            font: { size: 9 },
+            stepSize,
+            callback: (v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v),
+          },
+        },
+      },
+    }
+  }, [chartData])
 
   const donutData = {
     labels: breakdown.map((b) => b.label),

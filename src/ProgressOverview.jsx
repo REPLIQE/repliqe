@@ -410,7 +410,13 @@ export default function ProgressOverview({
       )}
 
       <div className="overview-section">
-        <StrengthVolumeSection history={safeHistory} allLibraryExercises={allLibraryExercises} unitWeight={unitWeight} onGoToStrength={() => onGoToTab?.('Strength', { strengthSection: 'volume' })} />
+        <StrengthVolumeSection
+          history={safeHistory}
+          allLibraryExercises={allLibraryExercises}
+          unitWeight={unitWeight}
+          formatDecimal={formatDecimal}
+          onGoToStrength={() => onGoToTab?.('Strength', { strengthSection: 'volume' })}
+        />
       </div>
 
       {movers.length > 0 && (

@@ -104,7 +104,12 @@ export default function ProgressStrength({
   return (
     <div className="-mt-4">
       <div ref={volumeSectionRef} className="scroll-mt-28">
-        <StrengthVolumeSection history={safeHistory} allLibraryExercises={allLibraryExercises} unitWeight={unitWeight} />
+        <StrengthVolumeSection
+          history={safeHistory}
+          allLibraryExercises={allLibraryExercises}
+          unitWeight={unitWeight}
+          formatDecimal={formatDecimal}
+        />
       </div>
       <div ref={topMoversSectionRef} className="scroll-mt-28">
       <div className="sec">Top movers</div>
