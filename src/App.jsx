@@ -499,6 +499,9 @@ function AppContent() {
   const [dragOverTarget, setDragOverTarget] = useState(null) // { type: 'index', progId, index } | { type: 'programme', progId } | null
   /** True når rutine-editoren åbnes ved tryk på rutine på Plan (ikke fra Edit programme-modal). */
   const routineEditorOpenedFromPlanRef = useRef(false)
+  /** Efter duplicate: luk editor og vis Plan-kort (ikke Edit programme-modal), scroll til ny rutine. */
+  const routineEditorForcePlanAfterCloseRef = useRef(false)
+  const [planScrollToRoutineId, setPlanScrollToRoutineId] = useState(null)
   /** Snapshot ved åbning af Edit programme (navn, routineIds, fuld routine-data) til revert ved Cancel. */
   const editProgrammeSnapshotRef = useRef(null)
   /** Set each render while routine editor is mounted; used by styled discard confirm. */
@@ -588,6 +591,16 @@ function AppContent() {
   useEffect(() => {
     if (workoutTab !== 'start') setShowStartRecoveryInfo(false)
   }, [workoutTab])
+
+  useEffect(() => {
+    if (planScrollToRoutineId == null) return
+    const id = planScrollToRoutineId
+    const t = window.setTimeout(() => {
+      document.querySelector(`[data-plan-routine-id="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      setPlanScrollToRoutineId(null)
+    }, 100)
+    return () => window.clearTimeout(t)
+  }, [planScrollToRoutineId])
 
   useEffect(() => {
     isOnboardingRouteRef.current = onboardingRequired && location.pathname === '/onboarding'
@@ -1752,11 +1765,12 @@ function AppContent() {
 
   function copyRoutine(rtnId, progId) {
     const r = routines.find(x => x.id === rtnId)
-    if (!r) return
+    if (!r) return null
     const ts = Date.now()
     const newRtnId = 'rtn_' + ts
     setRoutines(prev => [...prev, { ...r, id: newRtnId, name: (r.name || 'Routine') + ' (copy)', programmeId: progId, exercises: JSON.parse(JSON.stringify(r.exercises || [])) }])
     setProgrammes(prev => prev.map(p => p.id === progId ? { ...p, routineIds: [...(p.routineIds || []), newRtnId] } : p))
+    return newRtnId
   }
 
   // --- PR logic ---
@@ -3473,83 +3487,108 @@ ${JSON.stringify(ctx)}`
                                 isActive ? 'border-white/[0.06] bg-white/[0.045]' : 'border-border-strong bg-card-alt/80'
                               }`}
                             >
-                              <div className="flex min-w-0 items-center justify-between gap-2">
-                                <div className="min-w-0 flex-1 text-left text-sm font-medium text-white [overflow-wrap:anywhere] pr-1">
+                              <div className="flex min-w-0 flex-col gap-2.5">
+                                <div className="min-w-0 text-left text-sm font-medium leading-snug text-white break-words">
                                   {prog.name}
                                 </div>
-                                <div className="flex shrink-0 items-center gap-1">
-                                  {isActive ? (
-                                    <span
-                                      className={`inline-flex min-h-[30px] min-w-[4.75rem] items-center justify-center rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-10)] px-1.5 py-1 text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none animate-up-next-pulse sm:min-w-[5.5rem] sm:px-2 sm:py-1.5`}
-                                      aria-label="Active programme"
-                                    >
-                                      Active
-                                    </span>
-                                  ) : (
+                                <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                                  <div className="flex shrink-0 items-center">
+                                    {isActive ? (
+                                      <span
+                                        className={`inline-flex min-h-[30px] min-w-[4.75rem] items-center justify-center rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-10)] px-1.5 py-1 text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none animate-up-next-pulse sm:min-w-[5.5rem] sm:px-2 sm:py-1.5`}
+                                        aria-label="Active programme"
+                                      >
+                                        Active
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setProgrammeActive(prog.id)}
+                                        className={`inline-flex min-h-[30px] min-w-[4.75rem] items-center justify-center whitespace-nowrap rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] px-1.5 py-1 text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none transition-colors hover:bg-[var(--plan-surface-12)] active:opacity-90 sm:min-w-[5.5rem] sm:px-2 sm:py-1.5`}
+                                      >
+                                        Set active
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="flex shrink-0 items-center gap-0.5 sm:ml-auto">
                                     <button
                                       type="button"
-                                      onClick={() => setProgrammeActive(prog.id)}
-                                      className={`inline-flex min-h-[30px] min-w-[4.75rem] items-center justify-center whitespace-nowrap rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] px-1.5 py-1 text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none transition-colors hover:bg-[var(--plan-surface-12)] active:opacity-90 sm:min-w-[5.5rem] sm:px-2 sm:py-1.5`}
+                                      onClick={() => openEditProgramme(prog.id)}
+                                      className="rounded-lg p-2 text-plan-text hover:bg-white/5 hover:text-plan-hover active:opacity-80"
+                                      title="Edit programme"
+                                      aria-label="Edit programme"
                                     >
-                                      Set active
+                                      <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 stroke-current">
+                                        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                                      </svg>
                                     </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditProgramme(prog.id)}
-                                    className="p-2 rounded-lg text-plan-text hover:text-plan-hover hover:bg-white/5 active:opacity-80"
-                                    title="Edit programme"
-                                    aria-label="Edit programme"
-                                  >
-                                    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 stroke-current">
-                                      <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => copyProgramme(prog.id)}
-                                    className="p-2 rounded-lg text-plan-text hover:text-plan-hover hover:bg-white/5 active:opacity-80"
-                                    title="Copy programme"
-                                    aria-label="Copy programme"
-                                  >
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
-                                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowDeleteProgrammeConfirm(prog.id)}
-                                    className="p-2 rounded-lg text-[var(--semantic-negative-soft)] hover:text-red-400 hover:bg-white/5 active:opacity-80"
-                                    title="Delete programme"
-                                    aria-label={`Delete programme ${prog.name}`}
-                                  >
-                                    <DeleteTrashGlyph className="w-4 h-4" />
-                                  </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyProgramme(prog.id)}
+                                      className="rounded-lg p-2 text-plan-text hover:bg-white/5 hover:text-plan-hover active:opacity-80"
+                                      title="Copy programme"
+                                      aria-label="Copy programme"
+                                    >
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowDeleteProgrammeConfirm(prog.id)}
+                                      className="rounded-lg p-2 text-[var(--semantic-negative-soft)] hover:bg-white/5 hover:text-red-400 active:opacity-80"
+                                      title="Delete programme"
+                                      aria-label={`Delete programme ${prog.name}`}
+                                    >
+                                      <DeleteTrashGlyph className="h-4 w-4" />
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
                             <div className="-mx-4 divide-y divide-white/[0.06]">
-                              {progRoutines.map((r) => (
-                                <div
-                                  key={r.id}
-                                  className={`flex min-w-0 items-center px-4 py-2 ${
-                                    isActive ? 'hover:bg-white/[0.03]' : 'hover:bg-white/[0.02]'
-                                  }`}
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => openRoutineFromPlan(prog, r)}
-                                    className={`min-w-0 flex-1 py-0.5 text-left rounded-lg -mx-1 px-1 transition-colors active:opacity-80 ${isActive ? 'hover:bg-white/[0.04]' : 'hover:bg-white/[0.03]'}`}
-                                    title="Edit routine"
-                                    aria-label={`Edit routine ${r.name || '—'}`}
+                              {progRoutines.map((r) => {
+                                const planDayMuscles = getDayMusclesSlugs(r.exercises || [], allLibraryExercises)
+                                const planMuscleSlugs = [...new Set([...(planDayMuscles.primary || []), ...(planDayMuscles.secondary || [])])]
+                                return (
+                                  <div
+                                    key={r.id}
+                                    data-plan-routine-id={r.id}
+                                    className={`flex min-w-0 flex-col gap-1 px-4 py-2 ${
+                                      isActive ? 'hover:bg-white/[0.03]' : 'hover:bg-white/[0.02]'
+                                    }`}
                                   >
-                                    <span className={`block min-w-0 truncate text-[12px] font-medium leading-snug ${isActive ? 'text-plan-text' : 'text-[var(--plan-text-row)]'}`}>
-                                      {r.name || '—'}
-                                    </span>
-                                  </button>
-                                </div>
-                              ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => openRoutineFromPlan(prog, r)}
+                                      className={`min-w-0 w-full py-0.5 text-left rounded-lg -mx-1 px-1 transition-colors active:opacity-80 ${isActive ? 'hover:bg-white/[0.04]' : 'hover:bg-white/[0.03]'}`}
+                                      title="Edit routine"
+                                      aria-label={`Edit routine ${r.name || '—'}`}
+                                    >
+                                      <span className={`block min-w-0 truncate text-[12px] font-medium leading-snug ${isActive ? 'text-plan-text' : 'text-[var(--plan-text-row)]'}`}>
+                                        {r.name || '—'}
+                                      </span>
+                                    </button>
+                                    {planMuscleSlugs.length > 0 ? (
+                                      <div className="flex min-w-0 flex-nowrap gap-1 overflow-x-auto pb-0.5 pt-0.5 -mx-0.5 px-0.5 touch-pan-x [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]">
+                                        {planMuscleSlugs.map((slug) => {
+                                          const label = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ')
+                                          return (
+                                            <span
+                                              key={slug}
+                                              title={label}
+                                              className={`shrink-0 ${TYPE_CAPTION} font-semibold px-[7px] py-[3px] rounded-full whitespace-nowrap text-plan-text bg-white/[0.08]`}
+                                            >
+                                              {label}
+                                            </span>
+                                          )
+                                        })}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
                         </div>
@@ -4476,7 +4515,9 @@ ${JSON.stringify(ctx)}`
           const closeRoutineEditor = () => {
             const progId = editingRoutineProgrammeId
             const returnToPlanOnly = routineEditorOpenedFromPlanRef.current
+            const forcePlan = routineEditorForcePlanAfterCloseRef.current
             routineEditorOpenedFromPlanRef.current = false
+            routineEditorForcePlanAfterCloseRef.current = false
             routineEditorBaselineRef.current = null
             routineEditorBaselineSessionRef.current = null
             setShowCreateRoutine(false)
@@ -4489,11 +4530,13 @@ ${JSON.stringify(ctx)}`
             setRoutineEditorConfirmEmptyExercises(false)
             setFocusNewExerciseAt(null)
             setRoutineReplaceExerciseId(null)
-            if (progId && !returnToPlanOnly) {
+            if (forcePlan) {
+              setEditingProgrammeId(null)
+              setWorkoutTab('plan')
+            } else if (progId && !returnToPlanOnly) {
               setEditingProgrammeId(progId)
               setEditProgrammeName(programmes.find(p => p.id === progId)?.name || '')
-            }
-            if (returnToPlanOnly) {
+            } else if (returnToPlanOnly) {
               setWorkoutTab('plan')
             }
           }
@@ -4526,31 +4569,55 @@ ${JSON.stringify(ctx)}`
                   </>
                 )}
                 <label className={`block ${TYPE_LABEL_FORM} mb-1.5`}>Name</label>
-                <input type="text" value={name} onChange={e => setEditRoutineName(e.target.value)} placeholder="e.g. Day 1 - Pull" onFocus={e => e.target.select()} autoFocus={!isEdit && !editRoutineName.trim() && (!programmeId || editProgrammeName.trim())} className={`w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent shrink-0 ${isEdit && programmeId ? 'mb-2' : 'mb-4'}`} />
-                {isEdit && programmeId ? (
-                  <div className="flex flex-wrap gap-x-5 gap-y-1 mb-4 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => copyRoutine(editingRoutineId, programmeId)}
-                      className="text-sm font-semibold text-accent hover:underline"
-                    >
-                      Duplicate routine
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEditProgrammeRoutinePendingDelete({
-                          progId: programmeId,
-                          rtnId: editingRoutineId,
-                          name: (editRoutineName || '').trim() || 'Routine',
-                        })
-                      }
-                      className="text-sm font-semibold text-[var(--semantic-negative-soft)] hover:text-red-400 hover:underline"
-                    >
-                      Delete routine
-                    </button>
-                  </div>
-                ) : null}
+                <div className="mb-4 flex min-w-0 shrink-0 items-stretch rounded-[10px] border border-border-strong bg-card-alt transition-colors focus-within:border-accent">
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={e => setEditRoutineName(e.target.value)}
+                    placeholder="e.g. Day 1 - Pull"
+                    onFocus={e => e.target.select()}
+                    autoFocus={!isEdit && !editRoutineName.trim() && (!programmeId || editProgrammeName.trim())}
+                    className={`min-w-0 flex-1 border-0 bg-transparent py-3 pl-3 text-sm font-semibold text-text placeholder-muted-deep outline-none ring-0 focus:ring-0 ${isEdit && programmeId ? 'pr-1' : 'pr-3'}`}
+                  />
+                  {isEdit && programmeId ? (
+                    <div className="flex shrink-0 items-center gap-0.5 self-center pr-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newId = copyRoutine(editingRoutineId, programmeId)
+                          if (!newId) return
+                          routineEditorForcePlanAfterCloseRef.current = true
+                          setPlanScrollToRoutineId(newId)
+                          setShowDiscardRoutineEditorConfirm(false)
+                          routineEditorCloseRef.current?.()
+                        }}
+                        className="rounded-lg p-2 text-plan-text hover:bg-white/5 hover:text-plan-hover active:opacity-80"
+                        title="Copy routine"
+                        aria-label="Duplicate routine"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4" aria-hidden>
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditProgrammeRoutinePendingDelete({
+                            progId: programmeId,
+                            rtnId: editingRoutineId,
+                            name: (editRoutineName || '').trim() || 'Routine',
+                          })
+                        }
+                        className="rounded-lg p-2 text-[var(--semantic-negative-soft)] hover:bg-white/5 hover:text-red-400 active:opacity-80"
+                        title="Delete routine"
+                        aria-label="Delete routine"
+                      >
+                        <DeleteTrashGlyph className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
                 <label className={`block ${TYPE_LABEL_FORM} mb-2`}>Exercises</label>
                 <div className="overflow-y-auto flex-1 min-h-0 -mx-4 px-4 space-y-2">
                   {routineLinkMode.active && (
