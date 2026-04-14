@@ -12,7 +12,7 @@ import {
 import { Line, Doughnut } from 'react-chartjs-2'
 import { MUSCLE_GROUPS, SLUG_TO_GROUP, getExerciseSlugs } from './exerciseLibrary'
 import { CARD_SURFACE_LG } from './cardTokens'
-import { TYPE_BODY_SM, TYPE_OVERLINE_STRONG, TYPE_TAB } from './typographyTokens'
+import { TYPE_BODY_SM, TYPE_OVERLINE_STRONG, TYPE_STAT_NUMBER, TYPE_TAB } from './typographyTokens'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip)
 
@@ -243,7 +243,7 @@ export default function StrengthVolumeSection({ history = [], allLibraryExercise
 
       {/* Hero card */}
       <div className={`${CARD_SURFACE_LG} p-4 mb-4`}>
-        <p className="text-2xl font-extrabold text-text">{totalFormatted} {unitWeight}</p>
+          <p className={TYPE_STAT_NUMBER}>{totalFormatted} {unitWeight}</p>
         <p className="text-xs text-muted mt-0.5">Total volume · {PERIOD_LABELS[period]}</p>
         <p className={`text-xs font-semibold mt-1 ${delta >= 0 ? 'text-success' : 'text-red-400'}`}>
           {delta >= 0 ? '↑' : '↓'} {Math.abs(delta)}% vs previous period

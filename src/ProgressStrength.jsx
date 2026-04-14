@@ -20,9 +20,9 @@ import {
   TYPE_BODY_SM_SEMIBOLD,
   TYPE_TITLE_ROW,
   TYPE_TITLE_BLOCK,
-  TYPE_DISPLAY,
   TYPE_UNIT_SUFFIX,
   TYPE_STAT_EMPHASIS,
+  TYPE_STAT_NUMBER,
   TYPE_EMPHASIS_SM,
 } from './typographyTokens'
 
@@ -337,7 +337,7 @@ export default function ProgressStrength({
 
           <div className={`grid gap-2 mb-2 ${lastSetRir != null ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
-              <div className={TYPE_DISPLAY}>
+              <div className={TYPE_STAT_NUMBER}>
                 {e1rmHistory.length > 0 ? fmt(e1rmHistory[e1rmHistory.length - 1].e1rm) : '—'}
                 <span className={`${TYPE_UNIT_SUFFIX} ml-0.5`}>{unitWeight}</span>
               </div>
@@ -347,7 +347,7 @@ export default function ProgressStrength({
               <div className={`${TYPE_MICRO_TIGHT} text-muted/80 mt-0.5`}>From your latest session</div>
             </div>
             <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
-              <div className={TYPE_DISPLAY}>
+              <div className={TYPE_STAT_NUMBER}>
                 {allTimePR != null ? fmt(allTimePR) : '—'}
                 <span className={`${TYPE_UNIT_SUFFIX} ml-0.5`}>{unitWeight}</span>
               </div>
@@ -358,7 +358,7 @@ export default function ProgressStrength({
             </div>
             {lastSetRir != null && (
               <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
-                <div className={TYPE_DISPLAY} style={{ color: '#2DD4BF' }}>
+                <div className={TYPE_STAT_NUMBER} style={{ color: '#2DD4BF' }}>
                   {lastSetRir === 3 ? '3+' : lastSetRir} RIR
                 </div>
                 <div className={`${TYPE_LABEL_UPPER} mt-1`}>

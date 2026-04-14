@@ -29,9 +29,8 @@ import {
   TYPE_BODY_SM,
   TYPE_BODY_SM_SEMIBOLD,
   TYPE_TITLE_ROW,
-  TYPE_NUMBER_COMPACT,
   TYPE_SHEET_TITLE,
-  TYPE_DISPLAY,
+  TYPE_STAT_EMPHASIS,
   TYPE_STAT_NUMBER,
   TYPE_UNIT_SUFFIX,
   TYPE_SUBTITLE,
@@ -589,7 +588,7 @@ function StatTile({ val, unit, label, delta, deltaLabel, invertDelta, formatDeci
   const fmtDelta = formatDecimal ? (n) => formatDecimal(n, 1) : (n) => Number(n).toFixed(1)
   return (
     <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
-      <div className={TYPE_DISPLAY}>
+      <div className={TYPE_STAT_NUMBER}>
         {val}
         <span className={`${TYPE_UNIT_SUFFIX} ml-0.5`}>{unit}</span>
       </div>
@@ -641,7 +640,7 @@ function WorkoutHistoryRow({ workout, unitWeight, formatDecimal, toNum, formatDa
         <span className={`${TYPE_MICRO} shrink-0 w-[72px] tabular-nums`} style={{ fontVariantNumeric: 'tabular-nums' }}>
           {displayDate}
         </span>
-        <span className={`${TYPE_TITLE_ROW} !font-semibold truncate min-w-0 flex-1`}>
+        <span className="min-w-0 flex-1 truncate text-[12px] font-medium leading-snug text-plan-text">
           {workout.name || displayDate}
         </span>
       </div>
@@ -769,7 +768,7 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
     <BottomSheet onClose={onClose} zClass="z-50" variant="page" layout="flex" padding="none" closeOnBackdrop={false} showHandle={false} panelClassName="max-h-[90vh]">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
           <div>
-            <h2 className={`${TYPE_SHEET_TITLE} !font-semibold`}>
+            <h2 className={`${TYPE_SHEET_TITLE} !font-semibold !text-plan-text`}>
               {workout.name || displayDate}
             </h2>
             <p className={`${TYPE_MICRO} mt-0.5`}>{displayDate}</p>
@@ -789,19 +788,19 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
         <div className="overflow-y-auto flex-1 min-h-0 flex flex-col">
           <div className="grid grid-cols-4 gap-2 px-5 py-4 shrink-0">
             <div className={`${CARD_SURFACE_SM} p-3 text-center`}>
-              <div className={TYPE_STAT_NUMBER}>{exerciseCount}</div>
+              <div className={TYPE_STAT_EMPHASIS}>{exerciseCount}</div>
               <div className={`${TYPE_LABEL_UPPER} mt-0.5`}>Exercises</div>
             </div>
             <div className={`${CARD_SURFACE_SM} p-3 text-center`}>
-              <div className={TYPE_STAT_NUMBER}>{doneSets}</div>
+              <div className={TYPE_STAT_EMPHASIS}>{doneSets}</div>
               <div className={`${TYPE_LABEL_UPPER} mt-0.5`}>Sets</div>
             </div>
             <div className={`${CARD_SURFACE_SM} p-3 text-center`}>
-              <div className={TYPE_STAT_NUMBER}>{mins != null ? mins : '—'}</div>
+              <div className={TYPE_STAT_EMPHASIS}>{mins != null ? mins : '—'}</div>
               <div className={`${TYPE_LABEL_UPPER} mt-0.5`}>Min</div>
             </div>
             <div className={`${CARD_SURFACE_SM} p-3 text-center`}>
-              <div className={TYPE_STAT_NUMBER}>{volume > 0 ? volStr : '—'}</div>
+              <div className={TYPE_STAT_EMPHASIS}>{volume > 0 ? volStr : '—'}</div>
               <div className={`${TYPE_LABEL_UPPER} mt-0.5`}>{unitWeight} vol</div>
             </div>
           </div>
@@ -838,19 +837,19 @@ function WorkoutDetailSheet({ workout, unitWeight, formatDecimal, toNum, formatD
             <div className="flex gap-2 flex-wrap items-start">
               {weightThen && (
                 <div className={`${CARD_SURFACE_SM} px-3 py-2 min-w-[72px]`}>
-                  <div className={TYPE_NUMBER_COMPACT}>{fmt(weightThen.value)}</div>
+                  <div className={TYPE_STAT_EMPHASIS}>{fmt(weightThen.value)}</div>
                   <div className={TYPE_LABEL_UPPER}>{unitWeight}</div>
                 </div>
               )}
               {muscleThen && (
                 <div className={`${CARD_SURFACE_SM} px-3 py-2 min-w-[72px]`}>
-                  <div className={TYPE_NUMBER_COMPACT}>{fmt(muscleThen.value)}%</div>
+                  <div className={TYPE_STAT_EMPHASIS}>{fmt(muscleThen.value)}%</div>
                   <div className={TYPE_LABEL_UPPER}>Muscle</div>
                 </div>
               )}
               {bodyFatThen && (
                 <div className={`${CARD_SURFACE_SM} px-3 py-2 min-w-[72px]`}>
-                  <div className={TYPE_NUMBER_COMPACT}>{fmt(bodyFatThen.value)}%</div>
+                  <div className={TYPE_STAT_EMPHASIS}>{fmt(bodyFatThen.value)}%</div>
                   <div className={TYPE_LABEL_UPPER}>Body fat</div>
                 </div>
               )}

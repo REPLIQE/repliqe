@@ -13,7 +13,7 @@ import {
   TYPE_MICRO_TIGHT,
   TYPE_BODY,
   TYPE_BODY_SM_SEMIBOLD,
-  TYPE_DISPLAY,
+  TYPE_STAT_NUMBER,
   TYPE_UNIT_SUFFIX,
   TYPE_EMPHASIS_SM,
   TYPE_LABEL_MICRO,
@@ -272,7 +272,7 @@ export default function ProgressBody({
 
       <div className="grid grid-cols-2 gap-2 mb-4">
         <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
-          <div className={TYPE_DISPLAY}>
+          <div className={TYPE_STAT_NUMBER}>
             {latestBF ? fmt(latestBF.value) : '—'}
             <span className={`${TYPE_UNIT_SUFFIX} ml-0.5`}>%</span>
           </div>
@@ -282,7 +282,7 @@ export default function ProgressBody({
           </button>
         </div>
         <div className={`${CARD_SURFACE} ${CARD_ROW_PAD_TIGHT}`}>
-          <div className={TYPE_DISPLAY}>
+          <div className={TYPE_STAT_NUMBER}>
             {latestMuscleMass != null ? fmt(latestMuscleMass.value) : '—'}
             <span className={`${TYPE_UNIT_SUFFIX} ml-0.5`}>%</span>
           </div>

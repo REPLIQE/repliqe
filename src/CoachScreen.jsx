@@ -12,7 +12,7 @@ import {
 import { mergePlanUsage, incrementPlanUsage, PLAN_LIMITS } from './lib/planUsage'
 import ActionButton from './ActionButton'
 import { CARD_SURFACE_LG } from './cardTokens'
-import { TYPE_EMPHASIS_SM, TYPE_META, TYPE_OVERLINE_STRONG } from './typographyTokens'
+import { TYPE_EMPHASIS_SM, TYPE_META, TYPE_OVERLINE_STRONG, TYPE_SCREEN_TITLE } from './typographyTokens'
 
 /** System instructions sent as part of the prompt (user message was truncated in spec). */
 const COACH_CHAT_SYSTEM = `You are Coach, an expert AI personal trainer inside the REPLIQE app. You help users improve their programme, review progress, break plateaus, and explain exercises.
@@ -388,7 +388,7 @@ Coach (reply as Coach; remember [SUGGESTION] rules only when appropriate):`
       <div className="space-y-5">
         <div className="flex items-center gap-3 mb-1">
           <RepliqeLogo size={28} />
-          <h1 className="text-3xl font-bold tracking-tight text-text min-w-0">Coach</h1>
+          <h1 className={`${TYPE_SCREEN_TITLE} min-w-0`}>Coach</h1>
         </div>
 
         <p className="text-sm text-muted-strong leading-relaxed">

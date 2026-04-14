@@ -4,6 +4,7 @@ import BottomSheet from './BottomSheet'
 import ActionButton from './ActionButton'
 import { MODAL_SHEET_HEADER, MODAL_SHEET_SCROLL, MODAL_SHEET_FOOTER } from './spacingTokens'
 import { CARD_SURFACE_MD } from './cardTokens'
+import { TYPE_SCREEN_TITLE, TYPE_TITLE_MODAL } from './typographyTokens'
 
 const MUSCLE_KEYS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'mobility']
 
@@ -173,7 +174,7 @@ export default function ExerciseLibrary({
       <BottomSheet onClose={onClose} variant="page" zClass="z-50" layout="flex" padding="none" showHandle closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="max-h-[88vh]">
           {/* Header */}
           <div className={`flex justify-between items-center shrink-0 ${MODAL_SHEET_HEADER}`}>
-            <h2 className="text-lg font-bold">{replaceMode ? 'Replace exercise' : 'Add Exercise'}</h2>
+            <h2 className={TYPE_TITLE_MODAL}>{replaceMode ? 'Replace exercise' : 'Add Exercise'}</h2>
             <ActionButton type="button" variant="tertiary" fullWidth={false} className="!min-h-0 py-1 px-2 -mr-1 !text-sm !font-semibold" onClick={onClose}>
               Cancel
             </ActionButton>
@@ -202,7 +203,7 @@ export default function ExerciseLibrary({
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-1">{logoSvg}<h1 className="text-3xl font-bold tracking-tight">Exercises</h1></div>
+      <div className="flex items-center gap-3 mb-1">{logoSvg}<h1 className={TYPE_SCREEN_TITLE}>Exercises</h1></div>
       <div className="text-sm text-[#7B7BFF] mb-4">{totalCount} exercises{customCount > 0 ? ` · ${customCount} custom` : ''}</div>
       {content}
     </div>

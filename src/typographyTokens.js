@@ -54,8 +54,11 @@ export const TYPE_DISPLAY_LG = 'text-[27px] font-extrabold'
 /** 4-kolonne workout stats (detail sheet) */
 export const TYPE_STAT_NUMBER = 'text-[19px] font-extrabold text-text'
 
-/** Fremhævet tal i session-kort (fx sidste sæt) */
-export const TYPE_STAT_EMPHASIS = 'text-[17px] font-extrabold text-text'
+/**
+ * Fremhævet tal i session-kort (fx sidste sæt) og Progress-fanens stat-kort
+ * (lidt mindre end TYPE_DISPLAY for bedre match med resten af appen).
+ */
+export const TYPE_STAT_EMPHASIS = 'text-[17px] font-extrabold text-text leading-none'
 
 /** Enhed ved siden af display-tal */
 export const TYPE_UNIT_SUFFIX = 'text-[11px] text-muted font-semibold'
@@ -82,6 +85,20 @@ export const TYPE_LABEL_FORM = 'text-[11px] font-semibold text-muted uppercase t
 
 /** Side-/paneloverskrift (fx Photos) */
 export const TYPE_HEADING_PAGE = 'text-[20px] font-extrabold text-text'
+
+/** Primær skærmtitel (Workout, Progress, Profile, Exercises, Coach) */
+export const TYPE_SCREEN_TITLE = 'text-3xl font-bold tracking-tight text-text'
+
+/**
+ * Sektionslabel på mørk plan/start-baggrund (fx My programmes, Active programme).
+ * Brug på kort med høj læsbarhed mod navy; ikke på lys bone-card uden at justere farve.
+ */
+export const TYPE_SECTION_PLAN = 'text-[11px] font-bold uppercase tracking-[0.12em] text-white/45'
+
+/**
+ * Kompakte stat-tal (fx Start-fanens 4-boks grid). Tilføj tekstfarve: text-text, text-plan-text, …
+ */
+export const TYPE_STAT_COMPACT = 'block leading-none tabular-nums text-[0.9375rem] sm:text-base font-semibold'
 
 /** Overline med muted-mid (workout complete m.m.) */
 export const TYPE_OVERLINE_MID = 'text-[11px] font-bold text-muted-mid uppercase tracking-wider'

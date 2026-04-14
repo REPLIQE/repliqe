@@ -4,7 +4,7 @@ import ProgressOverview from './ProgressOverview'
 import ProgressStrength from './ProgressStrength'
 import ProgressBody from './ProgressBody'
 import ProgressRecovery from './ProgressRecovery'
-import { TYPE_TAB } from './typographyTokens'
+import { TYPE_SCREEN_TITLE, TYPE_TAB } from './typographyTokens'
 
 const TABS = ['Overview', 'Body', 'Strength', 'Recovery']
 
@@ -32,7 +32,7 @@ export default function ProgressScreen(props) {
         <div className="px-4 pt-3 pb-1.5">
           <div className="flex items-center gap-3 mb-2">
             <RepliqeLogo size={28} />
-            <h1 className="text-3xl font-bold tracking-tight">Progress</h1>
+            <h1 className={TYPE_SCREEN_TITLE}>Progress</h1>
           </div>
 
           <div className="flex rounded-[10px] p-[3px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]">

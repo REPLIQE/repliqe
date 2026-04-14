@@ -56,11 +56,16 @@ import {
   TYPE_MICRO,
   TYPE_MICRO_TIGHT,
   TYPE_OVERLINE_MID,
+  TYPE_SCREEN_TITLE,
+  TYPE_SECTION_PLAN,
+  TYPE_SHEET_TITLE,
+  TYPE_STAT_COMPACT,
   TYPE_STATUS_BADGE,
   TYPE_TAB,
   TYPE_HERO_PLUS,
   TYPE_TITLE_BLOCK,
   TYPE_TITLE_MODAL,
+  TYPE_TITLE_ROW,
 } from './typographyTokens'
 const ProgressScreen = lazy(() => import('./ProgressScreen'))
 const CoachScreen = lazy(() => import('./CoachScreen'))
@@ -3105,7 +3110,7 @@ ${JSON.stringify(ctx)}`
           {/* WORKOUT START SCREEN (also when workout active but sheet closed) */}
           {page === 'workout' && (!workoutActive || !showActiveWorkoutSheet) && !showCompleteScreen && !workoutBootstrapLoading && (
             <div>
-              <div className="flex items-center gap-3 mb-4"><RepliqeLogo size={28} /><h1 className="text-3xl font-bold tracking-tight">Workout</h1></div>
+              <div className="flex items-center gap-3 mb-4"><RepliqeLogo size={28} /><h1 className={TYPE_SCREEN_TITLE}>Workout</h1></div>
 
               {/* Continue workout bar when minimized */}
               {workoutActive && !showActiveWorkoutSheet && (
@@ -3143,7 +3148,7 @@ ${JSON.stringify(ctx)}`
                   const emptyInProgress = workoutActive && startedFromEmptyRef.current
                   return (
                     <>
-                      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">New programme</h2>
+                      <h2 className={`mb-2 ${TYPE_SECTION_PLAN}`}>New programme</h2>
                       <div className="rounded-2xl border border-border bg-card p-6 text-center mb-5">
                         <div className="w-12 h-12 rounded-full bg-card-alt flex items-center justify-center mx-auto mb-3 text-muted-strong">
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -3152,7 +3157,7 @@ ${JSON.stringify(ctx)}`
                         <p className="text-muted-strong text-sm mb-4">Create a programme to get structured workouts and track your progress.</p>
                         <button type="button" onClick={createProgramme} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">+ Create programme</button>
                       </div>
-                      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">Empty workout</h2>
+                      <h2 className={`mb-2 ${TYPE_SECTION_PLAN}`}>Empty workout</h2>
                       <button
                         type="button"
                         onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
@@ -3178,7 +3183,7 @@ ${JSON.stringify(ctx)}`
                   const emptyInProgress = workoutActive && startedFromEmptyRef.current
                   return (
                     <>
-                      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">New programme</h2>
+                      <h2 className={`mb-2 ${TYPE_SECTION_PLAN}`}>New programme</h2>
                       <div className="rounded-2xl border border-border bg-card p-6 text-center mb-5">
                         <div className="w-12 h-12 rounded-full bg-card-alt flex items-center justify-center mx-auto mb-3 text-muted-strong">
                           <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" className="w-6 h-6 stroke-current"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -3187,7 +3192,7 @@ ${JSON.stringify(ctx)}`
                         <div className="text-muted-deep text-xs mb-4">Suggestions for your next routine will only be shown after you've created your first programme.</div>
                         <button type="button" onClick={() => setWorkoutTab('plan')} className="w-full py-2.5 border-2 border-accent/40 rounded-[10px] bg-accent/5 text-accent text-sm font-bold">Go to Plan</button>
                       </div>
-                      <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">Empty workout</h2>
+                      <h2 className={`mb-2 ${TYPE_SECTION_PLAN}`}>Empty workout</h2>
                       <button
                         type="button"
                         onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
@@ -3220,7 +3225,7 @@ ${JSON.stringify(ctx)}`
 
                 return (
                   <>
-                    <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">Active programme</h2>
+                    <h2 className={`mb-2 ${TYPE_SECTION_PLAN}`}>Active programme</h2>
                     {/* Programme card — Design C */}
                     <div className="rounded-[18px] border border-white/[0.07] overflow-hidden mb-5">
 
@@ -3324,13 +3329,13 @@ ${JSON.stringify(ctx)}`
                                           <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
                                       <div className="grid grid-cols-4 gap-1.5 sm:gap-2 items-stretch">
                                         <div className="flex min-w-0 flex-col items-center justify-center rounded-[10px] bg-white/[0.03] px-1 py-2 text-center sm:px-2">
-                                          <span className="block leading-none tabular-nums text-[0.9375rem] sm:text-base font-semibold text-text">{panelExCount}</span>
+                                          <span className={`${TYPE_STAT_COMPACT} text-text`}>{panelExCount}</span>
                                           <span className={`${TYPE_MICRO_TIGHT} mt-1 block font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
                                             Exercise{panelExCount !== 1 ? 's' : ''}
                                           </span>
                                         </div>
                                         <div className="flex min-w-0 flex-col items-center justify-center rounded-[10px] bg-white/[0.03] px-1 py-2 text-center sm:px-2">
-                                          <span className="block leading-none tabular-nums text-[0.9375rem] sm:text-base font-semibold text-text">{panelEstMin}</span>
+                                          <span className={`${TYPE_STAT_COMPACT} text-text`}>{panelEstMin}</span>
                                           <span className={`${TYPE_MICRO_TIGHT} mt-1 block font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
                                             Est. time
                                           </span>
@@ -3352,7 +3357,7 @@ ${JSON.stringify(ctx)}`
                                                 className="relative z-10 flex w-full min-w-0 flex-col items-center rounded-lg transition-colors outline-none hover:bg-white/[0.06] focus-visible:ring-1 focus-visible:ring-[var(--a11y-focus-ring)]"
                                                 aria-label="Recovery details for this day"
                                               >
-                                                <span className="block leading-none tabular-nums text-[0.9375rem] sm:text-base font-semibold" style={{ color: recoveryAccent }}>
+                                                <span className={`${TYPE_STAT_COMPACT}`} style={{ color: recoveryAccent }}>
                                                   {recoveryPct}%
                                                 </span>
                                                 <span className={`${TYPE_MICRO_TIGHT} mt-1 inline-flex items-center justify-center gap-1 font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
@@ -3365,7 +3370,7 @@ ${JSON.stringify(ctx)}`
                                             </>
                                           ) : (
                                             <div className="flex flex-col items-center">
-                                              <span className="block leading-none tabular-nums text-[0.9375rem] sm:text-base font-semibold text-white/25">—</span>
+                                              <span className={`${TYPE_STAT_COMPACT} text-white/25`}>—</span>
                                               <span className={`${TYPE_MICRO_TIGHT} mt-1 block font-semibold leading-tight tracking-[0.05em] uppercase text-white/35`}>
                                                 Recovery
                                               </span>
@@ -3435,7 +3440,7 @@ ${JSON.stringify(ctx)}`
                       </div>
 
                     </div>
-                    <h2 className="mb-2 mt-3 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">Empty workout</h2>
+                    <h2 className={`mb-2 mt-3 ${TYPE_SECTION_PLAN}`}>Empty workout</h2>
                     <button
                       type="button"
                       onClick={() => { if (emptyInProgress) { setShowActiveWorkoutSheet(true); return }; startEmpty() }}
@@ -3654,14 +3659,14 @@ ${JSON.stringify(ctx)}`
                       <>
                         {manualProgrammes.length > 0 && (
                           <>
-                            <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">My programmes</h2>
+                            <h2 className={`mb-2 ${TYPE_SECTION_PLAN}`}>My programmes</h2>
                             {manualProgrammes.map(renderProgrammeCard)}
                           </>
                         )}
                         {coachProgrammes.length > 0 && (
                           <>
                             <h2
-                              className={`mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/45 ${
+                              className={`mb-2 ${TYPE_SECTION_PLAN} ${
                                 manualProgrammes.length > 0 ? 'mt-1' : ''
                               }`}
                             >
@@ -3951,7 +3956,7 @@ ${JSON.stringify(ctx)}`
                 <div className="px-4 pt-3 pb-1.5">
                   <div className="flex items-center gap-3 mb-2">
                     <RepliqeLogo size={28} />
-                    <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
+                    <h1 className={TYPE_SCREEN_TITLE}>Profile</h1>
                   </div>
                   <div className="flex rounded-[10px] p-[3px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]">
                     {['Account', 'Settings', 'About'].map((t) => {
@@ -4113,7 +4118,7 @@ ${JSON.stringify(ctx)}`
           <BottomSheet align="center" variant="card" maxWidthClass="max-w-sm" showHandle={false} closeOnBackdrop={false} backdropClassName="bg-black/60 backdrop-blur-sm">
             <div className="text-center">
               <DeleteTrashBadge />
-              <h2 className="text-text text-lg font-bold mb-2">Delete Programme?</h2>
+              <h2 className={`${TYPE_TITLE_MODAL} mb-2`}>Delete Programme?</h2>
               <p className="text-muted text-sm mb-5">{programmes.find(p => p.id === showDeleteProgrammeConfirm)?.name} and all its routines will be permanently deleted.</p>
               <div className="flex gap-3">
                 <ActionButton type="button" variant="secondary" fullWidth={false} className="flex-1 !rounded-xl" onClick={() => setShowDeleteProgrammeConfirm(null)}>
@@ -4131,7 +4136,7 @@ ${JSON.stringify(ctx)}`
         {editProgrammeRoutinePendingDelete && (
           <BottomSheet align="center" variant="card" zClass="z-[100]" maxWidthClass="max-w-sm" showHandle={false} closeOnBackdrop={false} ariaModal={true} backdropClassName="bg-black/60 backdrop-blur-sm" panelClassName="text-center">
               <DeleteTrashBadge />
-              <h2 className="text-text text-lg font-bold mb-2">Delete routine?</h2>
+              <h2 className={`${TYPE_TITLE_MODAL} mb-2`}>Delete routine?</h2>
               <p className="text-muted text-sm mb-5">
                 <span className="font-semibold text-text">{editProgrammeRoutinePendingDelete.name}</span> will be removed from this programme and deleted. This cannot be undone.
               </p>
@@ -4167,7 +4172,7 @@ ${JSON.stringify(ctx)}`
                 <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
                   <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-success"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 </div>
-                <h2 className="text-text text-lg font-bold mb-2">Set as active programme?</h2>
+                <h2 className={`${TYPE_TITLE_MODAL} mb-2`}>Set as active programme?</h2>
                 <p className="text-muted text-sm mb-5">Use &quot;{prog.name}&quot; on the Start tab as your active programme?</p>
                 <div className="flex gap-3">
                   <ActionButton type="button" variant="secondary" fullWidth={false} className="flex-1 !rounded-xl" onClick={() => { setShowSetActiveAfterCreate(null) }}>
@@ -4190,7 +4195,7 @@ ${JSON.stringify(ctx)}`
                 <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
                   <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-success"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 </div>
-                <h2 className="text-text text-lg font-bold mb-2">Set as active programme?</h2>
+                <h2 className={`${TYPE_TITLE_MODAL} mb-2`}>Set as active programme?</h2>
                 <p className="text-muted text-sm mb-5">Use &quot;{prog.name}&quot; on the Start tab as your active programme?</p>
                 <div className="flex gap-3">
                   <ActionButton type="button" variant="secondary" fullWidth={false} className="flex-1 !rounded-xl" onClick={() => setShowSetActiveAfterEditProgramme(null)}>
@@ -4245,7 +4250,7 @@ ${JSON.stringify(ctx)}`
         {/* Create Programme modal (manual flow) */}
         {showCreateProgramme && (
           <BottomSheet onClose={requestCloseCreateProgramme} variant="card" layout="scrollable">
-              <h2 className="text-text text-base font-bold mb-3">Create programme</h2>
+              <h2 className={`${TYPE_SHEET_TITLE} mb-3`}>Create programme</h2>
               <label className={`block ${TYPE_LABEL_FORM} mt-3 mb-1.5`}>Name</label>
               <input type="text" value={createProgrammeName} onChange={e => setCreateProgrammeName(e.target.value)} placeholder="e.g. 2 Split - Push/Pull" onFocus={e => e.target.select()} autoFocus={!createProgrammeName.trim()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold placeholder-muted-deep outline-none focus:border-accent" />
               <label className={`block ${TYPE_LABEL_FORM} mt-3 mb-1.5`}>Routines</label>
@@ -4351,7 +4356,7 @@ ${JSON.stringify(ctx)}`
           const progRoutines = (prog?.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
           return (
             <BottomSheet onClose={requestCloseEditProgramme} variant="card" layout="scrollable">
-                <h2 className="text-text text-base font-bold mb-3">Edit Programme</h2>
+                <h2 className={`${TYPE_SHEET_TITLE} mb-3`}>Edit Programme</h2>
                 <label className={`block ${TYPE_LABEL_FORM} mt-3 mb-1.5`}>Name</label>
                 <input type="text" value={editProgrammeName} onChange={e => setEditProgrammeName(e.target.value)} onFocus={e => e.target.select()} className="w-full py-3 px-3 bg-card-alt border border-border-strong rounded-[10px] text-text text-sm font-semibold outline-none focus:border-accent" />
                 <label className={`block ${TYPE_LABEL_FORM} mt-3 mb-1.5`}>Routines — drag to reorder or move to another programme</label>
@@ -4617,7 +4622,7 @@ ${JSON.stringify(ctx)}`
           return (
             <>
             <BottomSheet onClose={requestCloseRoutineEditor} variant="page" layout="flex">
-                <h2 className="text-text text-base font-bold mb-3 shrink-0">{isEdit ? 'Edit Routine' : 'Create Routine'}</h2>
+                <h2 className={`${TYPE_SHEET_TITLE} mb-3 shrink-0`}>{isEdit ? 'Edit Routine' : 'Create Routine'}</h2>
                 {programmeId && (
                   <>
                     <label className={`block ${TYPE_LABEL_FORM} mb-1.5`}>Program</label>
@@ -4724,7 +4729,7 @@ ${JSON.stringify(ctx)}`
                           <div className="flex justify-between items-start gap-2 mb-2">
                             <div className="flex items-start gap-2 min-w-0 flex-1">
                               <div className="min-w-0">
-                                <span className="text-lg font-bold tracking-tight text-text block truncate">{ex.exerciseId}</span>
+                                <span className={`${TYPE_TITLE_ROW} tracking-tight block truncate`}>{ex.exerciseId}</span>
                                 {lib && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/5 text-muted">{lib.equipment}</span>}
                               </div>
                             </div>
@@ -4981,7 +4986,7 @@ ${JSON.stringify(ctx)}`
                 panelClassName="text-center"
               >
                   <DeleteTrashBadge />
-                  <h2 id="routine-remove-note-title" className="text-text text-lg font-bold mb-2">
+                  <h2 id="routine-remove-note-title" className={`${TYPE_TITLE_MODAL} mb-2`}>
                     Remove note?
                   </h2>
                   <p className="text-muted text-sm mb-5">This exercise note will be permanently cleared.</p>
@@ -5126,7 +5131,7 @@ ${JSON.stringify(ctx)}`
 
         {showEmptyNameModal && (
           <BottomSheet variant="card" zClass="z-50" layout="scrollable" padding="none" showHandle={false} closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="px-6 pt-6 pb-10">
-              <h2 className="text-lg font-bold text-center mb-5">Name your workout</h2>
+              <h2 className={`${TYPE_TITLE_MODAL} text-center mb-5`}>Name your workout</h2>
               <input type="text" placeholder="e.g. Push Day, Upper Body..." value={emptyWorkoutName} onChange={(e) => setEmptyWorkoutName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && confirmEmptyStart()} autoFocus className="w-full bg-card-alt border border-border-strong rounded-xl px-4 py-3 text-text placeholder-muted-deep outline-none focus:border-accent transition-colors mb-4" />
               <ActionButton className="mb-3" onClick={confirmEmptyStart} disabled={!emptyWorkoutName} variant="primary">
                 Start workout
@@ -5146,7 +5151,7 @@ ${JSON.stringify(ctx)}`
         )}
         {showFinishModal && (
           <BottomSheet variant="card" zClass="z-50" layout="scrollable" padding="none" showHandle={false} closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="px-6 pt-6 pb-10">
-              <h2 className="text-lg font-bold text-center mb-2">Finish workout</h2>
+              <h2 className={`${TYPE_TITLE_MODAL} text-center mb-2`}>Finish workout</h2>
               {(exercises.length === 0 || startedFromEmptyRef.current) ? (
                 <>
                   <p className="text-sm text-muted-mid text-center mb-6">Save this workout as a routine in a programme?</p>
@@ -5187,7 +5192,7 @@ ${JSON.stringify(ctx)}`
 
         {showCancelWorkoutConfirm && (
           <BottomSheet align="center" variant="card" zClass="z-50" maxWidthClass="max-w-sm" showHandle={false} closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="text-center">
-              <h2 className="text-base font-bold text-center mb-2">Cancel workout?</h2>
+              <h2 className={`${TYPE_TITLE_MODAL} text-center mb-2`}>Cancel workout?</h2>
               <p className="text-sm text-muted text-center mb-5">This will discard your current workout and all sets.</p>
               <div className="flex gap-3">
                 <ActionButton type="button" variant="secondary" fullWidth={false} className="flex-1 !rounded-xl" onClick={() => setShowCancelWorkoutConfirm(false)}>
@@ -5203,7 +5208,7 @@ ${JSON.stringify(ctx)}`
         {pendingStart && (
           <BottomSheet align="center" variant="card" zClass="z-50" maxWidthClass="max-w-sm" showHandle={false} closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="text-center">
               <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-accent"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div></div>
-              <h2 className="text-base font-bold text-center mb-2">Active workout</h2>
+              <h2 className={`${TYPE_TITLE_MODAL} text-center mb-2`}>Active workout</h2>
               <p className="text-sm text-muted text-center mb-5">
                 You have an active workout with{' '}
                 <span className="font-bold text-text">
@@ -5223,7 +5228,7 @@ ${JSON.stringify(ctx)}`
         {deletingFolder !== null && (
           <BottomSheet align="center" variant="card" zClass="z-50" maxWidthClass="max-w-sm" showHandle={false} closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="text-center">
               <DeleteTrashBadge />
-              <h2 className="text-base font-bold text-center mb-2">Delete "{folders[deletingFolder]?.name}"?</h2>
+              <h2 className={`${TYPE_TITLE_MODAL} text-center mb-2`}>Delete "{folders[deletingFolder]?.name}"?</h2>
               <p className="text-sm text-muted text-center mb-1">This folder contains <span className="font-bold text-text">{folders[deletingFolder]?.templates.length} template{folders[deletingFolder]?.templates.length !== 1 ? 's' : ''}</span>.</p>
               <p className="text-sm text-muted-mid text-center mb-5">Templates will be moved to "{folders.find((_, i) => i !== deletingFolder)?.name}".</p>
               <ActionButton type="button" variant="danger" className="!rounded-xl mb-2" onClick={confirmDeleteFolder}>
@@ -5239,7 +5244,7 @@ ${JSON.stringify(ctx)}`
         {deletingTemplate && (
           <BottomSheet align="center" variant="card" zClass="z-50" maxWidthClass="max-w-sm" showHandle={false} closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="text-center">
               <DeleteTrashBadge />
-              <h2 className="text-base font-bold text-center mb-2">Delete template?</h2>
+              <h2 className={`${TYPE_TITLE_MODAL} text-center mb-2`}>Delete template?</h2>
               <p className="text-sm text-muted text-center mb-5">"{folders[deletingTemplate.fi]?.templates[deletingTemplate.ti]?.name}" will be permanently deleted.</p>
               <ActionButton type="button" variant="danger" className="!rounded-xl mb-2" onClick={confirmDeleteTemplate}>
                 <DeleteTrashGlyph className="w-4 h-4 shrink-0" />
@@ -5266,7 +5271,7 @@ ${JSON.stringify(ctx)}`
         {incompleteSetsWarning && (
           <BottomSheet align="center" variant="card" zClass="z-50" maxWidthClass="max-w-sm" showHandle={false} closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="text-center">
               <div className="flex justify-center mb-4"><div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className="w-6 h-6 stroke-accent"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div></div>
-              <h2 className="text-base font-bold text-center mb-2">
+              <h2 className={`${TYPE_TITLE_MODAL} text-center mb-2`}>
                 {incompleteSetsWarning.noneDone ? 'No sets marked as done' : 'Incomplete sets'}
               </h2>
               <p className="text-sm text-muted text-center mb-5">
@@ -5551,7 +5556,7 @@ function SaveTemplateModal({ folders, onSave, onCancel }) {
   function handleSave() { if (!templateName) return; onSave(selectedFolder, templateName) }
   return (
     <BottomSheet variant="card" zClass="z-50" layout="scrollable" padding="none" showHandle closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="px-6 pb-10">
-        <h2 className="text-lg font-bold text-center mb-5">Save as template</h2>
+        <h2 className={`${TYPE_TITLE_MODAL} text-center mb-5`}>Save as template</h2>
         <div className="mb-4">
           <div className={`${TYPE_LABEL_FORM} mb-2`}>Template name</div>
           <input type="text" placeholder="e.g. Push Day A" value={templateName} onChange={(e) => setTemplateName(e.target.value)} onFocus={e => e.target.select()} onKeyDown={(e) => e.key === 'Enter' && handleSave()} autoFocus className="w-full bg-card-alt border border-border-strong rounded-xl px-4 py-3 text-text placeholder-muted-deep outline-none focus:border-accent transition-colors" />
@@ -5608,7 +5613,7 @@ function SaveAsRoutineModal({ programmes, newProgrammePlaceholder, defaultRoutin
   }
   return (
     <BottomSheet variant="card" zClass="z-50" layout="scrollable" padding="none" showHandle closeOnBackdrop={false} backdropClassName="bg-black/70 backdrop-blur-sm" panelClassName="px-6 pb-10 max-h-[95vh]">
-        <h2 className="text-lg font-bold text-center mb-5">Save as routine</h2>
+        <h2 className={`${TYPE_TITLE_MODAL} text-center mb-5`}>Save as routine</h2>
         <div className="mb-4">
           <div className={`${TYPE_LABEL_FORM} mb-2`}>Programme</div>
           {programmes.length > 0 && (

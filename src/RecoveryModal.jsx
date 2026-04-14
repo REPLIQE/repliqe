@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react'
 import BottomSheet from './BottomSheet'
 import {
   formatMuscleLabel,
-  MUSCLE_COLOURS_HEX,
   MUSCLE_RECOVERY_HOURS,
   getMuscleRecoveryPct,
   getRecoveryPct,
@@ -34,7 +33,6 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
 
   function MuscleRow({ slug, type }) {
     const pct = getMuscleRecoveryPct(slug, muscleLastWorked?.[slug] ?? null)
-    const colour = MUSCLE_COLOURS_HEX[slug] ?? '#888'
     const ago = formatHoursAgo(muscleLastWorked?.[slug] ?? null)
     const windowH = MUSCLE_RECOVERY_HOURS[slug] ?? 48
     const label = formatMuscleLabel(slug)
@@ -44,11 +42,11 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
       <div className={`flex flex-col gap-1.5 ${dim ? 'opacity-45' : ''}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: colour }} />
+            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-plan-text" />
             <span className={`${TYPE_BODY_SEMIBOLD} text-white`}>{label}</span>
             <span
               className={`${TYPE_LABEL_UPPER} uppercase tracking-wide px-1.5 py-0.5 rounded ${
-                dim ? 'bg-white/5 text-white/30' : 'bg-[rgba(0,229,160,0.1)] text-[rgba(0,229,160,0.6)]'
+                dim ? 'bg-white/5 text-white/30' : 'bg-plan-text/10 text-plan-text/75'
               }`}
             >
               {type}
@@ -67,7 +65,7 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
             }}
             data-target={pct}
             className="h-full rounded-full transition-all duration-1000"
-            style={{ width: '0%', background: colour }}
+            style={{ width: '0%', background: 'var(--plan-text)' }}
           />
         </div>
       </div>
@@ -122,12 +120,12 @@ export default function RecoveryModal({ muscles, muscleLastWorked, dayName, onCl
             </div>
           </>
         )}
-        <div className="mx-5 mt-5 mb-6 bg-[rgba(0,229,160,0.06)] border border-[rgba(0,229,160,0.18)] rounded-2xl p-4 flex items-center justify-between">
+        <div className="mx-5 mt-5 mb-6 rounded-2xl border border-plan-text/20 bg-plan-text/[0.08] p-4 flex items-center justify-between">
           <div>
             <p className={`${TYPE_MICRO} font-semibold uppercase tracking-wide text-white/35`}>Overall score</p>
             <p className={`${TYPE_META} text-white/20 mt-0.5`}>Avg of primary muscles, per-muscle window</p>
           </div>
-          <span className={`${TYPE_DISPLAY_LG} text-[#00e5a0]`}>{primaryPct}%</span>
+          <span className={`${TYPE_DISPLAY_LG} text-plan-text`}>{primaryPct}%</span>
         </div>
     </BottomSheet>
   )
