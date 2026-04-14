@@ -502,6 +502,8 @@ function AppContent() {
   /** Efter duplicate: luk editor og vis Plan-kort (ikke Edit programme-modal), scroll til ny rutine. */
   const routineEditorForcePlanAfterCloseRef = useRef(false)
   const [planScrollToRoutineId, setPlanScrollToRoutineId] = useState(null)
+  /** Plan-fanen: højst ét programkort vist med rutiner; null = alle foldet sammen. */
+  const [planExpandedProgrammeId, setPlanExpandedProgrammeId] = useState(null)
   /** Snapshot ved åbning af Edit programme (navn, routineIds, fuld routine-data) til revert ved Cancel. */
   const editProgrammeSnapshotRef = useRef(null)
   /** Set each render while routine editor is mounted; used by styled discard confirm. */
@@ -601,6 +603,30 @@ function AppContent() {
     }, 100)
     return () => window.clearTimeout(t)
   }, [planScrollToRoutineId])
+
+  const planProgrammeIdsKey = useMemo(
+    () => programmes.map((p) => p.id).join('\0'),
+    [programmes]
+  )
+
+  useEffect(() => {
+    if (programmes.length === 0) {
+      setPlanExpandedProgrammeId(null)
+      return
+    }
+    setPlanExpandedProgrammeId((prev) => {
+      if (prev && programmes.some((p) => p.id === prev)) return prev
+      return programmes.find((p) => p.isActive)?.id ?? programmes[0]?.id ?? null
+    })
+  }, [planProgrammeIdsKey])
+
+  /** Plan: når intet kort er udvidet, fold det aktive program ud (standard). */
+  useEffect(() => {
+    if (planExpandedProgrammeId != null) return
+    const activeId = programmes.find((p) => p.isActive)?.id
+    if (!activeId) return
+    setPlanExpandedProgrammeId(activeId)
+  }, [planExpandedProgrammeId, programmes])
 
   useEffect(() => {
     isOnboardingRouteRef.current = onboardingRequired && location.pathname === '/onboarding'
@@ -3474,6 +3500,8 @@ ${JSON.stringify(ctx)}`
                     const renderProgrammeCard = (prog) => {
                       const progRoutines = (prog.routineIds || []).map(id => routines.find(r => r.id === id)).filter(Boolean)
                       const isActive = prog.isActive
+                      const isExpanded = planExpandedProgrammeId === prog.id
+                      const routineCount = (prog.routineIds || []).length
                       return (
                         <div
                           key={prog.id}
@@ -3488,11 +3516,18 @@ ${JSON.stringify(ctx)}`
                               }`}
                             >
                               <div className="flex min-w-0 flex-col gap-2.5">
-                                <div className="min-w-0 text-left text-sm font-medium leading-snug text-white break-words">
+                                <button
+                                  type="button"
+                                  onClick={() => setPlanExpandedProgrammeId(isExpanded ? null : prog.id)}
+                                  className="min-w-0 w-full rounded-lg py-0.5 text-left text-sm font-medium leading-snug text-white break-words transition-colors hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--a11y-focus-ring)] -mx-1 px-1"
+                                  aria-expanded={isExpanded}
+                                  aria-controls={`plan-prog-routines-${prog.id}`}
+                                  id={`plan-prog-head-${prog.id}`}
+                                >
                                   {prog.name}
-                                </div>
+                                </button>
                                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                                  <div className="flex shrink-0 items-center">
+                                  <div className="flex min-w-0 flex-wrap items-center gap-2">
                                     {isActive ? (
                                       <span
                                         className={`inline-flex min-h-[30px] min-w-[4.75rem] items-center justify-center rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-10)] px-1.5 py-1 text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none animate-up-next-pulse sm:min-w-[5.5rem] sm:px-2 sm:py-1.5`}
@@ -3503,12 +3538,23 @@ ${JSON.stringify(ctx)}`
                                     ) : (
                                       <button
                                         type="button"
-                                        onClick={() => setProgrammeActive(prog.id)}
+                                        onClick={() => {
+                                          setProgrammeActive(prog.id)
+                                          setPlanExpandedProgrammeId(prog.id)
+                                        }}
                                         className={`inline-flex min-h-[30px] min-w-[4.75rem] items-center justify-center whitespace-nowrap rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] px-1.5 py-1 text-plan-text ${TYPE_LABEL_UPPER} tracking-wide leading-none transition-colors hover:bg-[var(--plan-surface-12)] active:opacity-90 sm:min-w-[5.5rem] sm:px-2 sm:py-1.5`}
                                       >
                                         Set active
                                       </button>
                                     )}
+                                    {!isExpanded ? (
+                                      <span
+                                        className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-[var(--plan-border-35)] bg-[var(--plan-surface-08)] px-2 py-1 text-[11px] font-bold tabular-nums leading-none text-plan-text"
+                                        aria-label={`${routineCount} ${routineCount === 1 ? 'routine' : 'routines'}`}
+                                      >
+                                        {routineCount} {routineCount === 1 ? 'routine' : 'routines'}
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <div className="flex shrink-0 items-center gap-0.5 sm:ml-auto">
                                     <button
@@ -3547,49 +3593,56 @@ ${JSON.stringify(ctx)}`
                                 </div>
                               </div>
                             </div>
-                            <div className="-mx-4 divide-y divide-white/[0.06]">
-                              {progRoutines.map((r) => {
-                                const planDayMuscles = getDayMusclesSlugs(r.exercises || [], allLibraryExercises)
-                                const planMuscleSlugs = [...new Set([...(planDayMuscles.primary || []), ...(planDayMuscles.secondary || [])])]
-                                return (
-                                  <div
-                                    key={r.id}
-                                    data-plan-routine-id={r.id}
-                                    className={`flex min-w-0 flex-col gap-1 px-4 py-2 ${
-                                      isActive ? 'hover:bg-white/[0.03]' : 'hover:bg-white/[0.02]'
-                                    }`}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={() => openRoutineFromPlan(prog, r)}
-                                      className={`min-w-0 w-full py-0.5 text-left rounded-lg -mx-1 px-1 transition-colors active:opacity-80 ${isActive ? 'hover:bg-white/[0.04]' : 'hover:bg-white/[0.03]'}`}
-                                      title="Edit routine"
-                                      aria-label={`Edit routine ${r.name || '—'}`}
+                            {isExpanded ? (
+                              <div
+                                id={`plan-prog-routines-${prog.id}`}
+                                role="region"
+                                aria-labelledby={`plan-prog-head-${prog.id}`}
+                                className="-mx-4 divide-y divide-white/[0.06]"
+                              >
+                                {progRoutines.map((r) => {
+                                  const planDayMuscles = getDayMusclesSlugs(r.exercises || [], allLibraryExercises)
+                                  const planMuscleSlugs = [...new Set([...(planDayMuscles.primary || []), ...(planDayMuscles.secondary || [])])]
+                                  return (
+                                    <div
+                                      key={r.id}
+                                      data-plan-routine-id={r.id}
+                                      className={`flex min-w-0 flex-col gap-1 px-4 py-2 ${
+                                        isActive ? 'hover:bg-white/[0.03]' : 'hover:bg-white/[0.02]'
+                                      }`}
                                     >
-                                      <span className={`block min-w-0 truncate text-[12px] font-medium leading-snug ${isActive ? 'text-plan-text' : 'text-[var(--plan-text-row)]'}`}>
-                                        {r.name || '—'}
-                                      </span>
-                                    </button>
-                                    {planMuscleSlugs.length > 0 ? (
-                                      <div className="flex min-w-0 flex-nowrap gap-1 overflow-x-auto pb-0.5 pt-0.5 -mx-0.5 px-0.5 touch-pan-x [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]">
-                                        {planMuscleSlugs.map((slug) => {
-                                          const label = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ')
-                                          return (
-                                            <span
-                                              key={slug}
-                                              title={label}
-                                              className={`shrink-0 ${TYPE_CAPTION} font-semibold px-[7px] py-[3px] rounded-full whitespace-nowrap text-plan-text bg-white/[0.08]`}
-                                            >
-                                              {label}
-                                            </span>
-                                          )
-                                        })}
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                )
-                              })}
-                            </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => openRoutineFromPlan(prog, r)}
+                                        className={`min-w-0 w-full py-0.5 text-left rounded-lg -mx-1 px-1 transition-colors active:opacity-80 ${isActive ? 'hover:bg-white/[0.04]' : 'hover:bg-white/[0.03]'}`}
+                                        title="Edit routine"
+                                        aria-label={`Edit routine ${r.name || '—'}`}
+                                      >
+                                        <span className={`block min-w-0 truncate text-[12px] font-medium leading-snug ${isActive ? 'text-plan-text' : 'text-[var(--plan-text-row)]'}`}>
+                                          {r.name || '—'}
+                                        </span>
+                                      </button>
+                                      {planMuscleSlugs.length > 0 ? (
+                                        <div className="flex min-w-0 flex-nowrap gap-1 overflow-x-auto pb-0.5 pt-0.5 -mx-0.5 px-0.5 touch-pan-x [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]">
+                                          {planMuscleSlugs.map((slug) => {
+                                            const label = slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ')
+                                            return (
+                                              <span
+                                                key={slug}
+                                                title={label}
+                                                className={`shrink-0 ${TYPE_CAPTION} font-semibold px-[7px] py-[3px] rounded-full whitespace-nowrap text-plan-text bg-white/[0.08]`}
+                                              >
+                                                {label}
+                                              </span>
+                                            )
+                                          })}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       )
@@ -4587,6 +4640,7 @@ ${JSON.stringify(ctx)}`
                           const newId = copyRoutine(editingRoutineId, programmeId)
                           if (!newId) return
                           routineEditorForcePlanAfterCloseRef.current = true
+                          setPlanExpandedProgrammeId(programmeId)
                           setPlanScrollToRoutineId(newId)
                           setShowDiscardRoutineEditorConfirm(false)
                           routineEditorCloseRef.current?.()
