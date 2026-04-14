@@ -38,6 +38,11 @@ export async function ensureUserDoc(user: User): Promise<void> {
 
 export type UserSettings = Partial<typeof DEFAULT_SETTINGS>
 
+/** Decimal display: only `period` is special; anything else → comma (default). */
+export function normalizeDecimalSeparator(v: unknown): 'comma' | 'period' {
+  return v === 'period' ? 'period' : 'comma'
+}
+
 /**
  * Fetches the user document (profile + settings).
  */
@@ -49,15 +54,19 @@ export async function getUserDoc(uid: string) {
 }
 
 /**
- * Merges new settings into the user doc (read-merge-write).
+ * Writes only the given settings keys (Firestore dotted paths).
+ * Avoids read–merge–write races where a slow older write could overwrite a newer `decimalSeparator` etc.
  */
 export async function mergeUserSettings(uid: string, settings: UserSettings): Promise<void> {
   const ref = doc(db, 'users', uid)
-  const snap = await getDoc(ref)
-  const existing = snap.exists() ? (snap.data().settings as Record<string, unknown>) || {} : {}
-  await updateDoc(ref, {
-    settings: { ...existing, ...settings },
-  })
+  const payload: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(settings)) {
+    if (value !== undefined) {
+      payload[`settings.${key}`] = value
+    }
+  }
+  if (Object.keys(payload).length === 0) return
+  await updateDoc(ref, payload as Parameters<typeof updateDoc>[1])
 }
 
 /** Paid subscription tier stored at users/{uid}.plan (top-level field). */

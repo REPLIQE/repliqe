@@ -25,6 +25,7 @@ import {
   getUserDoc,
   mergeUserSettings,
   DEFAULT_SETTINGS,
+  normalizeDecimalSeparator,
   normalizeUserPlan,
   USER_PLAN_STORAGE_KEY,
   ensureUserDoc,
@@ -794,7 +795,7 @@ function AppContent() {
         setUnitWeight(settings.unitWeight ?? DEFAULT_SETTINGS.unitWeight)
         setUnitDistance(settings.unitDistance ?? DEFAULT_SETTINGS.unitDistance)
         setUnitLength(settings.unitLength ?? DEFAULT_SETTINGS.unitLength)
-        setDecimalSeparator(settings.decimalSeparator ?? DEFAULT_SETTINGS.decimalSeparator)
+        setDecimalSeparator(normalizeDecimalSeparator(settings.decimalSeparator))
         setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
         setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
         const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
@@ -841,7 +842,7 @@ function AppContent() {
         setUnitWeight(settings.unitWeight ?? DEFAULT_SETTINGS.unitWeight)
         setUnitDistance(settings.unitDistance ?? DEFAULT_SETTINGS.unitDistance)
         setUnitLength(settings.unitLength ?? DEFAULT_SETTINGS.unitLength)
-        setDecimalSeparator(settings.decimalSeparator ?? DEFAULT_SETTINGS.decimalSeparator)
+        setDecimalSeparator(normalizeDecimalSeparator(settings.decimalSeparator))
         setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
         setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
         const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
@@ -911,7 +912,7 @@ function AppContent() {
         setUnitWeight(settings.unitWeight ?? DEFAULT_SETTINGS.unitWeight)
         setUnitDistance(settings.unitDistance ?? DEFAULT_SETTINGS.unitDistance)
         setUnitLength(settings.unitLength ?? DEFAULT_SETTINGS.unitLength)
-        setDecimalSeparator(settings.decimalSeparator ?? DEFAULT_SETTINGS.decimalSeparator)
+        setDecimalSeparator(normalizeDecimalSeparator(settings.decimalSeparator))
         setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
         setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
         const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
@@ -2905,14 +2906,14 @@ ${JSON.stringify(ctx)}`
     setUnitWeight(onboardingPrefsDraft.unitWeight)
     setUnitDistance(onboardingPrefsDraft.unitDistance)
     setUnitLength(onboardingPrefsDraft.unitLength)
-    setDecimalSeparator(onboardingPrefsDraft.decimalSeparator)
+    setDecimalSeparator(normalizeDecimalSeparator(onboardingPrefsDraft.decimalSeparator))
     setDateFormat(onboardingPrefsDraft.dateFormat)
     if (bodyweightOk) setBodyweight(bw)
     mergeUserSettings(user.uid, {
       unitWeight: onboardingPrefsDraft.unitWeight,
       unitDistance: onboardingPrefsDraft.unitDistance,
       unitLength: onboardingPrefsDraft.unitLength,
-      decimalSeparator: onboardingPrefsDraft.decimalSeparator,
+      decimalSeparator: normalizeDecimalSeparator(onboardingPrefsDraft.decimalSeparator),
       dateFormat: onboardingPrefsDraft.dateFormat,
       ...(bodyweightOk ? { bodyweight: bw } : {}),
     }).catch((err) => console.error('mergeUserSettings onboarding:', err))

@@ -113,14 +113,15 @@ export function getDayMusclesSlugs(exercises = [], library = []) {
  */
 export function formatDecimal(n, separator, decimals) {
   if (n === null || n === undefined || Number.isNaN(n)) return ''
+  const sep = separator === 'period' ? 'period' : 'comma'
   const num = Number(n)
   if (decimals !== undefined) {
     const s = num.toFixed(decimals)
-    return separator === 'comma' ? s.replace('.', ',') : s
+    return sep === 'comma' ? s.replace('.', ',') : s
   }
   if (Number.isInteger(num)) return String(num)
   const s = num.toString()
-  return separator === 'comma' ? s.replace('.', ',') : s
+  return sep === 'comma' ? s.replace('.', ',') : s
 }
 
 /**
