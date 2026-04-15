@@ -2,8 +2,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
+import { initPortraitOrientationLock } from './orientationPortrait.js'
 import { AuthProvider } from './lib/AuthContext.jsx'
 import App from './App.jsx'
+
+initPortraitOrientationLock()
 
 // Clean up any legacy data; all app data is now in Firebase (Firestore / Storage).
 localStorage.clear()

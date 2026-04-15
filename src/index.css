@@ -16,6 +16,23 @@ body {
   min-height: 100%;
 }
 
+/*
+ * Hold UI i portræt når enheden er landscape (typisk telefon/tablet i seng).
+ * Undgår på brede desktop-vinduer: kun når viewportbredde er “mobil”.
+ */
+@media screen and (orientation: landscape) and (max-width: 1024px) {
+  html {
+    transform: rotate(-90deg);
+    transform-origin: left top;
+    width: 100vh;
+    height: 100vw;
+    overflow-x: hidden;
+    position: absolute;
+    top: 100%;
+    left: 0;
+  }
+}
+
 /* ========== Repliqe — Bone Theme Design (data-theme) ========== */
 /* Default: Dark theme */
 :root {

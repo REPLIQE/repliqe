@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS = {
   decimalSeparator: 'comma',
   dateFormat: 'ddmmyyyy',
   rirEnabled: false,
+  /** Request screen wake lock while app is visible (workouts; browser/OS support required). */
+  keepScreenAwake: false,
   theme: 'dark',
 }
 

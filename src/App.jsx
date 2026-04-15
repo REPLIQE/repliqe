@@ -543,6 +543,7 @@ function AppContent() {
   const [focusNewExerciseAt, setFocusNewExerciseAt] = useState(null)
   const [focusWorkoutFirstFieldAt, setFocusWorkoutFirstFieldAt] = useState(null) // exIndex to focus first set first field after adding
   const [rirEnabled, setRirEnabled] = useState(DEFAULT_SETTINGS.rirEnabled)
+  const [keepScreenAwake, setKeepScreenAwake] = useState(DEFAULT_SETTINGS.keepScreenAwake)
   const [pendingRir, setPendingRir] = useState(null)
   const [theme, setTheme] = useState(DEFAULT_SETTINGS.theme)
   const [weightLog, setWeightLog] = useState([])
@@ -570,6 +571,7 @@ function AppContent() {
     const meta = document.querySelector('meta[name="theme-color"]')
     if (meta) meta.setAttribute('content', t === 'bone' ? '#FAF7F2' : '#0D0D1A')
   }
+  const wakeLockRef = useRef(null)
   const restStartRef = useRef(null)
   /** Seneste completeRest — bruges af interval synk så vi ikke fanger forældet closure. */
   const completeRestRef = useRef(() => {})
@@ -798,6 +800,7 @@ function AppContent() {
         setDecimalSeparator(normalizeDecimalSeparator(settings.decimalSeparator))
         setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
         setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
+        setKeepScreenAwake(settings.keepScreenAwake ?? DEFAULT_SETTINGS.keepScreenAwake)
         const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
         setTheme(themeVal === 'light-bone' ? 'bone' : themeVal)
         if (appData.folders?.length) setFolders(appData.folders)
@@ -845,6 +848,7 @@ function AppContent() {
         setDecimalSeparator(normalizeDecimalSeparator(settings.decimalSeparator))
         setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
         setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
+        setKeepScreenAwake(settings.keepScreenAwake ?? DEFAULT_SETTINGS.keepScreenAwake)
         const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
         setTheme(themeVal === 'light-bone' ? 'bone' : themeVal)
         if (appData.folders?.length) setFolders(appData.folders)
@@ -915,6 +919,7 @@ function AppContent() {
         setDecimalSeparator(normalizeDecimalSeparator(settings.decimalSeparator))
         setDateFormat(settings.dateFormat ?? DEFAULT_SETTINGS.dateFormat)
         setRirEnabled(settings.rirEnabled ?? DEFAULT_SETTINGS.rirEnabled)
+        setKeepScreenAwake(settings.keepScreenAwake ?? DEFAULT_SETTINGS.keepScreenAwake)
         const themeVal = settings.theme ?? DEFAULT_SETTINGS.theme
         setTheme(themeVal === 'light-bone' ? 'bone' : themeVal)
         if (appData.folders?.length) setFolders(appData.folders)
@@ -979,8 +984,57 @@ function AppContent() {
   }, [user?.uid, folders])
   useEffect(() => {
     if (!user?.uid || !appDataLoadedRef.current) return
-    mergeUserSettings(user.uid, { defaultRest, bodyweight, weekStart, unitWeight, unitDistance, unitLength, decimalSeparator, dateFormat, rirEnabled }).catch((err) => console.error('mergeUserSettings:', err))
-  }, [user?.uid, defaultRest, bodyweight, weekStart, unitWeight, unitDistance, unitLength, decimalSeparator, dateFormat, rirEnabled])
+    mergeUserSettings(user.uid, { defaultRest, bodyweight, weekStart, unitWeight, unitDistance, unitLength, decimalSeparator, dateFormat, rirEnabled, keepScreenAwake }).catch((err) => console.error('mergeUserSettings:', err))
+  }, [user?.uid, defaultRest, bodyweight, weekStart, unitWeight, unitDistance, unitLength, decimalSeparator, dateFormat, rirEnabled, keepScreenAwake])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function releaseWakeLock() {
+      const sentinel = wakeLockRef.current
+      wakeLockRef.current = null
+      try {
+        await sentinel?.release()
+      } catch {
+        /* already released */
+      }
+    }
+
+    async function acquireWakeLock() {
+      if (!keepScreenAwake || cancelled || document.visibilityState !== 'visible') return
+      try {
+        if (typeof navigator === 'undefined' || !('wakeLock' in navigator) || !navigator.wakeLock) return
+        await releaseWakeLock()
+        if (cancelled) return
+        wakeLockRef.current = await navigator.wakeLock.request('screen')
+      } catch {
+        /* permission, low power, unsupported */
+      }
+    }
+
+    if (!keepScreenAwake) {
+      void releaseWakeLock()
+      return () => {
+        cancelled = true
+        void releaseWakeLock()
+      }
+    }
+
+    void acquireWakeLock()
+
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') void acquireWakeLock()
+      else void releaseWakeLock()
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      void releaseWakeLock()
+    }
+  }, [keepScreenAwake])
+
   useEffect(() => {
     if (!user?.uid || !appDataLoadedRef.current) return
     updateAppData(user.uid, { customExercises, weightLog, bodyFatLog, measurementsLog, muscleMassLog, photoSessions, muscleLastWorked }).catch((err) => console.error('updateAppData:', err))
@@ -2816,7 +2870,7 @@ ${JSON.stringify(ctx)}`
   function parseDecimal(str) { return parseDecimalUtil(str) }
   function toNum(v) { const n = parseDecimal(v); return Number.isNaN(n) ? 0 : n }
 
-  // WO estimate: 40 sec per set + rest between sets. Used in workout remaining and on home card.
+  // WO estimate: 40 s per set + effective rest after each set (per exercise: restOverride, superset A, or default), except after the last set of the workout.
   const SET_SECONDS_DEFAULT = 40
 
   function getEstimatedSecondsForRoutine(routine, defaultRestSec) {
@@ -2826,11 +2880,11 @@ ${JSON.stringify(ctx)}`
     const totalSets = routine.exercises.reduce((s, e) => s + getSetConfigs(e).length, 0)
     for (const ex of routine.exercises) {
       const numSets = getSetConfigs(ex).length
-      const rest = getEffectiveRestAfterSet(ex, defaultRestSec)
+      const restAfterSet = getEffectiveRestAfterSet(ex, defaultRestSec)
       for (let i = 0; i < numSets; i++) {
         total += SET_SECONDS_DEFAULT
         setIndex++
-        if (setIndex < totalSets) total += rest
+        if (setIndex < totalSets) total += restAfterSet
       }
     }
     return total
@@ -3271,7 +3325,7 @@ ${JSON.stringify(ctx)}`
                                       ? '1 day ago'
                                       : `${daysSinceRtn} days ago`
                               const routineMetaBadgeBox =
-                                'inline-flex h-6 w-[5.25rem] shrink-0 items-center justify-center rounded-md border px-1 text-[9px] leading-none text-center sm:w-[5.5rem]'
+                                'flex h-6 w-full min-w-0 shrink-0 items-center justify-center rounded-md border px-1 text-[9px] leading-none text-center'
                               return (
                                 <div key={rtnId} className="flex w-full min-w-0">
                                   <div
@@ -3291,8 +3345,8 @@ ${JSON.stringify(ctx)}`
                                       isOpen ? 'bg-[var(--plan-surface-08)]' : 'bg-transparent hover:bg-white/[0.03]'
                                     }`}
                                   >
-                                    <div className="flex min-w-0 items-center justify-between gap-3">
-                                      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2">
+                                    <div className="grid min-w-0 grid-cols-4 items-center gap-1.5 sm:gap-2">
+                                      <div className="col-span-3 flex min-w-0 flex-nowrap items-center gap-x-2">
                                         <span className="min-w-0 truncate text-[12px] font-medium leading-snug text-plan-text">
                                           {rtn?.name || '—'}
                                         </span>
@@ -4098,6 +4152,27 @@ ${JSON.stringify(ctx)}`
                       >
                         <div
                           className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${rirEnabled ? 'left-5' : 'left-0.5'}`}
+                          aria-hidden
+                        />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-3 bg-card-alt rounded-xl border border-border mt-3">
+                      <div>
+                        <div className="text-sm font-bold text-text">Keep screen awake</div>
+                        <div className="text-xs text-muted-strong mt-0.5">
+                          Reduces dimming and sleep while the app is open (HTTPS; not all browsers support this).
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={keepScreenAwake}
+                        aria-label="Keep screen awake"
+                        onClick={() => setKeepScreenAwake((prev) => !prev)}
+                        className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${keepScreenAwake ? 'bg-accent' : 'bg-border-strong'}`}
+                      >
+                        <div
+                          className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${keepScreenAwake ? 'left-5' : 'left-0.5'}`}
                           aria-hidden
                         />
                       </button>

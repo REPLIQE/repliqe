@@ -4,6 +4,7 @@
   "description": "Simple tracking. Real progress.",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0D0D1A",
   "theme_color": "#7B7BFF",
   "icons": [
