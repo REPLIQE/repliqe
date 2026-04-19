@@ -1,5 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Component, lazy, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
+import { KeepAwake } from '@capacitor-community/keep-awake'
 import ExerciseCard from './ExerciseCard'
 import ExerciseLibrary from './ExerciseLibraryUI'
 import CreateExerciseModal from './CreateExerciseModal'
@@ -989,8 +991,13 @@ function AppContent() {
 
   useEffect(() => {
     let cancelled = false
+    const isNative = Capacitor.isNativePlatform()
 
     async function releaseWakeLock() {
+      if (isNative) {
+        try { await KeepAwake.allowSleep() } catch { /* plugin unavailable */ }
+        return
+      }
       const sentinel = wakeLockRef.current
       wakeLockRef.current = null
       try {
@@ -1002,6 +1009,10 @@ function AppContent() {
 
     async function acquireWakeLock() {
       if (!keepScreenAwake || cancelled || document.visibilityState !== 'visible') return
+      if (isNative) {
+        try { await KeepAwake.keepAwake() } catch { /* plugin unavailable */ }
+        return
+      }
       try {
         if (typeof navigator === 'undefined' || !('wakeLock' in navigator) || !navigator.wakeLock) return
         await releaseWakeLock()
@@ -3090,7 +3101,7 @@ ${JSON.stringify(ctx)}`
       {workoutBootstrapLoading ? (
         <FullScreenBootSpinner ariaBusy={true} ariaLive="polite" />
       ) : null}
-      <div className="min-h-screen bg-page text-text pb-16 overflow-x-hidden w-full max-w-[100%]">
+      <div className="min-h-screen bg-page text-text overflow-x-hidden w-full max-w-[100%] pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))]">
         <div className="px-4 py-6 max-w-md mx-auto w-full min-w-0">
 
           {/* PROGRESS */}
@@ -4007,7 +4018,7 @@ ${JSON.stringify(ctx)}`
           {page === 'profile' && (
             <div>
               {/* Fixed header – same pattern as Progress */}
-              <div className="fixed top-0 left-0 right-0 z-20 bg-page border-b border-border/50 max-w-md mx-auto">
+              <div className="fixed top-0 left-0 right-0 z-20 bg-page border-b border-border/50 max-w-md mx-auto pt-[env(safe-area-inset-top)]">
                 <div className="px-4 pt-3 pb-1.5">
                   <div className="flex items-center gap-3 mb-2">
                     <RepliqeLogo size={28} />
@@ -5366,7 +5377,7 @@ ${JSON.stringify(ctx)}`
 
         {/* BOTTOM NAV — skjules under workout bootstrap så spinner ikke hopper når menuen mountes */}
         {!workoutBootstrapLoading && !showOnboardingUi ? (
-        <div className="fixed bottom-0 left-0 right-0 z-30 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-2.5 pb-4 flex justify-around max-w-md mx-auto" role="navigation" aria-label="Main">
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-page/95 backdrop-blur-xl border-t border-[#1a1a30] px-4 py-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] flex justify-around max-w-md mx-auto" role="navigation" aria-label="Main">
           <button type="button" onClick={() => setPage('progress')} aria-current={page === 'progress' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'progress' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'progress' ? 'stroke-accent' : 'stroke-text'}`} aria-hidden><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span className={`text-xs font-semibold ${page === 'progress' ? 'text-accent' : 'text-text'}`}>Progress</span></button>
           <button type="button" onClick={() => { setPage('workout'); if (showCompleteScreen) {} }} aria-current={page === 'workout' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'workout' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'workout' ? 'stroke-accent' : 'stroke-text'}`} aria-hidden><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span className={`text-xs font-semibold ${page === 'workout' ? 'text-accent' : 'text-text'}`}>Workout</span></button>
           <button type="button" onClick={() => setPage('coach')} aria-current={page === 'coach' ? 'page' : undefined} className={`flex flex-col items-center gap-1 ${page === 'coach' ? 'opacity-100' : 'opacity-40'}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`w-5 h-5 ${page === 'coach' ? 'text-accent' : 'text-text'}`} aria-hidden><path d="M12 3a6 6 0 0 0 4.5 9.97A5 5 0 0 1 12 21a5 5 0 0 1-4.5-8.03A6 6 0 0 0 12 3z" /></svg><span className={`text-xs font-semibold ${page === 'coach' ? 'text-accent' : 'text-text'}`}>Coach</span></button>

@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">REPLIQE</string>
+    <string name="title_activity_main">REPLIQE</string>
+    <string name="package_name">com.repliqe.app</string>
+    <string name="custom_url_scheme">com.repliqe.app</string>
+    <!-- Google Sign-In: the Web OAuth Client ID from Firebase / Google Cloud Console (same value as VITE_GOOGLE_WEB_CLIENT_ID). -->
+    <string name="server_client_id">REPLACE_WITH_WEB_CLIENT_ID.apps.googleusercontent.com</string>
+</resources>

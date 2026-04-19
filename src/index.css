@@ -1,19 +1,25 @@
 @import "tailwindcss";
 
-/* Forhindre vandret “gummibånd”/pan når mobil tastatur åbner (iOS) eller indhold er et par px for bredt */
+/* Match Capacitor backgroundColor / iOS WKWebView underlay so overscroll bounce never reveals white. */
 html {
   overflow-x: hidden;
   width: 100%;
+  background-color: #0D0D1A;
 }
 body {
   overflow-x: hidden;
   width: 100%;
   margin: 0;
+  background-color: #0D0D1A;
+  /* Disable rubber-band bounce on iOS WKWebView and Android WebView when not strictly needed.
+     Per-element scroll containers can opt back in with overscroll-behavior:auto. */
+  overscroll-behavior-y: none;
 }
 #root {
   overflow-x: hidden;
   width: 100%;
   min-height: 100%;
+  background-color: #0D0D1A;
 }
 
 /*

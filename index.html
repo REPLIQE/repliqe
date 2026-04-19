@@ -13,11 +13,103 @@
     <meta name="apple-mobile-web-app-title" content="REPLIQE">
     <meta name="description" content="Simple tracking. Real progress.">
 
-    <!-- Icons -->
+    <!-- Icons (SVG first so modern browsers prefer the vector source) -->
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- iOS PWA splash screens (Add to Home Screen). Portrait only since manifest locks orientation. -->
+    <!-- iPhone 14 Pro Max / 15 Plus / 15 Pro Max / 16 Plus / 16 Pro Max — best fit @3x -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-1284-2778@3x.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-1284-2778@3x.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone 14 Pro / 15 / 15 Pro / 16 / 16 Pro -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-1170-2532@3x.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone 14 / 13 / 13 Pro / 12 / 12 Pro -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-1170-2532@3x.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone XS Max / 11 Pro Max -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-1242-2688@3x.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone XR / 11 -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-828-1792@2x.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <!-- iPhone X / XS / 11 Pro / 12 mini / 13 mini -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-1125-2436@3x.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <!-- iPhone 6 / 6s / 7 / 8 / SE (2nd & 3rd gen) -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-750-1334@2x.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <!-- iPhone SE (1st gen) / 5 / 5s -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-640-1136@2x.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <!-- iPad Pro 12.9" -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-2048-2732@2x.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <!-- iPad Pro 11" / iPad Air 10.9" -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-1668-2388@2x.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <!-- iPad Pro 10.5" / iPad Air 10.5" -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-1668-2224@2x.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <!-- iPad 10.2" -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-1620-2160@2x.png" media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <!-- iPad mini / iPad 9.7" -->
+    <link rel="apple-touch-startup-image" href="/icons/apple-splash-1536-2048@2x.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+
+    <!--
+      Brand splash: inline SVG + CSS so the full REPLIQE composition (icon + wordmark + tagline)
+      paints the moment the WebView parses the HTML, before the JS bundle downloads or React mounts.
+      This bridges the gap between the native plugin splash (which on Android 12+ is constrained to
+      the system splash icon-only API and cannot render the wordmark/tagline) and the first React paint.
+      Fade-out is triggered from src/main.jsx ~1s after script execution.
+    -->
+    <style>
+      /* Paint html + body dark from the very first frame so there is no white/default-background
+         flash above #brand-splash before the JS bundle and src/index.css are parsed. Also kills
+         the default 8px body margin which can otherwise expose the page bg around the splash. */
+      html, body { background-color: #0D0D1A; margin: 0; }
+      #brand-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        background-color: #0D0D1A;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 1;
+        pointer-events: none;
+        transition: opacity 250ms ease-out;
+      }
+      #brand-splash.is-hiding { opacity: 0; }
+      /* Sizing rules:
+           - Mobile portrait (≤480px): min(86vw, 86vh) ≈ 86vw → ~338px on a 393px phone
+           - Tablet (481-900px):       capped by max-width: min keeps ≤ 400px
+           - Desktop (>900px):         capped at 400px so the composition does not balloon
+                                       to fill the viewport on wide screens
+         86vh keeps it from overflowing in landscape. The 400px cap is the dominant constraint
+         on anything wider than ~465px. */
+      #brand-splash svg {
+        width: min(86vw, 86vh, 400px);
+        height: auto;
+        display: block;
+      }
+    </style>
   </head>
   <body>
+    <div id="brand-splash" aria-hidden="true">
+      <!-- viewBox is wider than the composition bbox so the icon+wordmark+tagline only occupy
+           about 50-60% of the SVG (≈ 45% of the screen on portrait phones at 86vw). Center is
+           (1366, 1435) — exactly the composition's geometric center, so the artwork stays
+           vertically balanced regardless of phone aspect ratio. -->
+      <svg viewBox="500 750 1732 1370" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="REPLIQE">
+        <g transform="translate(1136, 1050)">
+          <rect x="0"   y="0"   width="210" height="145" rx="44" fill="#7B7BFF" opacity="0.9"/>
+          <rect x="250" y="0"   width="210" height="145" rx="44" fill="#7B7BFF" opacity="0.9"/>
+          <rect x="0"   y="178" width="210" height="145" rx="44" fill="#7B7BFF" opacity="0.7"/>
+          <rect x="250" y="178" width="210" height="145" rx="44" fill="#7B7BFF" opacity="0.7"/>
+          <rect x="0"   y="356" width="210" height="145" rx="44" fill="#7B7BFF" opacity="0.5"/>
+          <rect x="250" y="356" width="210" height="145" rx="44" fill="#5BF5A0" opacity="0.9"/>
+        </g>
+        <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="800" letter-spacing="24" text-anchor="middle">
+          <text x="1366" y="1720" font-size="132" fill="#FFFFFF">REPLI<tspan fill="#5BF5A0">Q</tspan>E</text>
+        </g>
+        <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" letter-spacing="8" text-anchor="middle">
+          <text x="1366" y="1810" font-size="44" fill="#666666">SIMPLE TRACKING. REAL PROGRESS.</text>
+        </g>
+      </svg>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

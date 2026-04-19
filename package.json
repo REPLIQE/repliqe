@@ -12,9 +12,16 @@
     "storage:cors": "gcloud storage buckets update gs://repliqe-710d2.firebasestorage.app --cors-file=storage-cors.json"
   },
   "dependencies": {
+    "@capacitor-community/keep-awake": "^8.0.1",
+    "@capacitor/android": "^8.3.1",
     "@capacitor/camera": "^8.0.2",
+    "@capacitor/cli": "^8.3.1",
     "@capacitor/core": "^8.2.0",
     "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/ios": "^8.3.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
+    "@capgo/capacitor-social-login": "^8.3.14",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-virtual": "^3.13.23",
     "chart.js": "^4.5.1",
@@ -26,6 +33,7 @@
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@eslint/js": "^9.39.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
@@ -35,6 +43,7 @@
     "eslint-plugin-react-refresh": "^0.4.24",
     "firebase-tools": "^14.0.0",
     "globals": "^16.5.0",
+    "sharp": "^0.34.5",
     "vite": "^7.3.1"
   }
 }

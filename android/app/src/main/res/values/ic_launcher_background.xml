@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark backstop for the adaptive icon's background layer and the AndroidX splash screen window background.
+         Matches the bg-app CSS variable in src/index.css and capacitor.config.ts so the launcher mask, system
+         splash, and WebView all blend on the same color. -->
+    <color name="ic_launcher_background">#0D0D1A</color>
+    <color name="splash_background">#0D0D1A</color>
+</resources>

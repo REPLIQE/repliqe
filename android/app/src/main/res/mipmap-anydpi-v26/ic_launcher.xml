@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  REPLIQE adaptive icon.
+
+  Reference the mipmap PNGs directly (no inset wrapper) because the source SVG
+  in resources/icon-android-foreground.svg is intentionally pre-scaled to fit
+  inside a 313 px-radius circle on the 1024 canvas, i.e. the inscribed circle
+  of the Material 66 dp safe square. Adding the capacitor-assets default
+  16.7 percent inset would double-pad the art and shrink the visible logo far
+  below what any launcher mask actually clips.
+
+  NOTE: running `npx capacitor-assets generate` for android will rewrite this
+  file back to the inset version. Re-apply this layout after every regeneration.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

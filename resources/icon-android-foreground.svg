@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    Android adaptive-icon foreground.
+
+    The art bounding box is 426×456 px on a 1024×1024 canvas (≈42% × 45%) —
+    intentionally smaller than the 66 dp/626 px Material safe-square so the
+    grid's four corners stay inside a 313 px radius from canvas center
+    (corner-to-center distance ≈ 312 px). That's the inscribed circle of the
+    safe zone, so the icon survives every launcher mask shape: Pixel's
+    circle, Samsung's squircle, Xiaomi's rounded square, etc.
+
+    Block geometry (scaled 0.72× from the previous full-size grid):
+      block size = 198 × 132, border-radius 44
+      col gap = row gap = 30
+    All blocks centered around (512, 512).
+  -->
+
+  <!-- Row 1 (top, full opacity blue) -->
+  <rect x="299" y="284" width="198" height="132" rx="44" fill="#7B7BFF" opacity="0.9"/>
+  <rect x="527" y="284" width="198" height="132" rx="44" fill="#7B7BFF" opacity="0.9"/>
+
+  <!-- Row 2 (mid, faded blue) -->
+  <rect x="299" y="446" width="198" height="132" rx="44" fill="#7B7BFF" opacity="0.7"/>
+  <rect x="527" y="446" width="198" height="132" rx="44" fill="#7B7BFF" opacity="0.7"/>
+
+  <!-- Row 3 (bottom: faintest blue + accent green) -->
+  <rect x="299" y="608" width="198" height="132" rx="44" fill="#7B7BFF" opacity="0.5"/>
+  <rect x="527" y="608" width="198" height="132" rx="44" fill="#5BF5A0" opacity="0.9"/>
+</svg>

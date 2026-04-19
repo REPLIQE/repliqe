@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, signUpWithEmail, signInWithEmail, signInWithGoogle, signOut } from './auth'
+import { onAuthStateChanged, signUpWithEmail, signInWithEmail, signInWithGoogle, signInWithApple, signOut } from './auth'
 import { ensureUserDoc } from './userFirestore'
 
 const AuthContext = createContext(null)
@@ -25,6 +25,7 @@ export function AuthProvider({ children }) {
     signUpWithEmail,
     signInWithEmail,
     signInWithGoogle,
+    signInWithApple,
     signOut,
   }
 
