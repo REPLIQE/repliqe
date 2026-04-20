@@ -3129,12 +3129,15 @@ ${JSON.stringify(ctx)}`
           doesn't already have its own internal scroller (the active workout sheet keeps
           scrolling because BottomSheet renders its content in a flex+overflow-y-auto panel).
           Workaround: make this div its own 100dvh scroll viewport. NATIVE ANDROID ONLY.
-          On iOS WKWebView and on PWA/web, document scroll works fine, and forcing a nested
-          100dvh scroll container there actively breaks scrolling in some PWA contexts
-          (desktop Chrome standalone window, iOS Safari add-to-home-screen) because the inner
-          scroller's height doesn't always match the true layout viewport when the browser
-          chrome is dynamic. Falling back to `min-h-screen` restores native document scroll. */}
-      <div className={`${Capacitor.getPlatform() === 'android' ? 'h-[100dvh] overflow-y-auto' : 'min-h-screen'} bg-page text-text overflow-x-hidden w-full max-w-[100%] pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))]`}>
+          On iOS WKWebView and on PWA/web, native document scroll handles the wrapper's
+          overflow. We deliberately do NOT add `overflow-x: hidden` to the wrapper here on
+          non-Android: the html/body globals in src/index.css already clamp horizontal
+          scroll, and adding `overflow-x: hidden` to a min-h-screen wrapper promotes it to
+          a scroll container (per CSS, overflow on one axis forces the other to auto). On
+          Mac Chrome/Safari that scroll container then captures wheel events but cannot
+          actually scroll (height auto > min-h-screen, content always fits), wedging
+          document scroll. */}
+      <div className={`${Capacitor.getPlatform() === 'android' ? 'h-[100dvh] overflow-y-auto overflow-x-hidden' : 'min-h-screen'} bg-page text-text w-full pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))]`}>
         <div className="px-4 py-6 max-w-md mx-auto w-full min-w-0">
 
           {/* PROGRESS */}
