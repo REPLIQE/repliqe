@@ -68,10 +68,20 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        opacity: 1;
         pointer-events: none;
-        transition: opacity 250ms ease-out;
+        transition: opacity 220ms ease-out;
+        /* Hidden initially. The inline script below adds `is-stable` once the WebView's CSS
+           viewport has settled (first `resize` event = Android edge-to-edge inset dispatch
+           complete, or a 200ms timeout fallback for iOS/web). This eliminates the visible
+           icon "jump" that happens when the WebView attaches at full-screen, paints the
+           centered splash, then resizes a frame or two later as the system bar insets are
+           dispatched — re-centering everything inside `position: fixed; inset: 0`. */
+        opacity: 0;
       }
+      #brand-splash.is-stable { opacity: 1; }
+      /* `.is-hiding` is listed AFTER `.is-stable` so it wins the cascade when both are present
+         during the fade-out (added by src/main.jsx via classList.add). Same specificity, last
+         one declared wins. */
       #brand-splash.is-hiding { opacity: 0; }
       /* Sizing rules:
            - Mobile portrait (≤480px): min(86vw, 86vh) ≈ 86vw → ~338px on a 393px phone
@@ -86,6 +96,41 @@
         display: block;
       }
     </style>
+    <script>
+      // Brand splash visibility gate. See the `opacity: 0` comment in the style block above.
+      // Stays in sync with the fade-out logic in src/main.jsx (which adds `.is-hiding`).
+      (function () {
+        var marked = false;
+        function markStable() {
+          if (marked) return;
+          marked = true;
+          var el = document.getElementById('brand-splash');
+          if (!el) return;
+          // Timestamp the moment the splash actually becomes visible. Read by
+          // src/main.jsx so the minimum-visible-time floor is measured from when
+          // the user first sees the splash, not from script execution time.
+          window.__brandSplashStableAt = Date.now();
+          // requestAnimationFrame ensures we add the class on the next frame, AFTER any
+          // pending layout pass from the resize event has flushed.
+          requestAnimationFrame(function () { el.classList.add('is-stable'); });
+        }
+        function init() {
+          // First resize after WebView attach = system bar insets have been dispatched and
+          // the viewport has settled at its final size. After this, `position: fixed; inset: 0`
+          // is stable.
+          window.addEventListener('resize', markStable, { once: true });
+          // Fallback for any path where no resize fires (iOS WKWebView typically doesn't,
+          // PWA on desktop doesn't either). 200ms is well under the 1s SPLASH_MIN_VISIBLE_MS
+          // in src/main.jsx so the splash is still visible for a comfortable duration.
+          window.setTimeout(markStable, 200);
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', init, { once: true });
+        } else {
+          init();
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="brand-splash" aria-hidden="true">
@@ -105,8 +150,8 @@
         <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="800" letter-spacing="24" text-anchor="middle">
           <text x="1366" y="1720" font-size="132" fill="#FFFFFF">REPLI<tspan fill="#5BF5A0">Q</tspan>E</text>
         </g>
-        <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" letter-spacing="8" text-anchor="middle">
-          <text x="1366" y="1810" font-size="44" fill="#666666">SIMPLE TRACKING. REAL PROGRESS.</text>
+        <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" letter-spacing="10" text-anchor="middle">
+          <text x="1366" y="1840" font-size="72" fill="#9A9AB8">SIMPLE TRACKING. REAL PROGRESS.</text>
         </g>
       </svg>
     </div>

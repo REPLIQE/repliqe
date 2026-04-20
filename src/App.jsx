@@ -1390,6 +1390,29 @@ function AppContent() {
       idx = lastCompleted ? (routineIds.indexOf(lastCompleted.routineId) + 1) % routineIds.length : 0
     }
     idx = ((idx % routineIds.length) + routineIds.length) % routineIds.length
+
+    // Self-correct against today's history. `programme.currentIndex` is the authoritative
+    // pointer, but it can become temporarily stale:
+    //   - advanceProgrammeRotation updates local state and schedules a saveWorkoutPlans write.
+    //   - If a visibilitychange / focus / pageshow event fires before the write completes
+    //     (very common on mobile: the complete screen dismissing, the OS refocusing the app
+    //     after a system UI interaction, etc.), refetchForCurrentPage overwrites programmes
+    //     with pre-save server state -> currentIndex snaps back to the old value -> Up Next
+    //     points at the routine the user just finished.
+    // Skipping forward past any routine already completed TODAY fixes this without having
+    // to eliminate the refetch (which is intentional for cross-device sync). Bounded loop:
+    // if the user has somehow trained every routine in the programme today, the routineIds
+    // length iterations cap prevents an infinite loop and we return the original pick.
+    const today = new Date().toLocaleDateString('en-GB')
+    const trainedTodaySet = new Set(
+      (workoutHistory || [])
+        .filter((w) => w.date === today && w.routineId && routineIds.includes(w.routineId))
+        .map((w) => w.routineId)
+    )
+    for (let i = 0; i < routineIds.length; i++) {
+      if (!trainedTodaySet.has(routineIds[idx])) break
+      idx = (idx + 1) % routineIds.length
+    }
     return routineIds[idx]
   }
 
@@ -3101,7 +3124,17 @@ ${JSON.stringify(ctx)}`
       {workoutBootstrapLoading ? (
         <FullScreenBootSpinner ariaBusy={true} ariaLive="polite" />
       ) : null}
-      <div className="min-h-screen bg-page text-text overflow-x-hidden w-full max-w-[100%] pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))]">
+      {/* Main app container.
+          On Android WebView (API 36 edge-to-edge) body scroll is wedged on every page that
+          doesn't already have its own internal scroller (the active workout sheet keeps
+          scrolling because BottomSheet renders its content in a flex+overflow-y-auto panel).
+          Workaround: make this div its own 100dvh scroll viewport. NATIVE ANDROID ONLY.
+          On iOS WKWebView and on PWA/web, document scroll works fine, and forcing a nested
+          100dvh scroll container there actively breaks scrolling in some PWA contexts
+          (desktop Chrome standalone window, iOS Safari add-to-home-screen) because the inner
+          scroller's height doesn't always match the true layout viewport when the browser
+          chrome is dynamic. Falling back to `min-h-screen` restores native document scroll. */}
+      <div className={`${Capacitor.getPlatform() === 'android' ? 'h-[100dvh] overflow-y-auto' : 'min-h-screen'} bg-page text-text overflow-x-hidden w-full max-w-[100%] pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))]`}>
         <div className="px-4 py-6 max-w-md mx-auto w-full min-w-0">
 
           {/* PROGRESS */}

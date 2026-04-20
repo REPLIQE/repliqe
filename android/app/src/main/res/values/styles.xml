@@ -7,13 +7,25 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <!--
+      Post-launch theme. With targetSdk=36 (Android 16) the system bars are FORCED transparent
+      under edge-to-edge enforcement, so what shows in the bar areas is whatever is behind them
+      i.e. the activity's windowBackground. Setting windowBackground to splash_background gives
+      us dark bars even though statusBarColor / navigationBarColor are now no-ops on API 36+.
+
+      Parent is DayNight (Capacitor default). We do NOT set the explicit night-mode parent or
+      call AppCompatDelegate.setDefaultNightMode at runtime because either approach can trigger
+      a manifest-merger conflict with the cordova-android-plugins module and / or an activity
+      configuration-change cycle on Android 16. Instead, windowBackground is pinned dark so
+      neither day nor night DayNight resolution can ever render white bars.
+
+      The legacy statusBarColor / navigationBarColor / windowLightStatusBar entries are retained
+      for API less than 35 where they are still honored.
+    -->
     <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:background">@null</item>
-        <!-- Status + navigation bars match splash_background so the system bars never flash white
-             during the WebView load gap. windowLightStatusBar=false keeps the icons (clock/battery)
-             rendered as light glyphs on the dark backdrop. -->
+        <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:statusBarColor">@color/splash_background</item>
         <item name="android:navigationBarColor">@color/splash_background</item>
         <item name="android:windowLightStatusBar">false</item>
@@ -21,28 +33,29 @@
     </style>
 
     <!--
-      Launch theme — uses the AndroidX SplashScreen API (Theme.SplashScreen).
+      Launch theme - uses the AndroidX SplashScreen API (Theme.SplashScreen).
       On Android 12+ the system renders the splash itself; on older versions the
       core-splashscreen library back-ports the same behavior. The legacy
-      `android:background` attribute is ignored by this API, so we set:
+      android:background attribute is ignored by this API, so we set:
         - windowSplashScreenBackground       : the solid backdrop color (dark)
         - windowSplashScreenAnimatedIcon     : intentionally a transparent 1x1 vector
                                                so the system splash shows ONLY the dark
                                                background. If we used ic_launcher_foreground
                                                the icon would render at a different
                                                on-screen position than the brand splash icon
-                                               and produce a visible "bump" during handoff.
+                                               and produce a visible bump during handoff.
         - postSplashScreenTheme              : theme to switch to once the
                                                Activity finishes inflating
-      android:statusBarColor / navigationBarColor are also set explicitly here so the
-      bars are dark from the very first frame the OS draws (the system splash respects
-      these on API 23+). Brand composition (icon + wordmark + tagline) is then rendered
-      as inline SVG by index.html as soon as the WebView starts parsing.
+
+      windowBackground is also set so the brief moment between the splash dismissing and the
+      WebView attaching shows dark (transparent system bars then reveal dark). statusBarColor
+      / navigationBarColor are kept as a fallback for API less than 35 devices.
     -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splash_blank_icon</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:statusBarColor">@color/splash_background</item>
         <item name="android:navigationBarColor">@color/splash_background</item>
         <item name="android:windowLightStatusBar">false</item>

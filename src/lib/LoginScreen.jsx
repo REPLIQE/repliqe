@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { useAuth } from './AuthContext'
 import RepliqeLogo from '../RepliqeLogo'
 
@@ -52,7 +53,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-page flex flex-col items-center justify-center px-6 py-8">
+    <div className={`${Capacitor.getPlatform() === 'android' ? 'h-[100dvh] overflow-y-auto' : 'min-h-screen'} bg-page flex flex-col items-center justify-center px-6 py-8`}>
       <div className="w-full max-w-sm flex flex-col items-center">
         <RepliqeLogo size={40} className="mb-6" />
         <h1 className="text-2xl font-bold text-text mb-1">REPLIQE</h1>

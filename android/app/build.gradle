@@ -19,7 +19,13 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // AGP 9+ no longer bundles the legacy 'proguard-android.txt' default rule file;
+            // only 'proguard-android-optimize.txt' ships with the plugin distribution. The
+            // Capacitor template (cap add android) still emits the legacy filename, which
+            // makes Gradle configuration fail with "is not supported" on AGP 9.x.
+            // Functionally identical for this app: minifyEnabled is false so R8/ProGuard never
+            // actually runs and the rule contents are never consulted.
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

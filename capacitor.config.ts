@@ -47,8 +47,14 @@ const config: CapacitorConfig = {
       androidSplashResourceName: 'splash',
       androidScaleType: 'FIT_CENTER',
       showSpinner: false,
-      splashFullScreen: true,
-      splashImmersive: true,
+      // splashFullScreen / splashImmersive intentionally OMITTED.
+      // Setting splashImmersive: true puts the WebView into IMMERSIVE_STICKY mode (hides
+      // system bars and intercepts edge swipes). Even with launchShowDuration: 0 the plugin
+      // still applies the immersive UI flags during onCreate, and on Android 14+/16 those
+      // flags can leak and break document-level vertical scroll (the body stops scrolling
+      // on every screen that doesn't have its own overflow-y-auto container — Workout's
+      // active sheet still scrolled because it has its own internal scroller). We render
+      // our own brand splash from index.html so the plugin doesn't need to hide bars at all.
     },
   },
 };
