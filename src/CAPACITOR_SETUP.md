@@ -245,4 +245,4 @@ npm run build && npx cap sync
 | Keep screen awake  | `navigator.wakeLock`                             | `@capacitor-community/keep-awake` |
 | Google/Apple sign-in | `signInWithPopup` / `signInWithRedirect`       | Native plugin + `signInWithCredential` |
 | Asset paths        | Absolute (`/…`) — fine                           | Also fine, but bundles need `base: './'` |
-| CORS               | `repliqe.com`, `app.repliqe.com`                 | Add `capacitor://localhost`, `https://localhost` |
+| CORS               | `app.repliqe.com`                                | Add `capacitor://localhost`, `https://localhost` |

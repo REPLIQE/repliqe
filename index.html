@@ -62,7 +62,24 @@
       html, body { background-color: #0D0D1A; margin: 0; }
       #brand-splash {
         position: fixed;
-        inset: 0;
+        /* Pinned top/left/right; vertical extent is driven by `height` below, NOT `bottom`. */
+        top: 0;
+        left: 0;
+        right: 0;
+        /* Fallback: full viewport height. Replaced immediately below by the stable small-viewport
+           height on browsers that support it. */
+        height: 100vh;
+        /* `svh` = Small Viewport Height = the viewport size with ALL UA widgets visible (the
+           smallest stable case). On iOS PWA standalone (installed from home screen), the WKWebView
+           can report a slightly smaller viewport on first paint and then grow a frame or two later
+           as the system finishes its launch sequence (status bar inset dispatch, etc.). With
+           `height: 100vh`, that growth enlarges the flex container and slides the centered SVG
+           downward — the visible "lille hop ned" users report. `100svh` locks the container to the
+           smallest stable height, so the flex center stays fixed regardless of later viewport
+           growth. Fills the area below only if viewport > svh, which is invisible because the body
+           background is the same color. Supported in iOS Safari 15.4+, Chrome 108+, Firefox 101+
+           — older browsers fall through to the `100vh` declaration above. */
+        height: 100svh;
         z-index: 2147483647;
         background-color: #0D0D1A;
         display: flex;
@@ -71,11 +88,11 @@
         pointer-events: none;
         transition: opacity 220ms ease-out;
         /* Hidden initially. The inline script below adds `is-stable` once the WebView's CSS
-           viewport has settled (first `resize` event = Android edge-to-edge inset dispatch
-           complete, or a 200ms timeout fallback for iOS/web). This eliminates the visible
-           icon "jump" that happens when the WebView attaches at full-screen, paints the
-           centered splash, then resizes a frame or two later as the system bar insets are
-           dispatched — re-centering everything inside `position: fixed; inset: 0`. */
+           viewport has settled (final `resize` event in a debounced window, or a hard-cap
+           timeout fallback). This eliminates the visible icon "jump" that happens when the
+           WebView attaches at one size, paints the centered splash, then resizes a frame or
+           two later as the system bar insets are dispatched — re-centering everything inside
+           `position: fixed; inset: 0`. */
         opacity: 0;
       }
       #brand-splash.is-stable { opacity: 1; }
@@ -84,14 +101,16 @@
          one declared wins. */
       #brand-splash.is-hiding { opacity: 0; }
       /* Sizing rules:
-           - Mobile portrait (≤480px): min(86vw, 86vh) ≈ 86vw → ~338px on a 393px phone
+           - Mobile portrait (≤480px): min(86vw, 86svh) ≈ 86vw → ~338px on a 393px phone
            - Tablet (481-900px):       capped by max-width: min keeps ≤ 400px
            - Desktop (>900px):         capped at 400px so the composition does not balloon
                                        to fill the viewport on wide screens
-         86vh keeps it from overflowing in landscape. The 400px cap is the dominant constraint
-         on anything wider than ~465px. */
+         86svh keeps it from overflowing in landscape while staying stable across iOS viewport
+         resizes. The 400px cap is the dominant constraint on anything wider than ~465px.
+         Fallback: `86vh` for older browsers; overridden by the `svh` line on supporting ones. */
       #brand-splash svg {
         width: min(86vw, 86vh, 400px);
+        width: min(86vw, 86svh, 400px);
         height: auto;
         display: block;
       }
@@ -99,11 +118,28 @@
     <script>
       // Brand splash visibility gate. See the `opacity: 0` comment in the style block above.
       // Stays in sync with the fade-out logic in src/main.jsx (which adds `.is-hiding`).
+      //
+      // The gate exists because the WebView viewport can change size a frame or two after
+      // the first paint (Android edge-to-edge inset dispatch, iOS PWA standalone launch
+      // handoff, etc.). If we let the splash paint visible immediately, users see it
+      // "jump" when those resizes fire. We therefore keep it at opacity:0 until the
+      // viewport has stopped changing for a short settle window, then fade in.
+      //
+      // Strategy: debounce. Every `resize` event resets a short timer. When no resize
+      // fires for DEBOUNCE_MS in a row, the viewport is considered stable and we show
+      // the splash. A HARD_CAP_MS ensures we never wait forever on a platform that
+      // keeps dispatching resizes (unlikely, but defensive). Both values are well
+      // under SPLASH_MIN_VISIBLE_MS in src/main.jsx so the splash is visible for the
+      // comfortable minimum regardless of which path triggers it.
       (function () {
+        var DEBOUNCE_MS = 120;
+        var HARD_CAP_MS = 400;
         var marked = false;
+        var debounceTimer = null;
         function markStable() {
           if (marked) return;
           marked = true;
+          if (debounceTimer) { window.clearTimeout(debounceTimer); debounceTimer = null; }
           var el = document.getElementById('brand-splash');
           if (!el) return;
           // Timestamp the moment the splash actually becomes visible. Read by
@@ -111,18 +147,23 @@
           // the user first sees the splash, not from script execution time.
           window.__brandSplashStableAt = Date.now();
           // requestAnimationFrame ensures we add the class on the next frame, AFTER any
-          // pending layout pass from the resize event has flushed.
+          // pending layout pass has flushed.
           requestAnimationFrame(function () { el.classList.add('is-stable'); });
         }
+        function scheduleSettle() {
+          if (marked) return;
+          if (debounceTimer) window.clearTimeout(debounceTimer);
+          debounceTimer = window.setTimeout(markStable, DEBOUNCE_MS);
+        }
         function init() {
-          // First resize after WebView attach = system bar insets have been dispatched and
-          // the viewport has settled at its final size. After this, `position: fixed; inset: 0`
-          // is stable.
-          window.addEventListener('resize', markStable, { once: true });
-          // Fallback for any path where no resize fires (iOS WKWebView typically doesn't,
-          // PWA on desktop doesn't either). 200ms is well under the 1s SPLASH_MIN_VISIBLE_MS
-          // in src/main.jsx so the splash is still visible for a comfortable duration.
-          window.setTimeout(markStable, 200);
+          // Start the debounce immediately — if no resize ever fires, we mark stable
+          // after DEBOUNCE_MS. If resizes DO fire, each one resets the timer, so we
+          // only reveal the splash once the viewport has been quiet for DEBOUNCE_MS.
+          scheduleSettle();
+          window.addEventListener('resize', scheduleSettle);
+          // Hard cap: on a platform that somehow never stops firing resize events,
+          // don't leave the user staring at a dark screen indefinitely.
+          window.setTimeout(markStable, HARD_CAP_MS);
         }
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', init, { once: true });

@@ -1,5 +1,5 @@
 /* Bump CACHE_NAME after each deploy so clients drop stale HTML/JS (cache-first was blocking updates). */
-const CACHE_NAME = 'repliqe-pwa-v7'
+const CACHE_NAME = 'repliqe-pwa-v8'
 
 /* Pre-cached on install so offline launches still get the app icon, favicons, and Add-to-Home-Screen splash assets. */
 const PRECACHE_URLS = [
