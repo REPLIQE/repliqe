@@ -78,6 +78,23 @@ function dateInputToEnGB(value) {
   return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`
 }
 
+/**
+ * Open the native date picker for an `<input type="date">` element.
+ *
+ * The capture-flow date inputs are positioned `absolute inset-0 opacity-0`
+ * over a styled card — touch devices auto-show the picker when the input
+ * gains focus, but desktop browsers (Mac Chrome/Safari) only show the
+ * picker when the user clicks the small calendar icon, which is invisible
+ * here. `HTMLInputElement.showPicker()` (Chrome 99+, Safari 16.4+, Firefox 101+)
+ * fixes that — but it MUST be called from inside a user-gesture handler
+ * (click/keydown) to avoid `NotAllowedError`. We wrap it in try/catch so
+ * older browsers fall through to native focus behaviour without throwing.
+ */
+function tryShowPicker(el) {
+  if (!el || typeof el.showPicker !== 'function') return
+  try { el.showPicker() } catch { /* unsupported / not allowed */ }
+}
+
 function isNativePlatform() {
   if (typeof window === 'undefined') return false
   const p = window.Capacitor?.getPlatform?.()
@@ -973,6 +990,7 @@ export default function PhotosModal({
                 type="date"
                 value={enGBToDateInput(captureSessionDate)}
                 onChange={handleCaptureSessionDateChange}
+                onClick={(e) => tryShowPicker(e.currentTarget)}
                 className="absolute inset-0 z-10 h-full min-h-[4.5rem] w-full cursor-pointer opacity-0"
                 style={{ fontSize: 16 }}
                 aria-label="Change session date"
@@ -1045,6 +1063,7 @@ export default function PhotosModal({
               type="date"
               value={enGBToDateInput(captureSessionDate)}
               onChange={handleCaptureSessionDateChange}
+              onClick={(e) => tryShowPicker(e.currentTarget)}
               className="absolute inset-0 z-10 h-full min-h-[3.75rem] w-full cursor-pointer opacity-0"
               style={{ fontSize: 16 }}
               aria-label="Change session date"

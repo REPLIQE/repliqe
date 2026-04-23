@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "firebase": "firebase",
-    "storage:cors": "gcloud storage buckets update gs://repliqe-710d2.firebasestorage.app --cors-file=storage-cors.json"
+    "storage:cors": "gcloud storage buckets update gs://repliqe-710d2.firebasestorage.app --cors-file=storage-cors.json",
+    "seed:demo": "node functions/tools/seedDemoUser.js"
   },
   "dependencies": {
     "@capacitor-community/keep-awake": "^8.0.1",
